@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE Gore System Comparison Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            overflow: hidden;
+        }
+
+        #renderCanvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            max-width: 400px;
+            z-index: 100;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group h3 {
+            color: #ff6600;
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #ff6600;
+            padding-bottom: 5px;
+        }
+
+        button {
+            background: #2a2a2a;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-radius: 5px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #00ff00;
+            color: #000;
+            transform: scale(1.05);
+        }
+
+        button.active {
+            background: #ff6600;
+            border-color: #ff6600;
+            color: #000;
+        }
+
+        button.weapon {
+            width: calc(50% - 10px);
+        }
+
+        .toggle-button {
+            width: 100%;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .stats {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            min-width: 300px;
+            z-index: 100;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px;
+            border-bottom: 1px solid #333;
+        }
+
+        .stat-label {
+            color: #888;
+        }
+
+        .stat-value {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .system-indicator {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .system-verlet {
+            background: linear-gradient(90deg, #ff6600, #ff3300);
+            color: #000;
+        }
+
+        .system-traditional {
+            background: linear-gradient(90deg, #00ff00, #00cc00);
+            color: #000;
+        }
+
+        .instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 30px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+        }
+
+        .instructions p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .comparison-notes {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 102, 0, 0.1);
+            border: 1px solid #ff6600;
+            border-radius: 5px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .comparison-notes h4 {
+            color: #ff6600;
+            margin-bottom: 5px;
+        }
+
+        .slider-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .slider-control label {
+            flex: 1;
+            color: #888;
+        }
+
+        .slider-control input {
+            flex: 2;
+        }
+
+        .slider-control .value {
+            width: 40px;
+            text-align: right;
+            color: #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+
+    <div class="controls">
+        <div class="system-indicator" id="systemIndicator">
+            VERLET PHYSICS MODE
+        </div>
+
+        <div class="control-group">
+            <h3>⚙️ SYSTEM</h3>
+            <button class="toggle-button" id="toggleSystem">
+                SWITCH TO TRADITIONAL
+            </button>
+        </div>
+
+        <div class="control-group">
+            <h3>🎯 SPAWN TEST GIB</h3>
+            <button onclick="spawnGib('chunk')">Chunk</button>
+            <button onclick="spawnGib('limb')">Limb</button>
+            <button onclick="spawnGib('organ')">Organ</button>
+        </div>
+
+        <div class="control-group">
+            <h3>🔫 WEAPONS</h3>
+            <button class="weapon" onclick="testWeapon('blade')">⚔️ Blade Cut</button>
+            <button class="weapon" onclick="testWeapon('bullet')">🔫 Bullet</button>
+            <button class="weapon" onclick="testWeapon('explosion')">💣 Explosion</button>
+            <button class="weapon" onclick="testWeapon('shotgun')">💥 Shotgun</button>
+            <button class="weapon" onclick="testWeapon('crush')">🦶 Crush</button>
+            <button class="weapon" onclick="testWeapon('spray')">🔫 Auto-Fire</button>
+        </div>
+
+        <div class="control-group">
+            <h3>🎮 QUICK TESTS</h3>
+            <button onclick="runComparison()">Side-by-Side Test</button>
+            <button onclick="clearGore()">Clear All</button>
+        </div>
+
+        <div class="comparison-notes">
+            <h4>📊 WHAT TO LOOK FOR:</h4>
+            <strong>Verlet Physics:</strong>
+            • Soft-body deformation<br>
+            • Realistic tearing<br>
+            • Constraint-based damage<br>
+            • More CPU intensive<br><br>
+            
+            <strong>Traditional:</strong>
+            • Rigid particle physics<br>
+            • Faster performance<br>
+            • Simpler collisions<br>
+            • Lower overhead
+        </div>
+    </div>
+
+    <div class="stats">
+        <h3 style="color: #ff6600; margin-bottom: 15px;">📈 PERFORMANCE</h3>
+        <div class="stat-row">
+            <span class="stat-label">FPS:</span>
+            <span class="stat-value" id="fps">60</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Verlet Gibs:</span>
+            <span class="stat-value" id="verletCount">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Verlet Points:</span>
+            <span class="stat-value" id="verletPoints">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Constraints:</span>
+            <span class="stat-value" id="constraints">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Traditional Gibs:</span>
+            <span class="stat-value" id="tradGibs">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Blood Particles:</span>
+            <span class="stat-value" id="bloodCount">0</span>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <p><strong>CLICK</strong> anywhere to fire current weapon</p>
+        <p><strong>DRAG</strong> to rotate camera | <strong>SCROLL</strong> to zoom</p>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ===================================
+        // MOCK ENGINE (Simplified for testing)
+        // ===================================
+        class MockEngine {
+            constructor() {
+                this.canvas = document.getElementById('renderCanvas');
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x1a1a1a);
+                
+                this.camera = new THREE.PerspectiveCamera(
+                    75,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000
+                );
+                this.camera.position.set(5, 5, 5);
+                
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: this.canvas,
+                    antialias: true 
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                
+                this.controls = new OrbitControls(this.camera, this.canvas);
+                this.controls.target.set(0, 2, 0);
+                this.controls.update();
+                
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0x404040, 2);
+                this.scene.add(ambientLight);
+                
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+                dirLight.position.set(5, 10, 5);
+                dirLight.castShadow = true;
+                this.scene.add(dirLight);
+                
+                // Ground
+                const groundGeo = new THREE.PlaneGeometry(50, 50);
+                const groundMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x2a2a2a,
+                    roughness: 0.8
+                });
+                const ground = new THREE.Mesh(groundGeo, groundMat);
+                ground.rotation.x = -Math.PI / 2;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+                
+                // Grid
+                const gridHelper = new THREE.GridHelper(50, 50, 0x00ff00, 0x003300);
+                this.scene.add(gridHelper);
+                
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+            
+            getTerrainHeight(x, z) {
+                return 0;
+            }
+        }
+
+        // ===================================
+        // SIMPLIFIED GORE SYSTEMS
+        // ===================================
+        
+        // Mock traditional gore (simplified)
+        class MockTraditionalGore {
+            constructor(engine) {
+                this.engine = engine;
+                this.gibs = [];
+                this.blood = [];
+            }
+            
+            createArterialSpray(position, direction, intensity) {
+                for (let i = 0; i < intensity * 10; i++) {
+                    const bloodGeo = new THREE.SphereGeometry(0.05);
+                    const bloodMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                    const blood = new THREE.Mesh(bloodGeo, bloodMat);
+                    
+                    blood.position.copy(position);
+                    blood.velocity = direction.clone()
+                        .multiplyScalar(Math.random() * 2)
+                        .add(new THREE.Vector3(
+                            (Math.random() - 0.5) * 0.5,
+                            Math.random(),
+                            (Math.random() - 0.5) * 0.5
+                        ));
+                    blood.lifetime = 100;
+                    
+                    this.engine.scene.add(blood);
+                    this.blood.push(blood);
+                }
+            }
+            
+            createGibs(position, velocity, count) {
+                for (let i = 0; i < count; i++) {
+                    const gibGeo = new THREE.BoxGeometry(0.3, 0.2, 0.2);
+                    const gibMat = new THREE.MeshStandardMaterial({ color: 0x8B0000 });
+                    const gib = new THREE.Mesh(gibGeo, gibMat);
+                    
+                    gib.position.copy(position);
+                    gib.velocity = velocity.clone()
+                        .add(new THREE.Vector3(
+                            (Math.random() - 0.5) * 2,
+                            Math.random() * 2,
+                            (Math.random() - 0.5) * 2
+                        ));
+                    gib.rotationVelocity = new THREE.Vector3(
+                        Math.random() * 0.2,
+                        Math.random() * 0.2,
+                        Math.random() * 0.2
+                    );
+                    gib.lifetime = 500;
+                    
+                    this.engine.scene.add(gib);
+                    this.gibs.push(gib);
+                }
+            }
+            
+            update() {
+                // Update blood
+                for (let i = this.blood.length - 1; i >= 0; i--) {
+                    const blood = this.blood[i];
+                    blood.lifetime--;
+                    
+                    if (blood.lifetime <= 0) {
+                        this.engine.scene.remove(blood);
+                        this.blood.splice(i, 1);
+                        continue;
+                    }
+                    
+                    blood.position.add(blood.velocity);
+                    blood.velocity.y -= 0.015;
+                    
+                    if (blood.position.y < 0.05) {
+                        blood.position.y = 0.05;
+                        blood.velocity.multiplyScalar(0.3);
+                    }
+                }
+                
+                // Update gibs
+                for (let i = this.gibs.length - 1; i >= 0; i--) {
+                    const gib = this.gibs[i];
+                    gib.lifetime--;
+                    
+                    if (gib.lifetime <= 0) {
+                        this.engine.scene.remove(gib);
+                        this.gibs.splice(i, 1);
+                        continue;
+                    }
+                    
+                    gib.position.add(gib.velocity);
+                    gib.velocity.y -= 0.015;
+                    gib.rotation.x += gib.rotationVelocity.x;
+                    gib.rotation.y += gib.rotationVelocity.y;
+                    gib.rotation.z += gib.rotationVelocity.z;
+                    
+                    if (gib.position.y < 0.2) {
+                        gib.position.y = 0.2;
+                        gib.velocity.multiplyScalar(0.4);
+                    }
+                }
+            }
+            
+            clear() {
+                for (let blood of this.blood) {
+                    this.engine.scene.remove(blood);
+                }
+                for (let gib of this.gibs) {
+                    this.engine.scene.remove(gib);
+                }
+                this.blood = [];
+                this.gibs = [];
+            }
+        }
+
+        // Import the Verlet system (inline for demo)
+        // In production, you'd import from your actual module
+        // For now, we'll create a simplified version
+
+        class SimpleVerletPoint {
+            constructor(x, y, z, pinned = false) {
+                this.position = new THREE.Vector3(x, y, z);
+                this.prevPosition = this.position.clone();
+                this.acceleration = new THREE.Vector3(0, 0, 0);
+                this.pinned = pinned;
+            }
+
+            update(dt = 1.0, damping = 0.99) {
+                if (this.pinned) return;
+                const velocity = this.position.clone().sub(this.prevPosition).multiplyScalar(damping);
+                this.prevPosition.copy(this.position);
+                this.position.add(velocity).add(this.acceleration.clone().multiplyScalar(dt * dt));
+                this.acceleration.set(0, 0, 0);
+            }
+
+            applyForce(force) {
+                if (this.pinned) return;
+                this.acceleration.add(force);
+            }
+        }
+
+        class SimpleVerletConstraint {
+            constructor(pointA, pointB, stiffness = 0.9, tearThreshold = 2.0) {
+                this.a = pointA;
+                this.b = pointB;
+                this.restLength = pointA.position.distanceTo(pointB.position);
+                this.stiffness = stiffness;
+                this.tearThreshold = tearThreshold;
+                this.torn = false;
+            }
+
+            solve() {
+                if (this.torn) return null;
+
+                const delta = this.b.position.clone().sub(this.a.position);
+                const dist = delta.length();
+
+                if (dist > this.restLength * this.tearThreshold) {
+                    this.torn = true;
+                    return this.a.position.clone().add(this.b.position).multiplyScalar(0.5);
+                }
+
+                const diff = (dist - this.restLength) / dist;
+                const correction = delta.multiplyScalar(0.5 * this.stiffness * diff);
+
+                if (!this.a.pinned) this.a.position.add(correction);
+                if (!this.b.pinned) this.b.position.sub(correction);
+
+                return null;
+            }
+        }
+
+        class SimpleVerletGib {
+            constructor(position, size = 1.0) {
+                this.position = position.clone();
+                this.points = [];
+                this.constraints = [];
+                this.lifetime = 1000;
+                this.mesh = null;
+                
+                this._createStructure(size);
+            }
+            
+            _createStructure(size) {
+                const gridSize = 3;
+                const spacing = size / gridSize;
+                
+                for (let x = 0; x < gridSize; x++) {
+                    for (let y = 0; y < gridSize; y++) {
+                        for (let z = 0; z < gridSize; z++) {
+                            const point = new SimpleVerletPoint(
+                                this.position.x + (x - gridSize/2) * spacing,
+                                this.position.y + (y - gridSize/2) * spacing,
+                                this.position.z + (z - gridSize/2) * spacing
+                            );
+                            this.points.push(point);
+                        }
+                    }
+                }
+                
+                for (let i = 0; i < this.points.length; i++) {
+                    for (let j = i + 1; j < this.points.length; j++) {
+                        const dist = this.points[i].position.distanceTo(this.points[j].position);
+                        if (dist < spacing * 1.5) {
+                            this.constraints.push(new SimpleVerletConstraint(
+                                this.points[i],
+                                this.points[j],
+                                0.8,
+                                1.6
+                            ));
+                        }
+                    }
+                }
+            }
+            
+            update() {
+                for (let point of this.points) {
+                    point.applyForce(new THREE.Vector3(0, -0.98, 0));
+                    point.update(1.0, 0.98);
+                    
+                    if (point.position.y < 0.1) {
+                        point.position.y = 0.1;
+                        const vel = point.position.clone().sub(point.prevPosition);
+                        vel.y *= -0.2;
+                        vel.x *= 0.7;
+                        vel.z *= 0.7;
+                        point.prevPosition.copy(point.position.clone().sub(vel));
+                    }
+                }
+                
+                const tearPoints = [];
+                for (let iteration = 0; iteration < 3; iteration++) {
+                    for (let constraint of this.constraints) {
+                        const result = constraint.solve();
+                        if (result && tearPoints.length < 5) {
+                            tearPoints.push(result);
+                        }
+                    }
+                }
+                
+                this.lifetime--;
+                return tearPoints;
+            }
+            
+            applyForce(force, position, radius) {
+                for (let point of this.points) {
+                    const dist = point.position.distanceTo(position);
+                    if (dist < radius) {
+                        const falloff = 1 - (dist / radius);
+                        point.applyForce(force.clone().multiplyScalar(falloff));
+                    }
+                }
+            }
+        }
+
+        class SimpleVerletGoreSystem {
+            constructor(engine, traditionalGore) {
+                this.engine = engine;
+                this.traditionalGore = traditionalGore;
+                this.verletGibs = [];
+            }
+            
+            createVerletGib(position, velocity, type, size) {
+                const gib = new SimpleVerletGib(position, size);
+                
+                for (let point of gib.points) {
+                    const offset = point.position.clone().sub(position).multiplyScalar(0.1);
+                    const initialVel = velocity.clone().add(offset);
+                    point.prevPosition.copy(point.position.clone().sub(initialVel));
+                }
+                
+                // Create visual
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(gib.points.length * 3);
+                
+                for (let i = 0; i < gib.points.length; i++) {
+                    positions[i * 3] = gib.points[i].position.x;
+                    positions[i * 3 + 1] = gib.points[i].position.y;
+                    positions[i * 3 + 2] = gib.points[i].position.z;
+                }
+                
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                
+                const indices = [];
+                for (let i = 0; i < gib.points.length - 2; i++) {
+                    indices.push(0, i + 1, i + 2);
+                }
+                geometry.setIndex(indices);
+                geometry.computeVertexNormals();
+
+                const material = new THREE.MeshStandardMaterial({
+                    color: 0x8B0000,
+                    roughness: 0.9
+                });
+
+                gib.mesh = new THREE.Mesh(geometry, material);
+                this.engine.scene.add(gib.mesh);
+                
+                this.verletGibs.push(gib);
+                return gib;
+            }
+            
+            applyBladeCut(position, direction, force, width) {
+                for (let gib of this.verletGibs) {
+                    gib.applyForce(direction.clone().multiplyScalar(force), position, width * 2);
+                }
+            }
+            
+            applyBulletImpact(position, direction, force, caliber) {
+                for (let gib of this.verletGibs) {
+                    const entryForce = direction.clone().multiplyScalar(force);
+                    gib.applyForce(entryForce, position, caliber);
+                }
+            }
+            
+            applyExplosion(position, force, radius) {
+                for (let gib of this.verletGibs) {
+                    for (let point of gib.points) {
+                        const dist = point.position.distanceTo(position);
+                        if (dist < radius) {
+                            const direction = point.position.clone().sub(position).normalize();
+                            const falloff = 1 - (dist / radius);
+                            point.applyForce(direction.multiplyScalar(force * falloff * falloff));
+                        }
+                    }
+                }
+            }
+            
+            update() {
+                for (let i = this.verletGibs.length - 1; i >= 0; i--) {
+                    const gib = this.verletGibs[i];
+                    const tearPoints = gib.update();
+                    
+                    // Create blood at tear points
+                    for (let tearPoint of tearPoints) {
+                        if (this.traditionalGore) {
+                            this.traditionalGore.createArterialSpray(
+                                tearPoint,
+                                new THREE.Vector3(
+                                    Math.random() - 0.5,
+                                    Math.random(),
+                                    Math.random() - 0.5
+                                ),
+                                1
+                            );
+                        }
+                    }
+                    
+                    // Update visuals
+                    if (gib.mesh) {
+                        const positions = gib.mesh.geometry.attributes.position.array;
+                        for (let j = 0; j < gib.points.length; j++) {
+                            positions[j * 3] = gib.points[j].position.x;
+                            positions[j * 3 + 1] = gib.points[j].position.y;
+                            positions[j * 3 + 2] = gib.points[j].position.z;
+                        }
+                        gib.mesh.geometry.attributes.position.needsUpdate = true;
+                        gib.mesh.geometry.computeVertexNormals();
+                    }
+                    
+                    if (gib.lifetime <= 0) {
+                        if (gib.mesh) {
+                            this.engine.scene.remove(gib.mesh);
+                        }
+                        this.verletGibs.splice(i, 1);
+                    }
+                }
+            }
+            
+            clear() {
+                for (let gib of this.verletGibs) {
+                    if (gib.mesh) {
+                        this.engine.scene.remove(gib.mesh);
+                    }
+                }
+                this.verletGibs = [];
+            }
+        }
+
+        // ===================================
+        // MAIN APP
+        // ===================================
+        const engine = new MockEngine();
+        const traditionalGore = new MockTraditionalGore(engine);
+        const verletGore = new SimpleVerletGoreSystem(engine, traditionalGore);
+        
+        let useVerlet = true;
+        let currentWeapon = 'blade';
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fpsUpdateTime = 0;
+
+        // Update UI
+        function updateUI() {
+            const indicator = document.getElementById('systemIndicator');
+            const toggleBtn = document.getElementById('toggleSystem');
+            
+            if (useVerlet) {
+                indicator.textContent = 'VERLET PHYSICS MODE';
+                indicator.className = 'system-indicator system-verlet';
+                toggleBtn.textContent = 'SWITCH TO TRADITIONAL';
+            } else {
+                indicator.textContent = 'TRADITIONAL PHYSICS MODE';
+                indicator.className = 'system-indicator system-traditional';
+                toggleBtn.textContent = 'SWITCH TO VERLET';
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            let verletPoints = 0;
+            let constraints = 0;
+            for (let gib of verletGore.verletGibs) {
+                verletPoints += gib.points.length;
+                constraints += gib.constraints.length;
+            }
+            
+            document.getElementById('verletCount').textContent = verletGore.verletGibs.length;
+            document.getElementById('verletPoints').textContent = verletPoints;
+            document.getElementById('constraints').textContent = constraints;
+            document.getElementById('tradGibs').textContent = traditionalGore.gibs.length;
+            document.getElementById('bloodCount').textContent = traditionalGore.blood.length;
+        }
+
+        // Spawn test gib
+        window.spawnGib = function(type) {
+            const pos = new THREE.Vector3(
+                (Math.random() - 0.5) * 4,
+                4 + Math.random() * 2,
+                (Math.random() - 0.5) * 4
+            );
+            const vel = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                Math.random() * 2,
+                (Math.random() - 0.5) * 2
+            );
+            
+            if (useVerlet) {
+                verletGore.createVerletGib(pos, vel, type, 0.8);
+            } else {
+                traditionalGore.createGibs(pos, vel, 5);
+            }
+        };
+
+        // Test weapon
+        window.testWeapon = function(weaponType) {
+            currentWeapon = weaponType;
+            
+            // Spawn a target if none exist
+            if (verletGore.verletGibs.length === 0 && traditionalGore.gibs.length === 0) {
+                spawnGib('chunk');
+            }
+            
+            // Apply weapon effect to center
+            const target = new THREE.Vector3(0, 2, 0);
+            applyWeaponEffect(weaponType, target);
+        };
+
+        function applyWeaponEffect(weaponType, position) {
+            const direction = new THREE.Vector3(
+                Math.random() - 0.5,
+                Math.random() - 0.5,
+                Math.random() - 0.5
+            ).normalize();
+            
+            if (useVerlet) {
+                switch(weaponType) {
+                    case 'blade':
+                        verletGore.applyBladeCut(position, direction, 5.0, 0.5);
+                        break;
+                    case 'bullet':
+                        verletGore.applyBulletImpact(position, direction, 15.0, 0.2);
+                        break;
+                    case 'explosion':
+                        verletGore.applyExplosion(position, 20.0, 3.0);
+                        break;
+                    case 'shotgun':
+                        for (let i = 0; i < 8; i++) {
+                            const spreadDir = direction.clone();
+                            spreadDir.x += (Math.random() - 0.5) * 0.3;
+                            spreadDir.y += (Math.random() - 0.5) * 0.3;
+                            spreadDir.z += (Math.random() - 0.5) * 0.3;
+                            spreadDir.normalize();
+                            verletGore.applyBulletImpact(position, spreadDir, 10.0, 0.1);
+                        }
+                        break;
+                    case 'crush':
+                        verletGore.applyExplosion(position, 8.0, 0.8);
+                        break;
+                    case 'spray':
+                        setInterval(() => {
+                            verletGore.applyBulletImpact(position, direction, 12.0, 0.15);
+                        }, 100);
+                        setTimeout(() => clearInterval(), 1000);
+                        break;
+                }
+            } else {
+                // Traditional gore just creates particles
+                traditionalGore.createArterialSpray(position, direction, 2);
+            }
+        }
+
+        // Click to fire
+        engine.canvas.addEventListener('click', (e) => {
+            const rect = engine.canvas.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(x, y), engine.camera);
+            
+            const intersects = raycaster.intersectObjects(engine.scene.children, true);
+            if (intersects.length > 0) {
+                applyWeaponEffect(currentWeapon, intersects[0].point);
+            }
+        });
+
+        // Toggle system
+        document.getElementById('toggleSystem').addEventListener('click', () => {
+            useVerlet = !useVerlet;
+            updateUI();
+        });
+
+        // Clear
+        window.clearGore = function() {
+            verletGore.clear();
+            traditionalGore.clear();
+        };
+
+        // Run comparison
+        window.runComparison = function() {
+            clearGore();
+            
+            // Spawn test subjects
+            for (let i = 0; i < 3; i++) {
+                spawnGib('chunk');
+            }
+            
+            // Apply various weapons
+            setTimeout(() => testWeapon('blade'), 500);
+            setTimeout(() => testWeapon('bullet'), 1000);
+            setTimeout(() => testWeapon('explosion'), 1500);
+        };
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const currentTime = performance.now();
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            
+            // FPS calculation
+            frameCount++;
+            fpsUpdateTime += deltaTime;
+            if (fpsUpdateTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                fpsUpdateTime = 0;
+            }
+            
+            // Update gore systems
+            if (useVerlet) {
+                verletGore.update();
+            }
+            traditionalGore.update();
+            
+            updateStats();
+            engine.controls.update();
+            engine.renderer.render(engine.scene, engine.camera);
+        }
+
+        updateUI();
+        animate();
+
+        console.log('🧪 Gore Comparison Test loaded!');
+        console.log('Click buttons to spawn gibs and test weapons');
+    </script>
+</body>
+</html>

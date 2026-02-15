@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>APPLESAUCE - Chunked Terrain v2 (Tri-Planar + Unified Heights)</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000;
+            font-family: 'Courier New', monospace; 
+        }
+        #renderCanvas { 
+            width: 100%; 
+            height: 100%; 
+            display: block; 
+        }
+        
+        #hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #00FF00;
+            font-size: 14px;
+            text-shadow: 2px 2px 4px #000;
+            pointer-events: none;
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border: 2px solid #0f0;
+        }
+        
+        #hud div { margin: 5px 0; }
+        .title { 
+            color: #ff0; 
+            font-size: 16px; 
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px #ff0;
+        }
+        
+        #info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            color: #FFF;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border: 2px solid #00FF00;
+            font-size: 12px;
+            z-index: 100;
+            max-width: 260px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="hud">
+        <div class="title">🏔️ TERRAIN v2 — TRI-PLANAR</div>
+        <div>Mode: <span id="terrain-mode">LOADING...</span></div>
+        <div>Biome: <span id="current-biome">N/A</span></div>
+        <div>Pos: <span id="position">(0, 0, 0)</span></div>
+        <div>Height: <span id="height">0</span></div>
+        <div>Speed: <span id="speed">0</span></div>
+        <div>Foliage: <span id="foliage-count">0</span></div>
+        <div>Destroyed: <span id="destroyed">0</span></div>
+        <div>Chunk: <span id="chunk-pos">(0, 0)</span></div>
+        <div>Structures: <span id="structure-count">0</span></div>
+    </div>
+    
+    <div id="info">
+        <strong>🎮 CONTROLS:</strong><br>
+        WASD - Move | SHIFT - Sprint<br>
+        SPACE - Jump | E - Destroy<br>
+        <br>
+        <strong>📍 BIOME MAP (7×7):</strong><br>
+        <span style="color:#90EE90">■</span> Meadow (center spawn)<br>
+        <span style="color:#7B9971">■</span> Procedural (inner ring)<br>
+        <span style="color:#8B7355">■</span> Valley (mid ring)<br>
+        <span style="color:#C8B280">■</span> Desert (SE quadrant)<br>
+        <span style="color:#5B7553">■</span> Swamp (NW quadrant)<br>
+        <span style="color:#736B63">■</span> Mountains (border wall)<br>
+        <br>
+        <strong>🏗️ v2 UPGRADES:</strong><br>
+        • Tri-planar texture mapping<br>
+        • Seamless chunk edges (unified heights)<br>
+        • 200-unit biomes with structures<br>
+        • Town generation in meadow<br>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    <!-- Materials library for TriPlanarMaterial -->
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const CONFIG = {
+            terrain: {
+                mode: 'chunked',
+                // v2: LARGER chunks = biome-scale regions
+                chunkSize: 200,
+                chunkResolution: 60,
+                // Blend zone: fraction of chunk that blends with neighbors
+                // 0.15 of 200 = 30 unit blend zone on each side
+                blendRatio: 0.15,
+                // Tri-planar texture tile size (world units per tile)
+                tileSize: 8,
+                // 7×7 world layout — each cell is a 200×200 biome
+                layout: [
+                    ['mountain_range', 'mountain_range', 'mountain_range', 'mountain_range', 'mountain_range', 'mountain_range', 'mountain_range'],
+                    ['mountain_range', 'swamp',          'valley',         'procedural',     'valley',         'desert',         'mountain_range'],
+                    ['mountain_range', 'valley',          'procedural',     'flat',           'procedural',     'valley',         'mountain_range'],
+                    ['mountain_range', 'procedural',      'flat',           'flat',           'flat',           'procedural',     'mountain_range'],
+                    ['mountain_range', 'valley',          'procedural',     'flat',           'procedural',     'valley',         'mountain_range'],
+                    ['mountain_range', 'desert',          'valley',         'procedural',     'valley',         'swamp',          'mountain_range'],
+                    ['mountain_range', 'mountain_range', 'mountain_range', 'mountain_range', 'mountain_range', 'mountain_range', 'mountain_range']
+                ]
+            },
+            foliage: {
+                chunkSize: 50,
+                renderDistance: 3,
+                physicsDistance: 1,
+                destructionRadius: 8
+            },
+            biomes: {} // Populated after BABYLON is available
+        };
+
+        // ==========================================
+        // PROCEDURAL TEXTURE GENERATOR
+        // ==========================================
+        // Since we can't load external images, we generate
+        // canvas-based textures for each biome's tri-planar material.
+        
+        class ProceduralTextures {
+            static createCanvasTexture(scene, name, width, height, drawFn) {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                drawFn(ctx, width, height);
+                
+                const tex = new BABYLON.DynamicTexture(name, { width, height }, scene, true);
+                const texCtx = tex.getContext();
+                texCtx.drawImage(canvas, 0, 0);
+                tex.update();
+                return tex;
+            }
+            
+            // -- Grass: green with variation --
+            static grass(scene) {
+                return this.createCanvasTexture(scene, 'grassTex', 256, 256, (ctx, w, h) => {
+                    ctx.fillStyle = '#5a8c3c';
+                    ctx.fillRect(0, 0, w, h);
+                    for (let i = 0; i < 3000; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const g = 80 + Math.random() * 80;
+                        ctx.fillStyle = `rgb(${40 + Math.random() * 30}, ${g}, ${20 + Math.random() * 30})`;
+                        ctx.fillRect(x, y, 2 + Math.random() * 3, 1);
+                    }
+                    // Subtle blade lines
+                    ctx.strokeStyle = 'rgba(30, 80, 20, 0.3)';
+                    for (let i = 0; i < 200; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x + (Math.random() - 0.5) * 4, y - 6 - Math.random() * 8);
+                        ctx.stroke();
+                    }
+                });
+            }
+            
+            // -- Dirt/rock: brown with grain --
+            static rock(scene) {
+                return this.createCanvasTexture(scene, 'rockTex', 256, 256, (ctx, w, h) => {
+                    ctx.fillStyle = '#6b5d4f';
+                    ctx.fillRect(0, 0, w, h);
+                    for (let i = 0; i < 5000; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const v = 70 + Math.random() * 50;
+                        ctx.fillStyle = `rgb(${v}, ${v * 0.85}, ${v * 0.7})`;
+                        ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+                    }
+                    // Crack lines
+                    ctx.strokeStyle = 'rgba(40, 35, 30, 0.4)';
+                    ctx.lineWidth = 1;
+                    for (let i = 0; i < 30; i++) {
+                        ctx.beginPath();
+                        let x = Math.random() * w, y = Math.random() * h;
+                        ctx.moveTo(x, y);
+                        for (let s = 0; s < 5; s++) {
+                            x += (Math.random() - 0.5) * 20;
+                            y += (Math.random() - 0.5) * 20;
+                            ctx.lineTo(x, y);
+                        }
+                        ctx.stroke();
+                    }
+                });
+            }
+            
+            // -- Sand: warm beige with grains --
+            static sand(scene) {
+                return this.createCanvasTexture(scene, 'sandTex', 256, 256, (ctx, w, h) => {
+                    ctx.fillStyle = '#c8b280';
+                    ctx.fillRect(0, 0, w, h);
+                    for (let i = 0; i < 8000; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const v = 160 + Math.random() * 60;
+                        ctx.fillStyle = `rgb(${v}, ${v * 0.88}, ${v * 0.62})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                    // Wind ripples
+                    ctx.strokeStyle = 'rgba(150, 130, 90, 0.2)';
+                    for (let y = 0; y < h; y += 8 + Math.random() * 6) {
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        for (let x = 0; x < w; x += 10) {
+                            ctx.lineTo(x, y + Math.sin(x * 0.05) * 2);
+                        }
+                        ctx.stroke();
+                    }
+                });
+            }
+            
+            // -- Mountain stone: grey with rough grain --
+            static mountain(scene) {
+                return this.createCanvasTexture(scene, 'mountainTex', 256, 256, (ctx, w, h) => {
+                    ctx.fillStyle = '#6b6560';
+                    ctx.fillRect(0, 0, w, h);
+                    for (let i = 0; i < 6000; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const v = 60 + Math.random() * 70;
+                        ctx.fillStyle = `rgb(${v}, ${v * 0.95}, ${v * 0.9})`;
+                        ctx.fillRect(x, y, 1 + Math.random() * 3, 1 + Math.random() * 3);
+                    }
+                    // Strata lines
+                    ctx.strokeStyle = 'rgba(50, 45, 42, 0.3)';
+                    ctx.lineWidth = 2;
+                    for (let i = 0; i < 15; i++) {
+                        const y = Math.random() * h;
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        ctx.lineTo(w, y + (Math.random() - 0.5) * 10);
+                        ctx.stroke();
+                    }
+                });
+            }
+            
+            // -- Swamp mud: dark green-brown --
+            static swamp(scene) {
+                return this.createCanvasTexture(scene, 'swampTex', 256, 256, (ctx, w, h) => {
+                    ctx.fillStyle = '#3d4a30';
+                    ctx.fillRect(0, 0, w, h);
+                    for (let i = 0; i < 4000; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const g = 40 + Math.random() * 50;
+                        ctx.fillStyle = `rgb(${g * 0.7}, ${g}, ${g * 0.6})`;
+                        ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+                    }
+                    // Water puddle patches
+                    ctx.fillStyle = 'rgba(30, 50, 40, 0.3)';
+                    for (let i = 0; i < 20; i++) {
+                        ctx.beginPath();
+                        ctx.ellipse(Math.random() * w, Math.random() * h, 
+                            5 + Math.random() * 15, 3 + Math.random() * 8, 
+                            Math.random() * Math.PI, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            }
+            
+            // -- Valley: mixed green/brown --
+            static valley(scene) {
+                return this.createCanvasTexture(scene, 'valleyTex', 256, 256, (ctx, w, h) => {
+                    ctx.fillStyle = '#5a6b4a';
+                    ctx.fillRect(0, 0, w, h);
+                    for (let i = 0; i < 4000; i++) {
+                        const x = Math.random() * w;
+                        const y = Math.random() * h;
+                        const type = Math.random();
+                        if (type < 0.5) {
+                            const g = 70 + Math.random() * 60;
+                            ctx.fillStyle = `rgb(${g * 0.7}, ${g}, ${g * 0.5})`;
+                        } else {
+                            const v = 80 + Math.random() * 40;
+                            ctx.fillStyle = `rgb(${v}, ${v * 0.85}, ${v * 0.65})`;
+                        }
+                        ctx.fillRect(x, y, 1 + Math.random() * 2, 1 + Math.random() * 2);
+                    }
+                });
+            }
+        }
+
+        // ==========================================
+        // NOISE GENERATOR
+        // ==========================================
+        class NoiseGenerator {
+            constructor(seed = 12345) {
+                this.seed = seed;
+            }
+            
+            hash(x, y) {
+                let h = this.seed + x * 374761393 + y * 668265263;
+                h = (h ^ (h >> 13)) * 1274126177;
+                return (h ^ (h >> 16)) / 2147483648.0;
+            }
+            
+            noise(x, y) {
+                const xi = Math.floor(x);
+                const yi = Math.floor(y);
+                const xf = x - xi;
+                const yf = y - yi;
+                
+                const n00 = this.hash(xi, yi);
+                const n10 = this.hash(xi + 1, yi);
+                const n01 = this.hash(xi, yi + 1);
+                const n11 = this.hash(xi + 1, yi + 1);
+                
+                const u = xf * xf * (3 - 2 * xf);
+                const v = yf * yf * (3 - 2 * yf);
+                
+                const nx0 = n00 * (1 - u) + n10 * u;
+                const nx1 = n01 * (1 - u) + n11 * u;
+                
+                return nx0 * (1 - v) + nx1 * v;
+            }
+            
+            fractal(x, y, octaves = 4) {
+                let value = 0;
+                let amplitude = 1;
+                let frequency = 1;
+                let maxValue = 0;
+                
+                for (let i = 0; i < octaves; i++) {
+                    value += this.noise(x * frequency, y * frequency) * amplitude;
+                    maxValue += amplitude;
+                    amplitude *= 0.5;
+                    frequency *= 2;
+                }
+                
+                return value / maxValue;
+            }
+        }
+
+        // ==========================================
+        // TERRAIN SYSTEM (single-mesh fallback)
+        // ==========================================
+        class TerrainSystem {
+            constructor(scene, config) {
+                this.scene = scene;
+                this.config = config;
+                this.noise = new NoiseGenerator(42);
+                this.mesh = null;
+                this.heightData = [];
+            }
+            
+            generate(mode = 'procedural') {
+                const size = this.config.size || 500;
+                const resolution = this.config.resolution || 150;
+                
+                const ground = BABYLON.MeshBuilder.CreateGround("ground", {
+                    width: size, height: size,
+                    subdivisions: resolution, updatable: true
+                }, this.scene);
+                
+                const positions = ground.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+                
+                for (let i = 0; i < positions.length; i += 3) {
+                    const x = positions[i];
+                    const z = positions[i + 2];
+                    const height = this.calculateHeight(x, z, mode);
+                    positions[i + 1] = height;
+                }
+                
+                ground.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+                ground.createNormals(true);
+                
+                const material = new BABYLON.StandardMaterial("terrainMat", this.scene);
+                material.diffuseColor = new BABYLON.Color3(0.4, 0.5, 0.35);
+                material.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+                ground.material = material;
+                ground.receiveShadow = true;
+                
+                this.mesh = ground;
+                return ground;
+            }
+            
+            calculateHeight(x, z, mode) {
+                if (mode === 'flat') return this.noise.fractal(x * 0.01, z * 0.01, 2) * 2;
+                let h = this.noise.fractal(x * 0.01, z * 0.01, 4) * 15;
+                h += this.noise.fractal(x * 0.05, z * 0.05, 2) * 3;
+                return h;
+            }
+            
+            getHeight(x, z) {
+                const ray = new BABYLON.Ray(
+                    new BABYLON.Vector3(x, 100, z),
+                    new BABYLON.Vector3(0, -1, 0)
+                );
+                const hit = this.scene.pickWithRay(ray, (mesh) => mesh === this.mesh);
+                return (hit && hit.hit) ? hit.pickedPoint.y : 0;
+            }
+            
+            getBiomeAtPosition(x, z) {
+                const distance = Math.sqrt(x * x + z * z);
+                if (distance < 80) return 'meadow';
+                if (distance < 160) return 'forest';
+                return 'mountain';
+            }
+        }
+
+        // ==========================================
+        // CHUNKED TERRAIN SYSTEM v2
+        // ==========================================
+        // KEY FIX: Unified world-space height function.
+        //
+        // The v1 bug: each chunk blended toward its neighbor independently,
+        // producing DIFFERENT heights at the shared edge.
+        //   Chunk A edge: lerp(mountainH, flatH, 1.0) = flatH
+        //   Chunk B edge: lerp(flatH, mountainH, 1.0) = mountainH  ← WRONG
+        //
+        // v2 fix: getUnifiedHeight(wx, wz) computes blend factors relative
+        // to the BOUNDARY LINE between chunks, not relative to each chunk's
+        // own edge. Both chunks asking for the same world point get the
+        // same answer. Seams gone.
+        //
+        // Additionally: TriPlanarMaterial projects textures in world space,
+        // so texture coordinates are seamless across chunk boundaries too.
+        // ==========================================
+        
+        class ChunkedTerrainSystem {
+            constructor(scene, config) {
+                this.scene = scene;
+                this.config = config;
+                this.noise = new NoiseGenerator(42);
+                this.chunks = new Map();
+                this.allMeshes = [];
+                this.chunkModes = new Map();
+                
+                this.chunkSize = config.chunkSize || 200;
+                this.chunkResolution = config.chunkResolution || 60;
+                this.blendRatio = config.blendRatio || 0.15;
+                this.blendDist = this.chunkSize * this.blendRatio;
+                
+                // Pre-create tri-planar materials (shared across chunks of same biome)
+                this.triPlanarMaterials = {};
+                this._createTriPlanarMaterials();
+            }
+            
+            // ---- TRI-PLANAR MATERIAL SETUP ----
+            
+            _createTriPlanarMaterials() {
+                const tileSize = this.config.tileSize || 8;
+                
+                const biomeTextures = {
+                    flat:           { side: 'grass',    top: 'grass',    label: 'Meadow' },
+                    procedural:     { side: 'rock',     top: 'grass',    label: 'Procedural' },
+                    valley:         { side: 'valley',   top: 'valley',   label: 'Valley' },
+                    mountain_range: { side: 'mountain', top: 'mountain', label: 'Mountains' },
+                    desert:         { side: 'sand',     top: 'sand',     label: 'Desert' },
+                    swamp:          { side: 'swamp',    top: 'swamp',    label: 'Swamp' }
+                };
+                
+                // Generate all procedural textures once
+                const texCache = {};
+                const getOrCreate = (name) => {
+                    if (!texCache[name]) {
+                        texCache[name] = ProceduralTextures[name](this.scene);
+                    }
+                    return texCache[name];
+                };
+                
+                for (const [mode, texDef] of Object.entries(biomeTextures)) {
+                    const mat = new BABYLON.TriPlanarMaterial(`triplanar_${mode}`, this.scene);
+                    
+                    const sideTex = getOrCreate(texDef.side);
+                    const topTex = getOrCreate(texDef.top);
+                    
+                    // X axis (cliff faces looking east/west)
+                    mat.diffuseTextureX = sideTex;
+                    // Y axis (flat ground looking up)
+                    mat.diffuseTextureY = topTex;
+                    // Z axis (cliff faces looking north/south)
+                    mat.diffuseTextureZ = sideTex;
+                    
+                    mat.tileSize = tileSize;
+                    mat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
+                    
+                    // Fallback tint so material isn't pure white if textures fail
+                    const fallbackColors = {
+                        flat:           new BABYLON.Color3(0.35, 0.55, 0.30),
+                        procedural:     new BABYLON.Color3(0.40, 0.50, 0.35),
+                        valley:         new BABYLON.Color3(0.45, 0.50, 0.40),
+                        mountain_range: new BABYLON.Color3(0.45, 0.40, 0.38),
+                        desert:         new BABYLON.Color3(0.80, 0.70, 0.50),
+                        swamp:          new BABYLON.Color3(0.30, 0.40, 0.30)
+                    };
+                    mat.diffuseColor = fallbackColors[mode] || new BABYLON.Color3(0.5, 0.5, 0.5);
+                    
+                    this.triPlanarMaterials[mode] = mat;
+                }
+                
+                console.log('✅ Tri-planar materials created for all biomes');
+            }
+            
+            // ---- PUBLIC API ----
+            
+            generateFromLayout(layout) {
+                const rows = layout.length;
+                const cols = layout[0].length;
+                const halfR = Math.floor(rows / 2);
+                const halfC = Math.floor(cols / 2);
+                
+                // Pass 1: register ALL chunk modes
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        const cx = col - halfC;
+                        const cz = row - halfR;
+                        this.chunkModes.set(`${cx},${cz}`, layout[row][col]);
+                    }
+                }
+                
+                // Pass 2: generate geometry using unified height function
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        const cx = col - halfC;
+                        const cz = row - halfR;
+                        this.generateChunk(cx, cz, layout[row][col]);
+                    }
+                }
+                
+                console.log(`✅ Generated ${rows}×${cols} layout (${this.allMeshes.length} chunks, ${this.chunkSize}u each)`);
+                return this.allMeshes;
+            }
+            
+            generateGrid(gridSize = 3, mode = 'procedural') {
+                const half = Math.floor(gridSize / 2);
+                for (let cx = -half; cx <= half; cx++)
+                    for (let cz = -half; cz <= half; cz++)
+                        this.chunkModes.set(`${cx},${cz}`, mode);
+                for (let cx = -half; cx <= half; cx++)
+                    for (let cz = -half; cz <= half; cz++)
+                        this.generateChunk(cx, cz, mode);
+                console.log(`✅ Generated ${gridSize}×${gridSize} uniform grid`);
+                return this.allMeshes;
+            }
+            
+            // ---- UNIFIED HEIGHT FUNCTION ----
+            // This is the core v2 fix. Given any world-space point, it:
+            //   1. Determines the primary chunk
+            //   2. Checks distance to each of the 4 chunk boundaries
+            //   3. If within a blend zone, computes the SAME blend factor
+            //      regardless of which chunk is "asking"
+            //   4. Returns a single deterministic height
+            
+            getUnifiedHeight(wx, wz) {
+                const size = this.chunkSize;
+                const halfSize = size / 2;
+                const blend = this.blendDist;
+                
+                // Which chunk does this point belong to?
+                const cx = Math.round(wx / size);
+                const cz = Math.round(wz / size);
+                const primaryMode = this.chunkModes.get(`${cx},${cz}`) || 'procedural';
+                
+                // Start with the primary chunk's raw height
+                let height = this._calculateModeHeight(wx, wz, primaryMode);
+                
+                // Local position within the chunk
+                const localX = wx - cx * size;
+                const localZ = wz - cz * size;
+                
+                // Check each of the 4 boundaries.
+                // The boundary between chunk (cx) and (cx+1) is at worldX = (cx + 0.5) * size
+                // We measure distance from the boundary and map it to a symmetric blend.
+                
+                // +X boundary (between cx and cx+1)
+                const nxp = this.chunkModes.get(`${cx + 1},${cz}`);
+                if (nxp !== undefined && localX > halfSize - blend) {
+                    const boundaryX = (cx + 0.5) * size;
+                    const distFromBoundary = wx - boundaryX; // negative = in cx, positive = in cx+1
+                    // Map [-blend, +blend] → [0, 1]
+                    const t = this._smoothstep((distFromBoundary + blend) / (2 * blend));
+                    const neighborH = this._calculateModeHeight(wx, wz, nxp);
+                    height = this._lerp(height, neighborH, t);
+                }
+                
+                // -X boundary (between cx-1 and cx)
+                const nxn = this.chunkModes.get(`${cx - 1},${cz}`);
+                if (nxn !== undefined && localX < -halfSize + blend) {
+                    const boundaryX = (cx - 0.5) * size;
+                    const distFromBoundary = wx - boundaryX;
+                    // Here "our side" is positive, neighbor is negative
+                    const t = this._smoothstep((-distFromBoundary + blend) / (2 * blend));
+                    const neighborH = this._calculateModeHeight(wx, wz, nxn);
+                    height = this._lerp(height, neighborH, t);
+                }
+                
+                // +Z boundary
+                const nzp = this.chunkModes.get(`${cx},${cz + 1}`);
+                if (nzp !== undefined && localZ > halfSize - blend) {
+                    const boundaryZ = (cz + 0.5) * size;
+                    const distFromBoundary = wz - boundaryZ;
+                    const t = this._smoothstep((distFromBoundary + blend) / (2 * blend));
+                    const neighborH = this._calculateModeHeight(wx, wz, nzp);
+                    height = this._lerp(height, neighborH, t);
+                }
+                
+                // -Z boundary
+                const nzn = this.chunkModes.get(`${cx},${cz - 1}`);
+                if (nzn !== undefined && localZ < -halfSize + blend) {
+                    const boundaryZ = (cz - 0.5) * size;
+                    const distFromBoundary = wz - boundaryZ;
+                    const t = this._smoothstep((-distFromBoundary + blend) / (2 * blend));
+                    const neighborH = this._calculateModeHeight(wx, wz, nzn);
+                    height = this._lerp(height, neighborH, t);
+                }
+                
+                return height;
+            }
+            
+            // ---- CORE CHUNK GENERATION ----
+            
+            generateChunk(cx, cz, mode = 'procedural') {
+                const key = `${cx},${cz}`;
+                if (this.chunks.has(key)) return this.chunks.get(key);
+                
+                const size = this.chunkSize;
+                const res = this.chunkResolution;
+                const worldX = cx * size;
+                const worldZ = cz * size;
+                
+                const ground = BABYLON.MeshBuilder.CreateGround(
+                    `terrain_${key}`,
+                    { width: size, height: size, subdivisions: res, updatable: true },
+                    this.scene
+                );
+                
+                ground.position.x = worldX;
+                ground.position.z = worldZ;
+                
+                // Apply unified height to every vertex
+                const positions = ground.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+                
+                for (let i = 0; i < positions.length; i += 3) {
+                    const localX = positions[i];
+                    const localZ = positions[i + 2];
+                    const wx = localX + worldX;
+                    const wz = localZ + worldZ;
+                    
+                    // v2: unified height — same result regardless of which chunk asks
+                    positions[i + 1] = this.getUnifiedHeight(wx, wz);
+                }
+                
+                ground.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+                ground.createNormals(true);
+                
+                // v2: Tri-planar material (world-space texture projection — no UV seams)
+                const triMat = this.triPlanarMaterials[mode];
+                if (triMat) {
+                    ground.material = triMat;
+                } else {
+                    // Fallback to standard material
+                    const mat = new BABYLON.StandardMaterial(`terrainMat_${key}`, this.scene);
+                    mat.diffuseColor = this.getColorForMode(mode);
+                    mat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+                    ground.material = mat;
+                }
+                
+                ground.receiveShadow = true;
+                ground.metadata = {
+                    isTerrainChunk: true,
+                    cx, cz, mode,
+                    worldX, worldZ
+                };
+                
+                const chunk = { mesh: ground, cx, cz, mode, key };
+                this.chunks.set(key, chunk);
+                this.allMeshes.push(ground);
+                
+                return chunk;
+            }
+            
+            // ---- RAW MODE HEIGHTS (no blending — called by getUnifiedHeight) ----
+            
+            _calculateModeHeight(wx, wz, mode) {
+                switch (mode) {
+                    case 'flat': {
+                        // Gentle micro-undulation so it isn't dead-flat
+                        return this.noise.fractal(wx * 0.008, wz * 0.008, 2) * 3;
+                    }
+                    
+                    case 'procedural': {
+                        let h = 0;
+                        h += this.noise.fractal(wx * 0.008, wz * 0.008, 4) * 12;
+                        h += this.noise.fractal(wx * 0.04, wz * 0.04, 2) * 3;
+                        return h;
+                    }
+                    
+                    case 'valley': {
+                        let h = 0;
+                        const vx = Math.abs(wx) / 200;
+                        h += vx * vx * 20;
+                        h += (wz / 300) * (wz / 300) * 8;
+                        h += this.noise.fractal(wx * 0.015, wz * 0.015, 3) * 6;
+                        return Math.max(-6, h);
+                    }
+                    
+                    case 'mountain_range': {
+                        let h = 0;
+                        const distance = Math.sqrt(wx * wx + wz * wz);
+                        const baseFactor = Math.min(distance / 150, 1.0);
+                        h += Math.abs(wx) * 0.12 * baseFactor;
+                        h += Math.sin(wx * 0.04) * 10 * baseFactor;
+                        h += this.noise.fractal(wx * 0.025, wz * 0.025, 4) * 10;
+                        h += 5; // Base elevation so mountains never dip below neighbors
+                        return Math.max(-3, h);
+                    }
+                    
+                    case 'desert': {
+                        let h = 0;
+                        h += this.noise.fractal(wx * 0.006, wz * 0.006, 3) * 8;
+                        // Sand dune ridges
+                        h += Math.sin(wx * 0.015 + wz * 0.012) * 4;
+                        h += this.noise.fractal(wx * 0.03, wz * 0.03, 2) * 2;
+                        return Math.max(-1, h);
+                    }
+                    
+                    case 'swamp': {
+                        let h = 0;
+                        h += this.noise.fractal(wx * 0.008, wz * 0.008, 2) * 3;
+                        // Pockets of low-lying mud
+                        h += Math.sin(wx * 0.02) * Math.cos(wz * 0.02) * 2;
+                        h -= 1;
+                        return h;
+                    }
+                    
+                    default:
+                        return this.noise.fractal(wx * 0.01, wz * 0.01, 3) * 8;
+                }
+            }
+            
+            // ---- MATH HELPERS ----
+            
+            _smoothstep(t) {
+                t = Math.max(0, Math.min(1, t));
+                return t * t * (3 - 2 * t);
+            }
+            
+            _lerp(a, b, t) {
+                return a + (b - a) * t;
+            }
+            
+            // ---- QUERIES ----
+            
+            getHeight(x, z) {
+                // Fast path: use unified height function directly
+                // (matches the mesh geometry exactly)
+                return this.getUnifiedHeight(x, z);
+            }
+            
+            getBiomeAtPosition(x, z) {
+                const cx = Math.round(x / this.chunkSize);
+                const cz = Math.round(z / this.chunkSize);
+                const key = `${cx},${cz}`;
+                const chunk = this.chunks.get(key);
+                if (chunk) return chunk.mode;
+                return this.chunkModes.get(key) || 'unknown';
+            }
+            
+            getColorForMode(mode) {
+                const colors = {
+                    flat:           new BABYLON.Color3(0.3, 0.6, 0.3),
+                    procedural:     new BABYLON.Color3(0.4, 0.5, 0.35),
+                    valley:         new BABYLON.Color3(0.45, 0.5, 0.4),
+                    mountain_range: new BABYLON.Color3(0.45, 0.4, 0.35),
+                    desert:         new BABYLON.Color3(0.8, 0.7, 0.5),
+                    swamp:          new BABYLON.Color3(0.3, 0.4, 0.3)
+                };
+                return colors[mode] || colors.procedural;
+            }
+            
+            getModeForChunk(cx, cz) {
+                const dist = Math.sqrt(cx * cx + cz * cz);
+                if (dist < 1.5) return 'flat';
+                if (dist < 3) return 'procedural';
+                if (dist < 5) return 'valley';
+                return 'mountain_range';
+            }
+            
+            // ---- PHYSICS ----
+            
+            addPhysics() {
+                this.allMeshes.forEach(mesh => {
+                    if (!mesh.metadata.hasPhysics) {
+                        new BABYLON.PhysicsAggregate(
+                            mesh,
+                            BABYLON.PhysicsShapeType.MESH,
+                            { mass: 0, friction: 0.8 },
+                            this.scene
+                        );
+                        mesh.metadata.hasPhysics = true;
+                    }
+                });
+            }
+            
+            // ---- STREAMING ----
+            
+            updateAroundPosition(worldPos, renderDistance = 2) {
+                const pcx = Math.round(worldPos.x / this.chunkSize);
+                const pcz = Math.round(worldPos.z / this.chunkSize);
+                const activeKeys = new Set();
+                
+                for (let dx = -renderDistance; dx <= renderDistance; dx++) {
+                    for (let dz = -renderDistance; dz <= renderDistance; dz++) {
+                        const cx = pcx + dx;
+                        const cz = pcz + dz;
+                        const key = `${cx},${cz}`;
+                        activeKeys.add(key);
+                        
+                        if (!this.chunks.has(key)) {
+                            const mode = this.chunkModes.get(key) || this.getModeForChunk(cx, cz);
+                            this.chunkModes.set(key, mode);
+                            this.generateChunk(cx, cz, mode);
+                        }
+                    }
+                }
+                
+                for (const [key, chunk] of this.chunks) {
+                    if (!activeKeys.has(key)) {
+                        this.disposeChunk(key);
+                    }
+                }
+            }
+            
+            disposeChunk(key) {
+                const chunk = this.chunks.get(key);
+                if (!chunk) return;
+                const idx = this.allMeshes.indexOf(chunk.mesh);
+                if (idx > -1) this.allMeshes.splice(idx, 1);
+                chunk.mesh.dispose();
+                this.chunks.delete(key);
+            }
+            
+            dispose() {
+                for (const [key] of this.chunks) this.disposeChunk(key);
+            }
+        }
+        
+        // ==========================================
+        // FOLIAGE SYSTEM
+        // ==========================================
+        class FoliageSystem {
+            constructor(scene, terrain, config) {
+                this.scene = scene;
+                this.terrain = terrain;
+                this.config = config;
+                this.chunks = new Map();
+                this.instances = [];
+                this.physicsCache = new Map();
+                this.templates = {};
+                this.stats = { total: 0, destroyed: 0 };
+                
+                this.createTemplates();
+            }
+            
+            createTemplates() {
+                // Prairie grass
+                const prairieGrass = BABYLON.MeshBuilder.CreateCylinder("prairieGrass", {
+                    height: 1.5, diameterTop: 0.05, diameterBottom: 0.15, tessellation: 4
+                }, this.scene);
+                prairieGrass.position.y = -1000;
+                const prairieGrassMat = new BABYLON.StandardMaterial("prairieGrassMat", this.scene);
+                prairieGrassMat.diffuseColor = new BABYLON.Color3(0.6, 0.9, 0.4);
+                prairieGrass.material = prairieGrassMat;
+                this.templates.prairie_grass = prairieGrass;
+                
+                // Grass
+                const grass = BABYLON.MeshBuilder.CreateCylinder("grass", {
+                    height: 0.8, diameterTop: 0.1, diameterBottom: 0.2, tessellation: 4
+                }, this.scene);
+                grass.position.y = -1000;
+                const grassMat = new BABYLON.StandardMaterial("grassMat", this.scene);
+                grassMat.diffuseColor = new BABYLON.Color3(0.2, 0.7, 0.3);
+                grass.material = grassMat;
+                this.templates.grass = grass;
+                
+                // Bush
+                const bush = BABYLON.MeshBuilder.CreateSphere("bush", { diameter: 2, segments: 6 }, this.scene);
+                bush.position.y = -1000;
+                bush.scaling.y = 0.7;
+                const bushMat = new BABYLON.StandardMaterial("bushMat", this.scene);
+                bushMat.diffuseColor = new BABYLON.Color3(0.15, 0.5, 0.2);
+                bush.material = bushMat;
+                this.templates.bush = bush;
+                
+                // Tree
+                const tree = BABYLON.MeshBuilder.CreateCylinder("tree", {
+                    height: 5, diameterTop: 0.3, diameterBottom: 0.7, tessellation: 8
+                }, this.scene);
+                tree.position.y = -1000;
+                const treeMat = new BABYLON.StandardMaterial("treeMat", this.scene);
+                treeMat.diffuseColor = new BABYLON.Color3(0.3, 0.2, 0.1);
+                tree.material = treeMat;
+                const treeFoliage = BABYLON.MeshBuilder.CreateSphere("treeFoliage", { diameter: 3.5, segments: 8 }, this.scene);
+                treeFoliage.parent = tree;
+                treeFoliage.position.y = 3;
+                const foliageMat = new BABYLON.StandardMaterial("foliageMat", this.scene);
+                foliageMat.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.2);
+                treeFoliage.material = foliageMat;
+                this.templates.tree = tree;
+                
+                // Pine tree
+                const pine = BABYLON.MeshBuilder.CreateCylinder("pine", {
+                    height: 6, diameterTop: 0.2, diameterBottom: 0.6, tessellation: 8
+                }, this.scene);
+                pine.position.y = -1000;
+                pine.material = treeMat;
+                const pineFoliage = BABYLON.MeshBuilder.CreateCylinder("pineFoliage", {
+                    height: 4, diameterTop: 0.2, diameterBottom: 2.5, tessellation: 8
+                }, this.scene);
+                pineFoliage.parent = pine;
+                pineFoliage.position.y = 4;
+                const pineMat = new BABYLON.StandardMaterial("pineMat", this.scene);
+                pineMat.diffuseColor = new BABYLON.Color3(0.1, 0.4, 0.2);
+                pineFoliage.material = pineMat;
+                this.templates.pine_tree = pine;
+                
+                // Rock
+                const rock = BABYLON.MeshBuilder.CreateSphere("rock", { diameter: 2, segments: 6 }, this.scene);
+                rock.position.y = -1000;
+                rock.scaling = new BABYLON.Vector3(1.2, 0.7, 1.0);
+                const rockMat = new BABYLON.StandardMaterial("rockMat", this.scene);
+                rockMat.diffuseColor = new BABYLON.Color3(0.4, 0.4, 0.35);
+                rock.material = rockMat;
+                this.templates.rock = rock;
+                
+                // Flower
+                const flower = BABYLON.MeshBuilder.CreateSphere("flower", { diameter: 0.4, segments: 6 }, this.scene);
+                flower.position.y = -1000;
+                const flowerMat = new BABYLON.StandardMaterial("flowerMat", this.scene);
+                flowerMat.diffuseColor = new BABYLON.Color3(1, 0.7, 0.3);
+                flowerMat.emissiveColor = new BABYLON.Color3(0.3, 0.2, 0);
+                flower.material = flowerMat;
+                this.templates.flower = flower;
+                
+                // Cactus
+                const cactus = BABYLON.MeshBuilder.CreateCylinder("cactus", {
+                    height: 3, diameterTop: 0.4, diameterBottom: 0.5
+                }, this.scene);
+                cactus.position.y = -1000;
+                const arm1 = BABYLON.MeshBuilder.CreateCylinder("arm1", { height: 1.5, diameter: 0.3 }, this.scene);
+                arm1.parent = cactus;
+                arm1.position = new BABYLON.Vector3(0.4, 0.5, 0);
+                arm1.rotation.z = Math.PI / 2;
+                const cactusMat = new BABYLON.StandardMaterial("cactusMat", this.scene);
+                cactusMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 0.2);
+                cactus.material = cactusMat;
+                this.templates.cactus = cactus;
+                
+                console.log('✅ Foliage templates created');
+            }
+            
+            worldToChunk(x, z) {
+                return { x: Math.floor(x / this.config.chunkSize), z: Math.floor(z / this.config.chunkSize) };
+            }
+            
+            getChunkKey(cx, cz) { return `${cx},${cz}`; }
+            
+            generateChunk(cx, cz) {
+                const key = this.getChunkKey(cx, cz);
+                if (this.chunks.has(key)) return this.chunks.get(key);
+                
+                const chunk = { x: cx, z: cz, key, foliage: [], physicsActive: false };
+                const offsetX = cx * this.config.chunkSize;
+                const offsetZ = cz * this.config.chunkSize;
+                
+                const centerX = offsetX + this.config.chunkSize / 2;
+                const centerZ = offsetZ + this.config.chunkSize / 2;
+                const biomeType = this.terrain.getBiomeAtPosition(centerX, centerZ);
+                
+                // Map terrain modes to biome configs
+                const biomeLookup = {
+                    flat: 'meadow', procedural: 'forest', valley: 'forest',
+                    mountain_range: 'mountain', desert: 'desert', swamp: 'swamp'
+                };
+                const biomeKey = biomeLookup[biomeType] || 'meadow';
+                const biomeConfig = CONFIG.biomes[biomeKey] || CONFIG.biomes.meadow;
+                chunk.biome = biomeType;
+                
+                for (let i = 0; i < biomeConfig.density; i++) {
+                    const x = offsetX + Math.random() * this.config.chunkSize;
+                    const z = offsetZ + Math.random() * this.config.chunkSize;
+                    
+                    const foliageType = this.selectFoliageType(biomeConfig.foliage);
+                    const template = this.templates[foliageType.type];
+                    if (!template) continue;
+                    
+                    const instance = template.createInstance(`${foliageType.type}_${key}_${i}`);
+                    const terrainHeight = this.terrain.getHeight(x, z);
+                    const scale = foliageType.scale[0] + Math.random() * (foliageType.scale[1] - foliageType.scale[0]);
+                    
+                    instance.position = new BABYLON.Vector3(x, terrainHeight + scale * 0.5, z);
+                    instance.scaling = new BABYLON.Vector3(scale, scale, scale);
+                    instance.rotation.y = Math.random() * Math.PI * 2;
+                    
+                    instance.metadata = {
+                        type: foliageType.type,
+                        mass: this.getMass(foliageType.type),
+                        destroyed: false,
+                        hasPhysics: false,
+                        driveable: ['prairie_grass', 'grass', 'flower'].includes(foliageType.type)
+                    };
+                    
+                    chunk.foliage.push(instance);
+                    this.instances.push(instance);
+                    this.stats.total++;
+                }
+                
+                this.chunks.set(key, chunk);
+                return chunk;
+            }
+            
+            selectFoliageType(types) {
+                const total = types.reduce((sum, t) => sum + t.weight, 0);
+                let rand = Math.random() * total;
+                for (const type of types) {
+                    rand -= type.weight;
+                    if (rand <= 0) return type;
+                }
+                return types[0];
+            }
+            
+            getMass(type) {
+                const masses = {
+                    prairie_grass: 0.05, grass: 0.1, flower: 0.05,
+                    bush: 5, tree: 50, pine_tree: 60, rock: 100, cactus: 15
+                };
+                return masses[type] || 1;
+            }
+            
+            activatePhysics(chunk) {
+                if (chunk.physicsActive) return;
+                chunk.foliage.forEach(instance => {
+                    if (instance.metadata.destroyed || instance.metadata.hasPhysics) return;
+                    if (instance.metadata.driveable) return;
+                    
+                    let shapeType = BABYLON.PhysicsShapeType.CYLINDER;
+                    if (instance.metadata.type === 'bush' || instance.metadata.type === 'rock')
+                        shapeType = BABYLON.PhysicsShapeType.SPHERE;
+                    
+                    const aggregate = new BABYLON.PhysicsAggregate(
+                        instance, shapeType,
+                        { mass: instance.metadata.mass, restitution: 0.2, friction: 0.8 },
+                        this.scene
+                    );
+                    this.physicsCache.set(instance, aggregate);
+                    instance.metadata.hasPhysics = true;
+                });
+                chunk.physicsActive = true;
+            }
+            
+            deactivatePhysics(chunk) {
+                if (!chunk.physicsActive) return;
+                chunk.foliage.forEach(instance => {
+                    const aggregate = this.physicsCache.get(instance);
+                    if (aggregate) {
+                        aggregate.dispose();
+                        this.physicsCache.delete(instance);
+                        instance.metadata.hasPhysics = false;
+                    }
+                });
+                chunk.physicsActive = false;
+            }
+            
+            update(playerPosition) {
+                const playerChunk = this.worldToChunk(playerPosition.x, playerPosition.z);
+                const activeKeys = new Set();
+                
+                for (let dx = -this.config.renderDistance; dx <= this.config.renderDistance; dx++) {
+                    for (let dz = -this.config.renderDistance; dz <= this.config.renderDistance; dz++) {
+                        const cx = playerChunk.x + dx;
+                        const cz = playerChunk.z + dz;
+                        const key = this.getChunkKey(cx, cz);
+                        activeKeys.add(key);
+                        
+                        const chunk = this.generateChunk(cx, cz);
+                        const dist = Math.sqrt(dx * dx + dz * dz);
+                        if (dist <= this.config.physicsDistance) {
+                            this.activatePhysics(chunk);
+                        } else {
+                            this.deactivatePhysics(chunk);
+                        }
+                    }
+                }
+                
+                for (const [key, chunk] of this.chunks) {
+                    if (!activeKeys.has(key)) {
+                        this.deactivatePhysics(chunk);
+                        chunk.foliage.forEach(instance => {
+                            const idx = this.instances.indexOf(instance);
+                            if (idx > -1) this.instances.splice(idx, 1);
+                            instance.dispose();
+                        });
+                        this.chunks.delete(key);
+                    }
+                }
+            }
+            
+            destroyNear(position, radius) {
+                let count = 0;
+                this.instances.forEach(instance => {
+                    if (instance.metadata.destroyed) return;
+                    const dist = BABYLON.Vector3.Distance(position, instance.position);
+                    if (dist < radius) { this.destroy(instance); count++; }
+                });
+                return count;
+            }
+            
+            destroy(instance) {
+                if (instance.metadata.destroyed) return;
+                instance.metadata.destroyed = true;
+                this.stats.destroyed++;
+                
+                const aggregate = this.physicsCache.get(instance);
+                if (aggregate) {
+                    const impulse = new BABYLON.Vector3(
+                        (Math.random() - 0.5) * 150, Math.random() * 250, (Math.random() - 0.5) * 150
+                    );
+                    aggregate.body.applyImpulse(impulse, instance.getAbsolutePosition());
+                    setTimeout(() => { instance.visibility = 0.5; }, 500);
+                    setTimeout(() => {
+                        aggregate.dispose();
+                        this.physicsCache.delete(instance);
+                        instance.dispose();
+                        const idx = this.instances.indexOf(instance);
+                        if (idx > -1) this.instances.splice(idx, 1);
+                    }, 2000);
+                } else {
+                    instance.position.y -= 0.5;
+                    instance.visibility = 0.3;
+                    setTimeout(() => {
+                        instance.dispose();
+                        const idx = this.instances.indexOf(instance);
+                        if (idx > -1) this.instances.splice(idx, 1);
+                    }, 500);
+                }
+            }
+        }
+
+        // ==========================================
+        // DESTRUCTIBLE HOUSE
+        // ==========================================
+        class DestructibleHouse {
+            constructor(scene, position, physicsPlugin) {
+                this.scene = scene;
+                this.position = position;
+                this.parts = [];
+                this.physicsCache = [];
+                this.destroyed = false;
+                this.health = 100;
+                this.build();
+            }
+            
+            build() {
+                const foundation = BABYLON.MeshBuilder.CreateBox("foundation", {
+                    width: 10, height: 0.5, depth: 10
+                }, this.scene);
+                foundation.position = this.position.clone();
+                foundation.position.y += 0.25;
+                const foundMat = new BABYLON.StandardMaterial("foundMat", this.scene);
+                foundMat.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+                foundation.material = foundMat;
+                this.parts.push(foundation);
+                
+                const wallHeight = 3;
+                const wallPositions = [
+                    { x: 0, z: 5, width: 10, depth: 0.3 },
+                    { x: 0, z: -5, width: 10, depth: 0.3 },
+                    { x: 5, z: 0, width: 0.3, depth: 10 },
+                    { x: -5, z: 0, width: 0.3, depth: 10 }
+                ];
+                
+                wallPositions.forEach((wp, i) => {
+                    const wall = BABYLON.MeshBuilder.CreateBox(`wall${i}`, {
+                        width: wp.width, height: wallHeight, depth: wp.depth
+                    }, this.scene);
+                    wall.position = this.position.clone();
+                    wall.position.x += wp.x;
+                    wall.position.z += wp.z;
+                    wall.position.y += wallHeight / 2 + 0.5;
+                    
+                    const wallMat = new BABYLON.StandardMaterial(`wallMat${i}`, this.scene);
+                    wallMat.diffuseTexture = new BABYLON.Texture("../images/textures/wall.png", this.scene);
+                    wallMat.diffuseColor = new BABYLON.Color3(0.8, 0.7, 0.6);
+
+                    wall.material = wallMat;
+                    wall.metadata = { type: 'wall', mass: 100 };
+                    this.parts.push(wall);
+                });
+                
+                const roofAngle = Math.PI / -9;
+                for (let side = 0; side < 2; side++) {
+                    const roof = BABYLON.MeshBuilder.CreateBox(`roof${side}`, {
+                        width: 10, height: 0.3, depth: 6
+                    }, this.scene);
+                    roof.position = this.position.clone();
+                    roof.position.y += wallHeight + 0.5 + 1;
+                    roof.position.x += (side === 0 ? -1.5 : 2.5);
+                    roof.rotation.z = (side === 0 ? -roofAngle : roofAngle);
+                    
+                    const roofMat = new BABYLON.StandardMaterial(`roofMat${side}`, this.scene);
+                    roofMat.diffuseColor = new BABYLON.Color3(0.4, 0.2, 0.1);
+                    roof.material = roofMat;
+                    roof.metadata = { type: 'roof', mass: 50 };
+                    this.parts.push(roof);
+                }
+                
+                console.log('🏠 House built at', this.position);
+            }
+            
+            findNearestPart(point) {
+                let nearest = null, nearestDist = Infinity;
+                for (const part of this.parts) {
+                    const dist = BABYLON.Vector3.Distance(point, part.position);
+                    if (dist < nearestDist) { nearestDist = dist; nearest = part; }
+                }
+                return nearest;
+            }
+            
+            takeDamage(amount, impactPoint) {
+                this.health -= amount;
+                if (this.health <= 0) { this.destroy(); return; }
+                const nearestPart = this.findNearestPart(impactPoint);
+                if (nearestPart && !nearestPart.damaged) {
+                    nearestPart.damaged = true;
+                }
+            }
+            
+            destroy() {
+                if (this.destroyed) return;
+                console.log('💥 House destroyed!');
+                this.destroyed = true;
+                
+                this.parts.forEach(part => {
+                    const aggregate = new BABYLON.PhysicsAggregate(
+                        part, BABYLON.PhysicsShapeType.BOX,
+                        { mass: part.metadata?.mass || 50, restitution: 0.1, friction: 0.6 },
+                        this.scene
+                    );
+                    const direction = part.position.subtract(this.position).normalize();
+                    const force = direction.scale(2000 + Math.random() * 1000);
+                    force.y = 1000 + Math.random() * 1000;
+                    aggregate.body.applyImpulse(force, part.getAbsolutePosition());
+                    this.physicsCache.push(aggregate);
+                });
+                
+                setTimeout(() => { this.parts.forEach(p => p.visibility = 0.5); }, 2000);
+                setTimeout(() => { this.dispose(); }, 50000);
+            }
+            
+            dispose() {
+                this.physicsCache.forEach(agg => agg.dispose());
+                this.parts.forEach(part => part.dispose());
+                this.parts = [];
+                this.physicsCache = [];
+            }
+            
+            checkCollision(position, radius) {
+                const dist = BABYLON.Vector3.Distance(position, this.position);
+                if (dist < radius + 7) { this.destroy(); return true; }
+                return false;
+            }
+        }
+        
+        // ==========================================
+        // BUILDING GENERATOR — places structures in biomes
+        // ==========================================
+        class BuildingGenerator {
+            constructor(scene, terrain) {
+                this.scene = scene;
+                this.terrain = terrain;
+                this.buildings = [];
+            }
+            
+            // Generate a cluster of destructible buildings
+            generateTown(centerX, centerZ, count = 5) {
+                for (let i = 0; i < count; i++) {
+                    const angle = (i / count) * Math.PI * 2;
+                    const radius = 25 + Math.random() * 15;
+                    const x = centerX + Math.cos(angle) * radius;
+                    const z = centerZ + Math.sin(angle) * radius;
+                    const y = this.terrain.getHeight(x, z);
+                    
+                    const building = new DestructibleHouse(
+                        this.scene,
+                        new BABYLON.Vector3(x, y, z),
+                        null
+                    );
+                    this.buildings.push(building);
+                }
+                console.log(`🏘️ Town generated: ${count} buildings at (${centerX}, ${centerZ})`);
+                return this.buildings;
+            }
+            
+            // Place a watchtower on a high point
+            generateWatchtower(x, z) {
+                const y = this.terrain.getHeight(x, z);
+                
+                // Tower base
+                const base = BABYLON.MeshBuilder.CreateCylinder("towerBase", {
+                    height: 12, diameter: 4, tessellation: 8
+                }, this.scene);
+                base.position = new BABYLON.Vector3(x, y + 6, z);
+                const baseMat = new BABYLON.StandardMaterial("towerBaseMat", this.scene);
+                baseMat.diffuseColor = new BABYLON.Color3(0.5, 0.45, 0.4);
+                base.material = baseMat;
+                
+                // Platform
+                const platform = BABYLON.MeshBuilder.CreateCylinder("towerPlatform", {
+                    height: 0.5, diameter: 7, tessellation: 8
+                }, this.scene);
+                platform.position = new BABYLON.Vector3(x, y + 12.25, z);
+                platform.material = baseMat;
+                
+                // Roof cone
+                const roof = BABYLON.MeshBuilder.CreateCylinder("towerRoof", {
+                    height: 3, diameterTop: 0.5, diameterBottom: 8, tessellation: 8
+                }, this.scene);
+                roof.position = new BABYLON.Vector3(x, y + 14, z);
+                const roofMat = new BABYLON.StandardMaterial("towerRoofMat", this.scene);
+                roofMat.diffuseColor = new BABYLON.Color3(0.3, 0.15, 0.08);
+                roof.material = roofMat;
+                
+                // Static physics
+                [base, platform, roof].forEach(mesh => {
+                    new BABYLON.PhysicsAggregate(
+                        mesh, BABYLON.PhysicsShapeType.MESH,
+                        { mass: 0, friction: 0.8 }, this.scene
+                    );
+                });
+                
+                console.log(`🗼 Watchtower at (${x.toFixed(0)}, ${z.toFixed(0)})`);
+                return { base, platform, roof };
+            }
+            
+            get count() { return this.buildings.length; }
+        }
+
+        // ==========================================
+        // WEATHER SYSTEM
+        // ==========================================
+        class WeatherSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.wind = new BABYLON.Vector3(0, 0, 0);
+            }
+            
+            setWind(direction, strength) {
+                this.wind = direction.scale(strength);
+            }
+            
+            createTrack(position, direction) {
+                const track = BABYLON.MeshBuilder.CreatePlane("track", { width: 2, height: 5 }, this.scene);
+                track.position = position.clone();
+                track.rotation.x = -Math.PI / 2;
+                track.rotation.y = direction;
+                const mat = new BABYLON.StandardMaterial("trackMat", this.scene);
+                mat.diffuseColor = new BABYLON.Color3(0.2, 0.3, 0.1);
+                mat.alpha = 0.5;
+                track.material = mat;
+                setTimeout(() => { track.dispose(); }, 10000);
+                return track;
+            }
+        }
+
+        // ==========================================
+        // MAIN GAME
+        // ==========================================
+        let player, playerAggregate, terrain, foliage, buildings;
+        const keys = {};
+        let gameState = {
+            speed: 0, rotation: 0, jumping: false, jumpVelocity: 0, grounded: false
+        };
+        
+        async function init() {
+            const canvas = document.getElementById('renderCanvas');
+            const engine = new BABYLON.Engine(canvas, true);
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(1.0, 0.5, 0.2, 1);
+            
+            // Populate biome configs (needs BABYLON)
+            CONFIG.biomes = {
+                meadow: {
+                    foliage: [
+                        { type: 'prairie_grass', weight: 0.8, scale: [0.1, 0.3] },
+                        { type: 'flower', weight: 0.2, scale: [0.2, 0.4] }
+                    ],
+                    density: 400,
+                    color: new BABYLON.Color3(0.5, 0.9, 0.5)
+                },
+                forest: {
+                    foliage: [
+                        { type: 'grass', weight: 0.3, scale: [0.4, 0.8] },
+                        { type: 'bush', weight: 0.4, scale: [0.8, 1.5] },
+                        { type: 'tree', weight: 0.3, scale: [1.0, 2.0] }
+                    ],
+                    density: 250,
+                    color: new BABYLON.Color3(0.2, 0.6, 0.3)
+                },
+                mountain: {
+                    foliage: [
+                        { type: 'grass', weight: 0.2, scale: [0.3, 0.5] },
+                        { type: 'rock', weight: 0.5, scale: [0.8, 2.0] },
+                        { type: 'pine_tree', weight: 0.3, scale: [1.0, 1.8] }
+                    ],
+                    density: 150,
+                    color: new BABYLON.Color3(0.4, 0.35, 0.3)
+                },
+                desert: {
+                    foliage: [
+                        { type: 'cactus', weight: 0.7, scale: [0.8, 1.8] },
+                        { type: 'rock', weight: 0.3, scale: [0.5, 1.2] }
+                    ],
+                    density: 80,
+                    color: new BABYLON.Color3(0.8, 0.7, 0.5)
+                },
+                swamp: {
+                    foliage: [
+                        { type: 'bush', weight: 0.5, scale: [1.0, 2.0] },
+                        { type: 'grass', weight: 0.4, scale: [0.6, 1.2] },
+                        { type: 'rock', weight: 0.1, scale: [0.5, 1.0] }
+                    ],
+                    density: 30,
+                    color: new BABYLON.Color3(0.3, 0.4, 0.3)
+                }
+            };
+            
+            // Camera
+            const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 3, 22, BABYLON.Vector3.Zero(), scene);
+            camera.lowerRadiusLimit = 5;
+            camera.upperRadiusLimit = 600;
+            camera.attachControl(canvas, true);
+            
+            // Lighting
+            const hemi = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, -1, 0), scene);
+            hemi.intensity = 1.0;
+            const dir = new BABYLON.DirectionalLight("dir", new BABYLON.Vector3(-1, -2, -1), scene);
+            dir.intensity = 10.0;
+            
+            // Shadows
+            const shadowGen = new BABYLON.ShadowGenerator(1024, dir);
+            shadowGen.useBlurExponentialShadowMap = true;
+            
+            // Havok
+            console.log('🔄 Loading Havok...');
+            const havok = await HavokPhysics();
+            const plugin = new BABYLON.HavokPlugin(true, havok);
+            scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), plugin);
+            console.log('✅ Havok ready');
+            
+            // ---- TERRAIN ----
+            if (CONFIG.terrain.mode === 'chunked') {
+                terrain = new ChunkedTerrainSystem(scene, CONFIG.terrain);
+                terrain.generateFromLayout(CONFIG.terrain.layout);
+                terrain.addPhysics();
+                document.getElementById('terrain-mode').textContent = 'CHUNKED v2 (TRI-PLANAR)';
+            } else {
+                terrain = new TerrainSystem(scene, CONFIG.terrain);
+                const terrainMesh = terrain.generate(CONFIG.terrain.mode);
+                new BABYLON.PhysicsAggregate(terrainMesh, BABYLON.PhysicsShapeType.MESH,
+                    { mass: 0, friction: 0.8 }, scene);
+                document.getElementById('terrain-mode').textContent = CONFIG.terrain.mode.toUpperCase();
+            }
+            
+            // ---- FOLIAGE ----
+            foliage = new FoliageSystem(scene, terrain, CONFIG.foliage);
+            
+            // ---- STRUCTURES ----
+            buildings = new BuildingGenerator(scene, terrain);
+            
+            // Town in the center meadow
+            buildings.generateTown(40, 40, 4);
+            buildings.generateTown(60, 40, 4);
+            buildings.generateTown(80, 40, 4);
+            buildings.generateTown(100, 40, 4);
+            buildings.generateTown(40, 60, 4);
+            buildings.generateTown(60, 80, 4);
+            buildings.generateTown(80, 100, 4);
+            buildings.generateTown(100, 120, 4);
+            
+            // Watchtower on a procedural hill
+            buildings.generateWatchtower(-180, 0);
+            buildings.generateWatchtower(0, -180);
+            
+            document.getElementById('structure-count').textContent = buildings.count + 2; // + watchtowers
+            
+            // ---- PLAYER ----
+            player = BABYLON.MeshBuilder.CreateCapsule("player", { height: 2, radius: 0.5 }, scene);
+            const spawnHeight = terrain.getHeight(0, 0) + 5;
+            player.position = new BABYLON.Vector3(0, spawnHeight, 0);
+            const playerMat = new BABYLON.StandardMaterial("playerMat", scene);
+            playerMat.diffuseColor = new BABYLON.Color3(1, 0.5, 0);
+            player.material = playerMat;
+            player.castShadow = true;
+            shadowGen.addShadowCaster(player);
+            
+            playerAggregate = new BABYLON.PhysicsAggregate(
+                player, BABYLON.PhysicsShapeType.CAPSULE,
+                { mass: 70, restitution: 0, friction: 0.5 }, scene
+            );
+            playerAggregate.body.setAngularDamping(1);
+            
+            camera.setTarget(player);
+            
+            // ---- INPUT ----
+            window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+            window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+            
+            // ---- RENDER LOOP ----
+            engine.runRenderLoop(() => {
+                const moveSpeed = keys['shift'] ? 25 : 15;
+                const move = new BABYLON.Vector3(0, 0, 0);
+                
+                if (keys['w']) move.z += moveSpeed;
+                if (keys['s']) move.z -= moveSpeed;
+                if (keys['a']) move.x -= moveSpeed;
+                if (keys['d']) move.x += moveSpeed;
+                
+                if (move.length() > 0) {
+                    playerAggregate.body.applyForce(
+                        move.scale(100), player.getAbsolutePosition()
+                    );
+                }
+                
+                if (keys[' '] && gameState.grounded) {
+                    playerAggregate.body.applyImpulse(
+                        new BABYLON.Vector3(0, 500, 0), player.getAbsolutePosition()
+                    );
+                    gameState.grounded = false;
+                }
+                
+                if (keys['e']) {
+                    foliage.destroyNear(player.position, CONFIG.foliage.destructionRadius);
+                    buildings.buildings.forEach(b => b.checkCollision(player.position, CONFIG.foliage.destructionRadius));
+                    keys['e'] = false;
+                }
+                
+                const vel = playerAggregate.body.getLinearVelocity();
+                gameState.grounded = Math.abs(vel.y) < 0.1;
+                
+                foliage.update(player.position);
+                
+                // HUD
+                const pos = player.position;
+                document.getElementById('position').textContent =
+                    `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)})`;
+                document.getElementById('height').textContent =
+                    terrain.getHeight(pos.x, pos.z).toFixed(1);
+                document.getElementById('speed').textContent =
+                    (vel.length() * 10).toFixed(0);
+                document.getElementById('foliage-count').textContent = foliage.stats.total;
+                document.getElementById('destroyed').textContent = foliage.stats.destroyed;
+                
+                const biome = terrain.getBiomeAtPosition(pos.x, pos.z);
+                document.getElementById('current-biome').textContent = biome.toUpperCase();
+                
+                if (terrain instanceof ChunkedTerrainSystem) {
+                    const ccx = Math.round(pos.x / terrain.chunkSize);
+                    const ccz = Math.round(pos.z / terrain.chunkSize);
+                    document.getElementById('chunk-pos').textContent = `(${ccx}, ${ccz})`;
+                }
+                
+                scene.render();
+            });
+            
+            window.addEventListener('resize', () => engine.resize());
+            
+            console.log('✅ APPLESAUCE v2 Ready!');
+            console.log('🏔️ 7×7 biome grid, 200u chunks, tri-planar textures');
+            console.log('📍 Explore: Meadow (center) → Forest → Desert → Mountains');
+            console.log('🏘️ Find the town in the meadow and watchtowers on the hills!');
+        }
+        
+        init();
+    </script>
+</body>
+</html>

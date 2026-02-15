@@ -1,0 +1,202 @@
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║          🪖🧥 HELMET & JACKET LOADER - QUICK SETUP 🧥🪖           ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────┐
+│  ✅ SETUP CHECKLIST                                              │
+└──────────────────────────────────────────────────────────────────┘
+
+1. [ ] Place helmet_loader.js in root directory
+2. [ ] Place jacket_loader.js in root directory
+3. [ ] Replace game.html with game_WITH_HELMET_AND_JACKET.html
+4. [ ] Verify three.module.js exists
+5. [ ] Test with: game.html?id=16
+6. [ ] Press H to test helmet switching
+7. [ ] Press J to test jacket switching
+8. [ ] Check console for "✅ Helmet loaded!" and "✅ Jacket loaded!"
+
+┌──────────────────────────────────────────────────────────────────┐
+│  ⌨️  KEYBOARD CONTROLS                                           │
+└──────────────────────────────────────────────────────────────────┘
+
+╔══════════════════════════════════════════════════════════════════╗
+║                      CHARACTER CUSTOMIZATION                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║  🪖 HELMET CONTROLS:                                             ║
+║  ┌────────────┬────────────────────────────────────────────────┐ ║
+║  │     H      │  Cycle through helmets (1→2→3...→9→1)         │ ║
+║  │ Shift+1-9  │  Jump directly to helmet slot (Shift+3 = Slot3)│ ║
+║  └────────────┴────────────────────────────────────────────────┘ ║
+║                                                                  ║
+║  🧥 JACKET CONTROLS:                                             ║
+║  ┌────────────┬────────────────────────────────────────────────┐ ║
+║  │     J      │  Cycle through jackets (1→2→3...→9→1)         │ ║
+║  │Ctrl+Shift+ │  Jump directly to jacket slot                  │ ║
+║  │    1-9     │  (Ctrl+Shift+3 = Slot 3)                       │ ║
+║  └────────────┴────────────────────────────────────────────────┘ ║
+║                                                                  ║
+║  🎮 GAME CONTROLS:                                               ║
+║  ┌────────────┬────────────────────────────────────────────────┐ ║
+║  │    ESC     │  Return to menu                                │ ║
+║  │   WASD     │  Move                                          │ ║
+║  │   Space    │  Jump/Ollie                                    │ ║
+║  └────────────┴────────────────────────────────────────────────┘ ║
+╚══════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────┐
+│  💻 CONSOLE COMMANDS                                             │
+└──────────────────────────────────────────────────────────────────┘
+
+// LIST ALL ITEMS
+helmetAPI.list()        → Shows all saved helmets
+jacketAPI.list()        → Shows all saved jackets
+
+// SWITCH ITEMS
+helmetAPI.switchTo(3)   → Switch to helmet slot 3
+jacketAPI.switchTo(2)   → Switch to jacket slot 2
+
+// CLEAR SLOTS
+helmetAPI.clear(1)      → Delete helmet in slot 1
+jacketAPI.clear(5)      → Delete jacket in slot 5
+
+// DEBUG INFO
+game.modules.helmet     → Helmet loader instance
+game.modules.jacket     → Jacket loader instance
+game.player             → Player object (has helmet & jacket as children)
+
+┌──────────────────────────────────────────────────────────────────┐
+│  🎨 DEFAULT TEST ITEMS                                           │
+└──────────────────────────────────────────────────────────────────┘
+
+🪖 HELMETS (Auto-created on first run):
+  Slot 1: Red Racer      - Chrome helmet with spikes
+  Slot 2: Green Machine  - Metallic helmet with mohawk
+  Slot 3: Blue Devil     - Glossy helmet with horns & wings
+
+🧥 JACKETS (Auto-created on first run):
+  Slot 1: Battle Vest    - Black leather vest, battle-damaged
+  Slot 2: Neon Hoodie    - Cyan hoodie with physics enabled
+  Slot 3: Bomber Classic - Brown leather bomber jacket
+
+Press H and J in-game to see them!
+
+┌──────────────────────────────────────────────────────────────────┐
+│  📁 FILE STRUCTURE                                               │
+└──────────────────────────────────────────────────────────────────┘
+
+your-game/
+├── index.html                    ← Menu (unchanged)
+├── game.html                     ← REPLACE THIS ⚠️
+├── helmet_loader.js              ← New file
+├── jacket_loader.js              ← New file
+├── three.module.js               ← Existing
+├── applesauce-core-r182-FINAL.js ← Existing
+├── applesauce-music-MINIMAL.js   ← Existing
+└── levels/
+    ├── level_16.js
+    └── ...
+
+┌──────────────────────────────────────────────────────────────────┐
+│  🧪 TESTING STEPS                                                │
+└──────────────────────────────────────────────────────────────────┘
+
+1. Open browser console (F12)
+2. Navigate to: game.html?id=16
+3. Watch console for these messages:
+   ✅ "🪖 Creating test helmets..."
+   ✅ "🧥 Creating test jackets..."
+   ✅ "🪖 Initializing helmet system..."
+   ✅ "🧥 Initializing jacket system..."
+   ✅ "✅ Helmet loaded!"
+   ✅ "✅ Jacket loaded!"
+
+4. Look for HUD panels on right side of screen:
+   🪖 HELMET (pink border)
+   🧥 JACKET (cyan border)
+
+5. Test keyboard controls:
+   Press H → Helmet should change
+   Press J → Jacket should change
+   HUD should update with new names
+
+6. Test console commands:
+   helmetAPI.list() → Should show 3 helmets
+   jacketAPI.list() → Should show 3 jackets
+
+┌──────────────────────────────────────────────────────────────────┐
+│  ❌ TROUBLESHOOTING                                              │
+└──────────────────────────────────────────────────────────────────┘
+
+PROBLEM: "HelmetLoader is not defined"
+FIX: helmet_loader.js not loading. Check file path.
+
+PROBLEM: "JacketLoader is not defined"  
+FIX: jacket_loader.js not loading. Check file path.
+
+PROBLEM: No customization visible on player
+FIX: Check console for errors. Run in console:
+     game.modules.helmet.helmetGroup.visible
+     game.modules.jacket.jacketGroup.visible
+
+PROBLEM: Keyboard controls don't work
+FIX: Make sure game isn't paused. Check: game.state.paused
+
+PROBLEM: Items don't follow player
+FIX: This shouldn't happen - they're child objects.
+     Check: game.modules.helmet.helmetGroup.parent === game.player
+
+PROBLEM: HUD shows but no 3D models
+FIX: THREE.js not global. Check: typeof window.THREE
+
+┌──────────────────────────────────────────────────────────────────┐
+│  💡 PRO TIPS                                                     │
+└──────────────────────────────────────────────────────────────────┘
+
+• Create editor pages (helmet_editor.html, jacket_editor.html)
+  to design customizations visually
+
+• Both systems use localStorage - data persists across sessions
+
+• You have 9 slots for each type (18 total customizations)
+
+• Items automatically follow player (no update() needed)
+
+• Combine with your gore system for battle-damaged looks
+
+• Jacket damage system works great with your game's violence theme
+
+• Wind physics on jackets can be enabled per-jacket
+
+┌──────────────────────────────────────────────────────────────────┐
+│  🎯 NEXT STEPS                                                   │
+└──────────────────────────────────────────────────────────────────┘
+
+1. ✅ Get it working (you're here!)
+2. Create helmet editor page
+3. Create jacket editor page  
+4. Add to main menu (Customization button?)
+5. Create more test items
+6. Add unlock system (earn customizations)
+7. Add save/share system (export JSON)
+8. Expand to other items (shoes, boards, etc.)
+
+┌──────────────────────────────────────────────────────────────────┐
+│  📞 SUPPORT                                                      │
+└──────────────────────────────────────────────────────────────────┘
+
+All code is modular and well-commented. Check:
+• HELMET_AND_JACKET_GUIDE.md - Full documentation
+• helmet_loader.js - All helmet code
+• jacket_loader.js - All jacket code
+
+Made with 💀 for South of South Records
+Artist-first technology, always.
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║              🛹 HAPPY SKATEBOARDING! 🛹                          ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝

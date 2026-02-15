@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE Level</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="renderCanvas"></canvas>
+
+<!-- 1. Load Babylon.js BEFORE your module (it expects BABYLON as a global) -->
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/babylonjs-materials/babylonjs.materials.min.js"></script>
+
+<!-- 2. Load Havok Physics (your core calls HavokPhysics() as a global) -->
+<script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+
+<!-- 3. Your game code as an ES module -->
+<script type="module">
+    import { ApplesauceCore } from '../applesauce-core-babylon.js';
+
+    // Define a level config
+    const myLevel = {
+        meta: { name: "Test Park", author: "South of South" },
+        terrain: { size: 200 },
+        playerStart: { x: 0, y: 5, z: 0 },
+
+        // Optional hooks — the core calls these for you
+        onLevelStart(core) {
+            console.log('Level started! Do custom setup here.');
+            // e.g. spawn ramps, NPCs, collectibles using core.scene
+        },
+        onUpdate(core) {
+            // Runs every frame — update HUD, check triggers, etc.
+        }
+    };
+
+    // Boot sequence
+    async function main() {
+        const game = new ApplesauceCore({
+            goreEnabled: true,
+            maxSpeed: 150
+        });
+
+        await game.init();       // Sets up engine, physics, camera, input
+        await game.loadLevel(myLevel);  // Builds terrain + spawns player
+        game.start();            // Kicks off the render loop
+    }
+
+    main().catch(err => console.error('Failed to start:', err));
+</script>
+
+</body>
+</html>

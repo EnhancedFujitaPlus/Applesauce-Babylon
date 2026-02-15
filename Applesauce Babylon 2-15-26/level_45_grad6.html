@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Applesauce - Gradient Core [Babylon]</title>
+    <style>
+        html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%; background: #0a0a0a; }
+        #renderCanvas { width: 100%; height: 100%; touch-action: none; outline: none; }
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: #00ff00;
+            font-family: monospace; font-size: 14px; pointer-events: none; z-index: 10;
+            text-shadow: 0 0 6px #00ff0066;
+        }
+        #controls-hint {
+            position: absolute; bottom: 20px; left: 20px; color: #00ff0088;
+            font-family: monospace; font-size: 11px; pointer-events: none; z-index: 10;
+        }
+        #archive-overlay {
+            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 5;
+            background: radial-gradient(ellipse at center, transparent 40%, #0a0a0acc 100%);
+        }
+        #wave-toggle {
+            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 10;
+        }
+        #wave-toggle button {
+            background: transparent; border: 1px solid #00ff00; color: #00ff00;
+            font-family: monospace; padding: 8px 16px; margin: 4px; cursor: pointer;
+        }
+        #wave-toggle button:hover { background: #00ff0022; }
+        #wave-toggle button.active { background: #00ff0044; }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="ui">CORE: APPLESAUCE_v1.1<br>STATUS: INITIALIZING...</div>
+    <div id="controls-hint">WASD: MOVE &nbsp; H: HELMET &nbsp; SPACE: JUMP</div>
+    <div id="archive-overlay"></div>
+    <div id="wave-toggle">
+        <button id="btn-pbr" class="active">PBR MATERIAL</button>
+        <button id="btn-node">NODE MATERIAL</button>
+    </div>
+
+    <!-- Babylon.js CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+
+    <script>
+        // ============================================================
+        // DOM REFS
+        // ============================================================
+        const canvas = document.getElementById('renderCanvas');
+        const uiEl = document.getElementById('ui');
+        const hintEl = document.getElementById('controls-hint');
+        const archiveOverlay = document.getElementById('archive-overlay');
+        const waveTogglePanel = document.getElementById('wave-toggle');
+        const btnPBR = document.getElementById('btn-pbr');
+        const btnNode = document.getElementById('btn-node');
+
+        // ============================================================
+        // BABYLON ENGINE + SCENE
+        // ============================================================
+        const engine = new BABYLON.Engine(canvas, true, { stencil: true });
+        const scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0.04, 0.04, 0.04, 1);
+        scene.ambientColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+        scene.fogDensity = 0.008;
+        scene.fogColor = new BABYLON.Color3(0.04, 0.04, 0.04);
+
+        // ============================================================
+        // TERRAIN HEIGHT FUNCTIONS
+        // ============================================================
+        function getTerrainHeightStable(x, z) {
+            const wave1 = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 3;
+            const wave2 = Math.sin(x * 0.05 + z * 0.05) * 2;
+            return wave1 + wave2;
+        }
+
+        function getTerrainHeight(x, z) {
+            if (Math.random() > 0.999) return 50; // Rare violent pillar
+            return getTerrainHeightStable(x, z);
+        }
+
+        // ============================================================
+        // GRADIENT / SLOPE CALCULATION
+        // ============================================================
+        function getSlopeData(x, z) {
+            const e = 0.01;
+            const dx = getTerrainHeightStable(x + e, z) - getTerrainHeightStable(x - e, z);
+            const dz = getTerrainHeightStable(x, z + e) - getTerrainHeightStable(x, z - e);
+            return {
+                direction: Math.atan2(dz, dx),
+                angle: Math.sqrt(dx * dx + dz * dz) * 10
+            };
+        }
+
+        function getCorruptedSlope(x, z) {
+            const base = getSlopeData(x, z);
+            const corruption = Math.min(ego * 0.05 + risk * 0.1, 2.5);
+            return {
+                direction: base.direction + Math.sin(ego + x * 0.01) * 0.1,
+                angle: base.angle * (1 + corruption)
+            };
+        }
+
+        // ============================================================
+        // CAMERA
+        // ============================================================
+        const cam = new BABYLON.FreeCamera("mainCam", new BABYLON.Vector3(0, 18, 15), scene);
+        cam.setTarget(BABYLON.Vector3.Zero());
+        cam.minZ = 0.1;
+        cam.fov = 1.2; // ~69 degrees, close to the Three.js 75 vfov
+
+        // ============================================================
+        // LIGHTING
+        // ============================================================
+        const hemiLight = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
+        hemiLight.intensity = 0.4;
+        hemiLight.diffuse = new BABYLON.Color3(0.2, 1, 0.2);
+        hemiLight.groundColor = new BABYLON.Color3(0, 0.1, 0);
+
+        const dirLight = new BABYLON.DirectionalLight("dir", new BABYLON.Vector3(-1, -2, -1), scene);
+        dirLight.intensity = 0.6;
+        dirLight.diffuse = new BABYLON.Color3(0.5, 1, 0.5);
+
+        // ============================================================
+        // TERRAIN MESH — custom vertex data
+        // ============================================================
+        const TERRAIN_SIZE = 2000;
+        const TERRAIN_SUB = 1000;
+
+        function buildTerrainMesh() {
+            const positions = [];
+            const indices = [];
+            const normals = [];
+            const uvs = [];
+            const step = TERRAIN_SIZE / TERRAIN_SUB;
+            const half = TERRAIN_SIZE / 2;
+
+            for (let iz = 0; iz <= TERRAIN_SUB; iz++) {
+                for (let ix = 0; ix <= TERRAIN_SUB; ix++) {
+                    const x = ix * step - half;
+                    const z = iz * step - half;
+                    const y = getTerrainHeightStable(x, z);
+                    positions.push(x, y, z);
+                    uvs.push(ix / TERRAIN_SUB, iz / TERRAIN_SUB);
+                }
+            }
+
+            for (let iz = 0; iz < TERRAIN_SUB; iz++) {
+                for (let ix = 0; ix < TERRAIN_SUB; ix++) {
+                    const a = iz * (TERRAIN_SUB + 1) + ix;
+                    const b = a + 1;
+                    const c = a + (TERRAIN_SUB + 1);
+                    const d = c + 1;
+                    indices.push(a, c, b, b, c, d);
+                }
+            }
+
+            const vertexData = new BABYLON.VertexData();
+            vertexData.positions = positions;
+            vertexData.indices = indices;
+            vertexData.uvs = uvs;
+            BABYLON.VertexData.ComputeNormals(positions, indices, normals);
+            vertexData.normals = normals;
+
+            const mesh = new BABYLON.Mesh("terrain", scene);
+            vertexData.applyToMesh(mesh);
+            return mesh;
+        }
+
+        const terrainMesh = buildTerrainMesh();
+
+        // Wireframe material for the terrain
+        const terrainMat = new BABYLON.StandardMaterial("terrainMat", scene);
+        terrainMat.wireframe = true;
+        terrainMat.emissiveColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+        terrainMat.disableLighting = true;
+        terrainMesh.material = terrainMat;
+
+        // ============================================================
+        // SKATER MESH
+        // ============================================================
+        const skater = BABYLON.MeshBuilder.CreateBox("skater", { width: 1, height: 0.2, depth: 2 }, scene);
+        const skaterMat = new BABYLON.StandardMaterial("skaterMat", scene);
+        skaterMat.emissiveColor = new BABYLON.Color3(0, 1, 0);
+        skaterMat.disableLighting = true;
+        skater.material = skaterMat;
+
+        // Glow trail
+        const glowLayer = new BABYLON.GlowLayer("glow", scene);
+        glowLayer.intensity = 0.6;
+        glowLayer.addIncludedOnlyMesh(skater);
+
+        // ============================================================
+        // PHYSICS STATE
+        // ============================================================
+        const pos = { x: 0, y: 10, z: 0 };
+        const vel = { x: 0, y: 0, z: 0 };
+        const input = { x: 0, z: 0, jump: false };
+        let accel = 30;
+        const friction = 0.8, gravity = 20, maxSpeed = 250, slopeInfluence = 80;
+
+        // ============================================================
+        // PSYCHOLOGICAL STATE
+        // ============================================================
+        let risk = 0;
+        let ego = 0;
+        let helmetOn = false;
+        let airtime = 0;
+        let lastTelemetry = { decel: 0, helmet: 'ABSENT', note: '' };
+        let impactFlash = 0;
+        let stillness = 0;
+        let cathedralUnlocked = false;
+        let archived = false;
+
+        // ============================================================
+        // PSYCHOLOGICAL SYSTEMS
+        // ============================================================
+        function updateRisk(dt, speed) {
+            if (!helmetOn) {
+                risk += Math.pow(speed / maxSpeed, 2) * dt * 0.8;
+                ego += speed * dt * 0.02;
+            } else {
+                risk *= 0.98;
+                ego *= 0.95;
+            }
+            ego += airtime * dt * 0.5;
+            risk = Math.max(0, risk - dt * 0.1);
+        }
+
+        function checkImpact(prevVelY) {
+            const impactForce = Math.abs(prevVelY);
+            if (impactForce > 18 && !helmetOn) {
+                impactFlash = 0.15;
+                lastTelemetry = {
+                    decel: Math.round(impactForce * 320),
+                    helmet: "ABSENT",
+                    note: "TRAUMATIC SIMILARITY DETECTED"
+                };
+            }
+        }
+
+        function updateStillness(dt, speed) {
+            if (speed < 5 && Math.abs(input.x) + Math.abs(input.z) > 0) {
+                stillness += dt;
+            } else {
+                stillness *= 0.95;
+            }
+            if (stillness > 12 && !cathedralUnlocked) {
+                cathedralUnlocked = true;
+                warpTerrainIntoCathedral();
+            }
+        }
+
+        function warpTerrainIntoCathedral() {
+            const positions = terrainMesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i];
+                const z = positions[i + 2];
+                const radius = Math.sqrt(x * x + z * z);
+                if (radius < 40) {
+                    positions[i + 1] =
+                        Math.pow(Math.cos(radius * 0.05), 3) * 18 +
+                        Math.sin(x * 0.02) * 2;
+                }
+            }
+            terrainMesh.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+
+            // Shift terrain wireframe to cathedral color
+            terrainMat.emissiveColor = new BABYLON.Color3(0.15, 0.05, 0.25);
+        }
+
+        function applyPerception(dt) {
+            if (!helmetOn) {
+                cam.fov = 1.2 + Math.sin(performance.now() * 0.002) * ego * 0.008;
+            } else {
+                cam.fov = BABYLON.Scalar.Lerp(cam.fov, 1.2, 0.05);
+            }
+        }
+
+        function renderTelemetry(dt) {
+            if (archived) return;
+            if (impactFlash > 0) {
+                impactFlash -= dt;
+                uiEl.innerHTML =
+                    `CORE: APPLESAUCE_v1.1<br>` +
+                    `ANGULAR DECEL: ${lastTelemetry.decel}<br>` +
+                    `HELMET: ${lastTelemetry.helmet}<br>` +
+                    `${lastTelemetry.note}`;
+            } else {
+                const helmetStr = helmetOn ? '<span style="color:#44aaff">ON</span>' : '<span style="color:#ff4444">OFF</span>';
+                uiEl.innerHTML =
+                    `CORE: APPLESAUCE_v1.1<br>STATUS: ROLLING<br>` +
+                    `RISK: ${risk.toFixed(2)} | EGO: ${ego.toFixed(2)}<br>` +
+                    `HELMET: ${helmetStr}`;
+            }
+        }
+
+        // ============================================================
+        // PBR / NODE MATERIAL ARCHIVE SYSTEM
+        // ============================================================
+        // When archive triggers, we spawn the Babylon.js PBR material
+        // showcase — two spheres in orbit (PBR vs Node Material),
+        // with wave-animated ground planes beneath each.
+
+        const archiveObjects = { active: false, group: [], pbrSphere: null, nodeSphere: null, time: 0 };
+
+        function activateArchiveScene() {
+            if (archiveObjects.active) return;
+            archiveObjects.active = true;
+            archived = true;
+            accel = 0;
+            input.x = 0;
+            input.z = 0;
+
+            archiveOverlay.style.display = 'block';
+            waveTogglePanel.style.display = 'block';
+            hintEl.style.display = 'none';
+
+            uiEl.innerHTML =
+                "STATUS: ROLLING<br>" +
+                "ARCHIVE FLAG: TRUE<br>" +
+                "SUBJECT MOTION PRESERVED<br>" +
+                "<br>MATERIAL SHADER: ONLINE";
+
+            // Increase lighting for PBR visibility
+            hemiLight.intensity = 0.8;
+            hemiLight.diffuse = new BABYLON.Color3(0.8, 0.85, 1.0);
+            dirLight.intensity = 1.2;
+            dirLight.diffuse = new BABYLON.Color3(1, 0.95, 0.9);
+
+            // --- Environment for PBR reflections ---
+            scene.environmentTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
+                "https://playground.babylonjs.com/textures/environment.env", scene
+            );
+            scene.environmentIntensity = 0.8;
+
+            const spawnY = pos.y + 6;
+
+            // --- PBR SPHERE (left) ---
+            const sphere0 = BABYLON.MeshBuilder.CreateSphere("pbrSphere", { diameter: 3, segments: 32 }, scene);
+            sphere0.position = new BABYLON.Vector3(pos.x - 4, spawnY, pos.z - 8);
+
+            const mat0 = new BABYLON.PBRMaterial("pbrMat", scene);
+            mat0.metallic = 0.0;
+            mat0.roughness = 0.80;
+            mat0.useRoughnessFromMetallicTextureAlpha = false;
+            mat0.useRoughnessFromMetallicTextureGreen = true;
+            mat0.useMetallnessFromMetallicTextureBlue = true;
+
+            // Load playground textures
+            const texBase = "https://playground.babylonjs.com/textures/";
+            mat0.albedoTexture = new BABYLON.Texture(texBase + "rock.png", scene, false, false);
+            mat0.metallicTexture = new BABYLON.Texture(texBase + "ground.jpg", scene, false, false);
+            mat0.bumpTexture = new BABYLON.Texture(texBase + "rockn.png", scene, false, false);
+            mat0.ambientTexture = new BABYLON.Texture(texBase + "fire.png", scene, false, false);
+            mat0.ambientTextureStrength = 0.35;
+            mat0.albedoColor = new BABYLON.Color3(1, 1, 1);
+
+            // Sheen
+            mat0.sheen.isEnabled = true;
+            mat0.sheen.roughness = 0.5;
+            mat0.sheen.texture = new BABYLON.Texture(texBase + "fire.png", scene, false, false);
+            mat0.sheen.albedoScaling = true;
+
+            // Clear coat
+            mat0.clearCoat.isEnabled = true;
+            mat0.clearCoat.roughness = 0.2;
+            mat0.clearCoat.indexOfRefraction = 3;
+            mat0.clearCoat.texture = new BABYLON.Texture(texBase + "fire.png", scene, false, false);
+            mat0.clearCoat.bumpTexture = new BABYLON.Texture(texBase + "rockn.png", scene, false, false);
+            mat0.clearCoat.isTintEnabled = true;
+            mat0.clearCoat.tintColor = new BABYLON.Color3(1, 1, 1);
+            mat0.clearCoat.tintColorAtDistance = 20;
+            mat0.clearCoat.tintThickness = 20;
+            mat0.clearCoat.tintTexture = new BABYLON.Texture(texBase + "ground.jpg", scene, false, false);
+
+            // Subsurface scattering
+            mat0.subSurface.maximumThickness = 5;
+            mat0.subSurface.tintColor = new BABYLON.Color3(173/255, 190/255, 1/255);
+            mat0.subSurface.thicknessTexture = new BABYLON.Texture(texBase + "reflectivity.png", scene, false, false);
+            mat0.subSurface.isRefractionEnabled = true;
+            mat0.subSurface.isTranslucencyEnabled = true;
+            mat0.subSurface.indexOfRefraction = 1.31;
+
+            // Anisotropy
+            mat0.anisotropy.isEnabled = true;
+            mat0.anisotropy.direction = new BABYLON.Vector2(1, 1);
+            mat0.anisotropy.texture = new BABYLON.Texture(texBase + "reflectivity.png", scene, false, false);
+
+            sphere0.material = mat0;
+            archiveObjects.pbrSphere = sphere0;
+
+            // Ground plane under PBR sphere
+            const ground0 = BABYLON.MeshBuilder.CreatePlane("pbrGround", { size: 8 }, scene);
+            ground0.rotation.x = Math.PI / 2;
+            ground0.position = new BABYLON.Vector3(pos.x - 4, spawnY - 2.5, pos.z - 8);
+            ground0.material = mat0;
+
+            // --- NODE MATERIAL SPHERE (right) ---
+            const sphere1 = BABYLON.MeshBuilder.CreateSphere("nodeSphere", { diameter: 3, segments: 32 }, scene);
+            sphere1.position = new BABYLON.Vector3(pos.x + 4, spawnY, pos.z - 8);
+
+            const ground1 = BABYLON.MeshBuilder.CreatePlane("nodeGround", { size: 8 }, scene);
+            ground1.rotation.x = Math.PI / 2;
+            ground1.position = new BABYLON.Vector3(pos.x + 4, spawnY - 2.5, pos.z - 8);
+
+            // Temporary emissive material while node material loads
+            const tempMat = new BABYLON.StandardMaterial("tempNode", scene);
+            tempMat.emissiveColor = new BABYLON.Color3(0, 0.3, 1);
+            tempMat.wireframe = true;
+            sphere1.material = tempMat;
+            ground1.material = tempMat;
+
+            // Load actual Node Material from Babylon snippet server
+            BABYLON.NodeMaterial.ParseFromSnippetAsync("EPY8BV#6", scene).then((nodeMaterial) => {
+                sphere1.material = nodeMaterial;
+                ground1.material = nodeMaterial;
+                archiveObjects.nodeMat = nodeMaterial;
+            }).catch(() => {
+                // Fallback: keep the wireframe if snippet fails
+                console.warn("Node material snippet failed to load — using fallback");
+            });
+
+            archiveObjects.nodeSphere = sphere1;
+
+            // Shadow casters
+            const shadowGen = new BABYLON.ShadowGenerator(1024, dirLight);
+            shadowGen.usePercentageCloserFiltering = true;
+            shadowGen.addShadowCaster(sphere0);
+            shadowGen.addShadowCaster(sphere1);
+            ground0.receiveShadows = true;
+            ground1.receiveShadows = true;
+
+            // Track all spawned objects
+            archiveObjects.group = [sphere0, sphere1, ground0, ground1];
+            archiveObjects.basePos = { x: pos.x, y: spawnY, z: pos.z - 8 };
+
+            // Glow the archive spheres
+            glowLayer.addIncludedOnlyMesh(sphere0);
+            glowLayer.addIncludedOnlyMesh(sphere1);
+            glowLayer.intensity = 1.0;
+
+            // Labels via Babylon GUI
+            const advTex = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("archiveUI");
+
+            const labelPBR = new BABYLON.GUI.TextBlock("lblPBR", "PBR MATERIAL");
+            labelPBR.color = "#00ff00";
+            labelPBR.fontSize = 14;
+            labelPBR.fontFamily = "monospace";
+            advTex.addControl(labelPBR);
+            labelPBR.linkWithMesh(sphere0);
+            labelPBR.linkOffsetY = -60;
+
+            const labelNode = new BABYLON.GUI.TextBlock("lblNode", "NODE MATERIAL");
+            labelNode.color = "#4488ff";
+            labelNode.fontSize = 14;
+            labelNode.fontFamily = "monospace";
+            advTex.addControl(labelNode);
+            labelNode.linkWithMesh(sphere1);
+            labelNode.linkOffsetY = -60;
+        }
+
+        function updateArchiveScene(dt) {
+            if (!archiveObjects.active) return;
+            archiveObjects.time += dt;
+            const t = archiveObjects.time;
+
+            // Gentle orbit/bob of the spheres
+            if (archiveObjects.pbrSphere) {
+                const bp = archiveObjects.basePos;
+                archiveObjects.pbrSphere.position.y = bp.y + Math.sin(t * 0.8) * 0.5;
+                archiveObjects.pbrSphere.rotation.y += dt * 0.3;
+            }
+            if (archiveObjects.nodeSphere) {
+                const bp = archiveObjects.basePos;
+                archiveObjects.nodeSphere.position.y = bp.y + Math.sin(t * 0.8 + Math.PI) * 0.5;
+                archiveObjects.nodeSphere.rotation.y += dt * 0.4;
+            }
+        }
+
+        // Toggle: show PBR sphere prominent vs Node Material sphere
+        let showPBR = true;
+        btnPBR.addEventListener('click', () => {
+            showPBR = true;
+            btnPBR.classList.add('active');
+            btnNode.classList.remove('active');
+            if (archiveObjects.pbrSphere) archiveObjects.pbrSphere.scaling = new BABYLON.Vector3(1, 1, 1);
+            if (archiveObjects.nodeSphere) archiveObjects.nodeSphere.scaling = new BABYLON.Vector3(0.6, 0.6, 0.6);
+        });
+        btnNode.addEventListener('click', () => {
+            showPBR = false;
+            btnNode.classList.add('active');
+            btnPBR.classList.remove('active');
+            if (archiveObjects.nodeSphere) archiveObjects.nodeSphere.scaling = new BABYLON.Vector3(1, 1, 1);
+            if (archiveObjects.pbrSphere) archiveObjects.pbrSphere.scaling = new BABYLON.Vector3(0.6, 0.6, 0.6);
+        });
+
+        // ============================================================
+        // ARCHIVE CONDITION CHECK
+        // ============================================================
+        function checkArchiveCondition() {
+            if (archived) return;
+            if (!helmetOn && risk > 8 && ego > 6) {
+                activateArchiveScene();
+            }
+        }
+
+        // ============================================================
+        // CATHEDRAL WARP
+        // ============================================================
+        // (already defined above in updateStillness)
+
+        // ============================================================
+        // INPUT
+        // ============================================================
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key.toLowerCase() === 'h') helmetOn = !helmetOn;
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        function readInput() {
+            if (archived) { input.x = 0; input.z = 0; input.jump = false; return; }
+            input.x = 0; input.z = 0; input.jump = false;
+            if (keys['a']) input.x = -1;
+            if (keys['d']) input.x = 1;
+            if (keys['w']) input.z = -1;
+            if (keys['s']) input.z = 1;
+            if (keys[' ']) input.jump = true;
+        }
+
+        // ============================================================
+        // MAIN GAME LOOP
+        // ============================================================
+        let lastTime = performance.now();
+
+        scene.registerBeforeRender(() => {
+            const now = performance.now();
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            readInput();
+
+            const prevVelY = vel.y;
+
+            // 1. Input acceleration
+            vel.x += input.x * accel * dt;
+            vel.z += input.z * accel * dt;
+
+            // 2. Friction & gravity
+            vel.x *= (1 - friction * dt);
+            vel.z *= (1 - friction * dt);
+            vel.y -= gravity * dt;
+
+            // 3. Speed cap
+            const speed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+            if (speed > maxSpeed) {
+                vel.x = (vel.x / speed) * maxSpeed;
+                vel.z = (vel.z / speed) * maxSpeed;
+            }
+
+            // Jump
+            const groundCheck = getTerrainHeightStable(pos.x, pos.z);
+            if (input.jump && Math.abs(pos.y - groundCheck) < 0.5) {
+                vel.y = 12;
+            }
+
+            // 4. Position update
+            pos.x += vel.x * dt;
+            pos.y += vel.y * dt;
+            pos.z += vel.z * dt;
+
+            // 5. Terrain following
+            const groundY = getTerrainHeightStable(pos.x, pos.z);
+            const onGround = pos.y <= groundY;
+
+            if (onGround) {
+                checkImpact(prevVelY);
+                pos.y = groundY;
+                vel.y = 0;
+                airtime = 0;
+
+                // 6. Slope influence
+                const slope = getCorruptedSlope(pos.x, pos.z);
+                vel.x -= Math.cos(slope.direction) * slope.angle * slopeInfluence * dt;
+                vel.z -= Math.sin(slope.direction) * slope.angle * slopeInfluence * dt;
+            } else {
+                airtime += dt;
+            }
+
+            // --- UPDATE SYSTEMS ---
+            updateRisk(dt, speed);
+            updateStillness(dt, speed);
+            applyPerception(dt);
+            checkArchiveCondition();
+            renderTelemetry(dt);
+            updateArchiveScene(dt);
+
+            // --- SKATER MESH ---
+            skater.position.x = pos.x;
+            skater.position.y = pos.y + 0.15; // Slight offset so it sits on surface
+            skater.position.z = pos.z;
+
+            if (speed > 0.5) {
+                skater.rotation.y = Math.atan2(-vel.x, -vel.z);
+            }
+
+            // Skater color shifts with ego
+            const egoNorm = Math.min(ego / 10, 1);
+            skaterMat.emissiveColor = new BABYLON.Color3(egoNorm, 1 - egoNorm * 0.5, 0);
+
+            // --- CAMERA FOLLOW ---
+            if (archived) {
+                // Cinematic pull-up, look at archive spheres
+                const targetCam = new BABYLON.Vector3(pos.x, pos.y + 30, pos.z + 12);
+                cam.position = BABYLON.Vector3.Lerp(cam.position, targetCam, 0.01);
+                const lookTarget = new BABYLON.Vector3(
+                    archiveObjects.basePos?.x ?? pos.x,
+                    archiveObjects.basePos?.y ?? pos.y,
+                    archiveObjects.basePos?.z ?? pos.z
+                );
+                cam.setTarget(BABYLON.Vector3.Lerp(cam.getTarget(), lookTarget, 0.02));
+            } else {
+                const targetPos = new BABYLON.Vector3(pos.x, pos.y + 8, pos.z + 15);
+                cam.position = BABYLON.Vector3.Lerp(cam.position, targetPos, 0.1);
+                cam.setTarget(new BABYLON.Vector3(pos.x, pos.y, pos.z));
+            }
+        });
+
+        // ============================================================
+        // RENDER LOOP
+        // ============================================================
+        engine.runRenderLoop(() => {
+            scene.render();
+        });
+
+        window.addEventListener('resize', () => {
+            engine.resize();
+        });
+
+        // Ready
+        uiEl.innerHTML = "CORE: APPLESAUCE_v1.1<br>STATUS: ROLLING";
+    </script>
+</body>
+</html>

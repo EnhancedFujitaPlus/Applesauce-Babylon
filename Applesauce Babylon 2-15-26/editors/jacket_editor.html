@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Jacket Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #87CEEB;
+            --secondary: #FFD700;
+            --dark: #1a4d6d;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        .editor-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Preview Panel (Left) */
+        .preview-panel {
+            flex: 2;
+            position: relative;
+            background: #0a0a0a;
+            border-right: 3px solid var(--primary);
+        }
+
+        #preview-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: grab;
+        }
+
+        #preview-canvas:active {
+            cursor: grabbing;
+        }
+
+        .preview-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .view-btn {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+
+        .view-btn:hover {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        .camera-hint {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 10px 20px;
+            font-size: 0.9em;
+            pointer-events: none;
+        }
+
+        /* Editor Panel (Right) */
+        .editor-panel {
+            flex: 1;
+            background: #0f0f0f;
+            overflow-y: auto;
+            padding: 20px;
+            border-left: 3px solid var(--primary);
+        }
+
+        .editor-header {
+            text-align: center;
+            font-size: 2.5em;
+            color: var(--primary);
+            text-shadow: 0 0 20px var(--primary);
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 10px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border: 2px solid var(--dark);
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            color: var(--secondary);
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--secondary);
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ccc;
+            font-size: 1.1em;
+        }
+
+        .color-input-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type="color"] {
+            width: 60px;
+            height: 40px;
+            border: 2px solid var(--primary);
+            cursor: pointer;
+            background: transparent;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 8px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+        }
+
+        select, .material-select {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .option-btn {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 15px 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .option-btn:hover {
+            background: var(--primary);
+            color: #000;
+            transform: scale(1.05);
+        }
+
+        .option-btn.active {
+            background: var(--secondary);
+            color: #000;
+            border-color: var(--secondary);
+        }
+
+        .slider-group {
+            margin-top: 15px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            border-radius: 5px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            font-size: 1em;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        .btn-primary {
+            grid-column: span 2;
+            background: linear-gradient(135deg, var(--primary), var(--dark));
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid var(--secondary);
+            color: var(--secondary);
+            padding: 15px 25px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="editor-container">
+        <!-- Preview Panel -->
+        <div class="preview-panel">
+            <canvas id="preview-canvas"></canvas>
+            <div class="camera-hint">🖱️ Click & Drag to Rotate | Scroll to Zoom</div>
+            <div class="preview-controls">
+                <button class="view-btn" onclick="resetCamera()">Reset Camera</button>
+                <button class="view-btn" onclick="returnToMenu()">← Main Menu</button>
+            </div>
+        </div>
+
+        <!-- Editor Panel -->
+        <div class="editor-panel">
+            <div class="editor-header">🧥 JACKET EDITOR</div>
+
+            <!-- Jacket Name -->
+            <div class="section">
+                <div class="section-title">Basic Info</div>
+                <div class="control-group">
+                    <label class="control-label">Jacket Name:</label>
+                    <input type="text" id="jacketName" placeholder="My Battle Jacket" maxlength="30">
+                </div>
+            </div>
+
+            <!-- Style Options -->
+            <div class="section">
+                <div class="section-title">Style</div>
+                
+                <div class="control-group">
+                    <label class="control-label">Sleeve Type:</label>
+                    <div class="options-grid">
+                        <button class="option-btn active" data-sleeve="sleeveless" onclick="changeSleeveType('sleeveless')">Sleeveless</button>
+                        <button class="option-btn" data-sleeve="short" onclick="changeSleeveType('short')">Short Sleeve</button>
+                        <button class="option-btn" data-sleeve="long" onclick="changeSleeveType('long')">Long Sleeve</button>
+                        <button class="option-btn" data-sleeve="hoodie" onclick="changeSleeveType('hoodie')">Hoodie</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Jacket Type:</label>
+                    <select id="jacketType" onchange="updateJacket()">
+                        <option value="vest">Battle Vest</option>
+                        <option value="bomber">Bomber Jacket</option>
+                        <option value="denim">Denim Jacket</option>
+                        <option value="leather">Leather Jacket</option>
+                        <option value="windbreaker">Windbreaker</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Colors -->
+            <div class="section">
+                <div class="section-title">Colors</div>
+                
+                <div class="control-group">
+                    <label class="control-label">Base Color:</label>
+                    <div class="color-input-group">
+                        <input type="color" id="baseColor" value="#1a1a1a" oninput="updateJacket()">
+                        <input type="text" id="baseColorText" value="#1a1a1a" readonly>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Accent Color:</label>
+                    <div class="color-input-group">
+                        <input type="color" id="accentColor" value="#FFD700" oninput="updateJacket()">
+                        <input type="text" id="accentColorText" value="#FFD700" readonly>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Trim Color:</label>
+                    <div class="color-input-group">
+                        <input type="color" id="trimColor" value="#666666" oninput="updateJacket()">
+                        <input type="text" id="trimColorText" value="#666666" readonly>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Material & Effects -->
+            <div class="section">
+                <div class="section-title">Material & Damage</div>
+                
+                <div class="control-group">
+                    <label class="control-label">Base Material:</label>
+                    <select id="baseMaterial" onchange="updateJacket()">
+                        <option value="fabric">Fabric</option>
+                        <option value="leather">Leather</option>
+                        <option value="denim">Denim</option>
+                        <option value="nylon">Nylon</option>
+                        <option value="metallic">Metallic</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Damage Effects:</label>
+                    
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Burn Marks</span>
+                            <span id="burnValue">0%</span>
+                        </div>
+                        <input type="range" id="burnLevel" min="0" max="100" value="0" oninput="updateDamageEffects()">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Scratches</span>
+                            <span id="scratchValue">0%</span>
+                        </div>
+                        <input type="range" id="scratchLevel" min="0" max="100" value="0" oninput="updateDamageEffects()">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Blood Stains</span>
+                            <span id="bloodValue">0%</span>
+                        </div>
+                        <input type="range" id="bloodLevel" min="0" max="100" value="0" oninput="updateDamageEffects()">
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Dirt/Grime</span>
+                            <span id="dirtValue">0%</span>
+                        </div>
+                        <input type="range" id="dirtLevel" min="0" max="100" value="0" oninput="updateDamageEffects()">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Wear Level:</label>
+                    <select id="wearLevel" onchange="updateJacket()">
+                        <option value="pristine">Pristine</option>
+                        <option value="worn">Worn</option>
+                        <option value="battle-scarred">Battle-Scarred</option>
+                        <option value="destroyed">Destroyed</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Patches & Decorations -->
+            <div class="section">
+                <div class="section-title">Patches & Details</div>
+                
+                <div class="control-group">
+                    <label class="control-label">Back Patch:</label>
+                    <button class="btn" onclick="addBackPatch()">Add Back Patch</button>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Studs/Spikes:</label>
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>Stud Amount</span>
+                            <span id="studValue">0</span>
+                        </div>
+                        <input type="range" id="studAmount" min="0" max="50" value="0" oninput="updateStuds()">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Chains:</label>
+                    <button class="btn" onclick="toggleChains()">Toggle Chains</button>
+                </div>
+            </div>
+
+            <!-- Physics Settings -->
+            <div class="section">
+                <div class="section-title">Physics (Experimental)</div>
+                
+                <div class="control-group">
+                    <label class="control-label">Cloth Simulation:</label>
+                    <select id="clothPhysics" onchange="updateClothPhysics()">
+                        <option value="none">Disabled</option>
+                        <option value="simple">Simple Animation</option>
+                        <option value="verlet">Verlet Physics (Coming Soon)</option>
+                    </select>
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Stiffness</span>
+                        <span id="stiffnessValue">50%</span>
+                    </div>
+                    <input type="range" id="stiffness" min="0" max="100" value="50" oninput="updateClothPhysics()">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>Wind Intensity</span>
+                        <span id="windValue">0%</span>
+                    </div>
+                    <input type="range" id="windIntensity" min="0" max="100" value="0" oninput="updateClothPhysics()">
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="saveJacket()">💾 SAVE JACKET</button>
+                <button class="btn" onclick="loadJacket()">📂 Load</button>
+                <button class="btn" onclick="exportJacket()">📤 Export</button>
+                <button class="btn" onclick="resetJacket()">🔄 Reset</button>
+                <button class="btn" onclick="deleteJacket()">🗑️ Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // ============================================
+        // GLOBAL VARIABLES
+        // ============================================
+        let scene, camera, renderer;
+        let jacketGroup;
+        let currentSleeveType = 'sleeveless';
+        let currentSlot = 1;
+        
+        // Camera controls
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraRotation = { x: 0, y: 0 };
+        let cameraDistance = 5;
+        
+        // Cloth physics (for future implementation)
+        let clothVertices = [];
+        let clothSimulation = 'none';
+        
+        // Damage layers
+        let damageTextures = {
+            burns: null,
+            scratches: null,
+            blood: null,
+            dirt: null
+        };
+
+        // ============================================
+        // THREE.JS INITIALIZATION
+        // ============================================
+        function initThreeJS() {
+            const canvas = document.getElementById('preview-canvas');
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+            scene.fog = new THREE.Fog(0x0a0a0a, 10, 50);
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(
+                45,
+                canvas.clientWidth / canvas.clientHeight,
+                0.1,
+                1000
+            );
+            updateCameraPosition();
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas,
+                antialias: true 
+            });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            const fillLight = new THREE.DirectionalLight(0x87CEEB, 0.3);
+            fillLight.position.set(-5, 5, -5);
+            scene.add(fillLight);
+            
+            // Ground plane
+            const groundGeo = new THREE.PlaneGeometry(50, 50);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // Grid helper
+            const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+            gridHelper.position.y = -1.99;
+            scene.add(gridHelper);
+            
+            // Mouse controls
+            setupMouseControls();
+            
+            // Start animation
+            animate();
+        }
+
+        // ============================================
+        // MOUSE CONTROLS
+        // ============================================
+        function setupMouseControls() {
+            const canvas = document.getElementById('preview-canvas');
+            
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                
+                cameraRotation.y += deltaX * 0.005;
+                cameraRotation.x += deltaY * 0.005;
+                
+                // Clamp vertical rotation
+                cameraRotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cameraRotation.x));
+                
+                updateCameraPosition();
+                
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+            });
+            
+            // Zoom with mouse wheel
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                cameraDistance += e.deltaY * 0.01;
+                cameraDistance = Math.max(2, Math.min(15, cameraDistance));
+                updateCameraPosition();
+            });
+        }
+
+        function updateCameraPosition() {
+            const x = Math.sin(cameraRotation.y) * Math.cos(cameraRotation.x) * cameraDistance;
+            const y = Math.sin(cameraRotation.x) * cameraDistance;
+            const z = Math.cos(cameraRotation.y) * Math.cos(cameraRotation.x) * cameraDistance;
+            
+            camera.position.set(x, y, z);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function resetCamera() {
+            cameraRotation = { x: 0, y: 0 };
+            cameraDistance = 5;
+            updateCameraPosition();
+        }
+
+        // ============================================
+        // JACKET CREATION
+        // ============================================
+        function createJacket() {
+            if (jacketGroup) {
+                scene.remove(jacketGroup);
+            }
+            
+            jacketGroup = new THREE.Group();
+            
+            const baseColor = document.getElementById('baseColor').value;
+            const accentColor = document.getElementById('accentColor').value;
+            const trimColor = document.getElementById('trimColor').value;
+            const material = document.getElementById('baseMaterial').value;
+            
+            // Create torso
+            const torso = createTorso(baseColor, material);
+            jacketGroup.add(torso);
+            
+            // Create sleeves based on type
+            if (currentSleeveType !== 'sleeveless') {
+                const sleeves = createSleeves(currentSleeveType, baseColor, material);
+                jacketGroup.add(...sleeves);
+            }
+            
+            // Add collar
+            const collar = createCollar(trimColor);
+            jacketGroup.add(collar);
+            
+            // Add zipper/buttons
+            const closure = createClosure(accentColor);
+            jacketGroup.add(closure);
+            
+            // Add pockets
+            const pockets = createPockets(trimColor);
+            jacketGroup.add(...pockets);
+            
+            scene.add(jacketGroup);
+            
+            // Apply damage effects
+            updateDamageEffects();
+        }
+
+        function createTorso(color, materialType) {
+            const group = new THREE.Group();
+            
+            // Main body
+            const bodyGeo = new THREE.BoxGeometry(1.8, 2, 0.6);
+            const bodyMat = createMaterialByType(color, materialType);
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+            
+            // Back (slightly larger for layering)
+            const backGeo = new THREE.BoxGeometry(1.8, 2, 0.05);
+            const backMat = createMaterialByType(color, materialType);
+            const back = new THREE.Mesh(backGeo, backMat);
+            back.position.z = -0.3;
+            back.castShadow = true;
+            group.add(back);
+            
+            return group;
+        }
+
+        function createSleeves(sleeveType, color, materialType) {
+            const sleeves = [];
+            const mat = createMaterialByType(color, materialType);
+            
+            let sleeveLength;
+            switch(sleeveType) {
+                case 'short':
+                    sleeveLength = 0.6;
+                    break;
+                case 'long':
+                    sleeveLength = 1.5;
+                    break;
+                case 'hoodie':
+                    sleeveLength = 1.8;
+                    break;
+                default:
+                    return sleeves;
+            }
+            
+            // Left sleeve
+            const leftSleeveGeo = new THREE.CylinderGeometry(0.25, 0.22, sleeveLength, 16);
+            const leftSleeve = new THREE.Mesh(leftSleeveGeo, mat);
+            leftSleeve.position.set(-1.1, 0.4, 0);
+            leftSleeve.rotation.z = Math.PI / 2;
+            leftSleeve.castShadow = true;
+            sleeves.push(leftSleeve);
+            
+            // Right sleeve
+            const rightSleeve = leftSleeve.clone();
+            rightSleeve.position.set(1.1, 0.4, 0);
+            sleeves.push(rightSleeve);
+            
+            // Add hood if hoodie
+            if (sleeveType === 'hoodie') {
+                const hood = createHood(color, materialType);
+                sleeves.push(hood);
+            }
+            
+            return sleeves;
+        }
+
+        function createHood(color, materialType) {
+            const group = new THREE.Group();
+            const mat = createMaterialByType(color, materialType);
+            
+            // Hood main
+            const hoodGeo = new THREE.SphereGeometry(0.6, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.6);
+            const hood = new THREE.Mesh(hoodGeo, mat);
+            hood.position.set(0, 1.4, -0.3);
+            hood.castShadow = true;
+            group.add(hood);
+            
+            return group;
+        }
+
+        function createCollar(color) {
+            const group = new THREE.Group();
+            
+            const collarGeo = new THREE.TorusGeometry(0.4, 0.08, 8, 16, Math.PI);
+            const collarMat = new THREE.MeshStandardMaterial({ 
+                color: color,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            const collar = new THREE.Mesh(collarGeo, collarMat);
+            collar.position.set(0, 1, 0.3);
+            collar.rotation.x = Math.PI / 2;
+            collar.castShadow = true;
+            group.add(collar);
+            
+            return group;
+        }
+
+        function createClosure(color) {
+            const group = new THREE.Group();
+            
+            // Zipper/button line
+            for (let i = 0; i < 8; i++) {
+                const buttonGeo = new THREE.SphereGeometry(0.04, 8, 8);
+                const buttonMat = new THREE.MeshStandardMaterial({ 
+                    color: color,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                const button = new THREE.Mesh(buttonGeo, buttonMat);
+                button.position.set(0, 0.8 - i * 0.22, 0.31);
+                button.castShadow = true;
+                group.add(button);
+            }
+            
+            return group;
+        }
+
+        function createPockets(color) {
+            const pockets = [];
+            const pocketMat = new THREE.MeshStandardMaterial({ 
+                color: color,
+                roughness: 0.7
+            });
+            
+            // Left pocket
+            const leftPocketGeo = new THREE.BoxGeometry(0.4, 0.35, 0.08);
+            const leftPocket = new THREE.Mesh(leftPocketGeo, pocketMat);
+            leftPocket.position.set(-0.5, -0.4, 0.32);
+            leftPocket.castShadow = true;
+            pockets.push(leftPocket);
+            
+            // Right pocket
+            const rightPocket = leftPocket.clone();
+            rightPocket.position.set(0.5, -0.4, 0.32);
+            pockets.push(rightPocket);
+            
+            return pockets;
+        }
+
+        function createMaterialByType(color, type) {
+            const props = { color: color };
+            
+            switch(type) {
+                case 'fabric':
+                    props.roughness = 0.9;
+                    props.metalness = 0;
+                    break;
+                case 'leather':
+                    props.roughness = 0.5;
+                    props.metalness = 0.2;
+                    break;
+                case 'denim':
+                    props.roughness = 0.8;
+                    props.metalness = 0;
+                    break;
+                case 'nylon':
+                    props.roughness = 0.3;
+                    props.metalness = 0.1;
+                    break;
+                case 'metallic':
+                    props.roughness = 0.2;
+                    props.metalness = 0.9;
+                    break;
+            }
+            
+            return new THREE.MeshStandardMaterial(props);
+        }
+
+        // ============================================
+        // DAMAGE EFFECTS
+        // ============================================
+        function updateDamageEffects() {
+            const burnLevel = parseInt(document.getElementById('burnLevel').value);
+            const scratchLevel = parseInt(document.getElementById('scratchLevel').value);
+            const bloodLevel = parseInt(document.getElementById('bloodLevel').value);
+            const dirtLevel = parseInt(document.getElementById('dirtLevel').value);
+            
+            document.getElementById('burnValue').textContent = burnLevel + '%';
+            document.getElementById('scratchValue').textContent = scratchLevel + '%';
+            document.getElementById('bloodValue').textContent = bloodLevel + '%';
+            document.getElementById('dirtValue').textContent = dirtLevel + '%';
+            
+            if (!jacketGroup) return;
+            
+            // Apply damage to materials
+            jacketGroup.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    // Darken based on burn level
+                    if (burnLevel > 0) {
+                        const burnFactor = burnLevel / 100;
+                        child.material.emissive = new THREE.Color(0x332200);
+                        child.material.emissiveIntensity = burnFactor * 0.3;
+                    }
+                    
+                    // Roughness increase with dirt/scratches
+                    const damageRoughness = (scratchLevel + dirtLevel) / 200;
+                    child.material.roughness = Math.min(1, child.material.roughness + damageRoughness);
+                    
+                    // Blood tint
+                    if (bloodLevel > 0) {
+                        const bloodTint = new THREE.Color(0x8B0000);
+                        child.material.color.lerp(bloodTint, bloodLevel / 500);
+                    }
+                }
+            });
+        }
+
+        // ============================================
+        // SLEEVE TYPE CHANGE
+        // ============================================
+        function changeSleeveType(type) {
+            currentSleeveType = type;
+            
+            // Update button states
+            document.querySelectorAll('[data-sleeve]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-sleeve="${type}"]`).classList.add('active');
+            
+            // Recreate jacket
+            createJacket();
+        }
+
+        // ============================================
+        // UPDATE FUNCTIONS
+        // ============================================
+        function updateJacket() {
+            // Update color displays
+            document.getElementById('baseColorText').value = document.getElementById('baseColor').value;
+            document.getElementById('accentColorText').value = document.getElementById('accentColor').value;
+            document.getElementById('trimColorText').value = document.getElementById('trimColor').value;
+            
+            createJacket();
+        }
+
+        function updateStuds() {
+            const amount = parseInt(document.getElementById('studAmount').value);
+            document.getElementById('studValue').textContent = amount;
+            
+            // TODO: Add studs to jacket mesh
+        }
+
+        function updateClothPhysics() {
+            const physics = document.getElementById('clothPhysics').value;
+            const stiffness = parseInt(document.getElementById('stiffness').value);
+            const wind = parseInt(document.getElementById('windIntensity').value);
+            
+            document.getElementById('stiffnessValue').textContent = stiffness + '%';
+            document.getElementById('windValue').textContent = wind + '%';
+            
+            clothSimulation = physics;
+            
+            // TODO: Implement cloth physics
+        }
+
+        // ============================================
+        // PLACEHOLDER FUNCTIONS
+        // ============================================
+        function addBackPatch() {
+            showNotification('Back Patch feature coming soon!');
+        }
+
+        function toggleChains() {
+            showNotification('Chains feature coming soon!');
+        }
+
+        function saveJacket() {
+            const data = getJacketData();
+            localStorage.setItem(`jacket_slot_${currentSlot}`, JSON.stringify(data));
+            showNotification('Jacket Saved!');
+        }
+
+        function loadJacket() {
+            const saved = localStorage.getItem(`jacket_slot_${currentSlot}`);
+            if (saved) {
+                applyJacketData(JSON.parse(saved));
+                showNotification('Jacket Loaded!');
+            } else {
+                showNotification('No saved jacket found!');
+            }
+        }
+
+        function exportJacket() {
+            const data = getJacketData();
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${data.name.replace(/\s+/g, '_')}.json`;
+            a.click();
+            showNotification('Jacket Exported!');
+        }
+
+        function resetJacket() {
+            if (!confirm('Reset jacket to default?')) return;
+            
+            document.getElementById('jacketName').value = '';
+            document.getElementById('baseColor').value = '#1a1a1a';
+            document.getElementById('accentColor').value = '#FFD700';
+            document.getElementById('trimColor').value = '#666666';
+            changeSleeveType('sleeveless');
+            document.getElementById('burnLevel').value = 0;
+            document.getElementById('scratchLevel').value = 0;
+            document.getElementById('bloodLevel').value = 0;
+            document.getElementById('dirtLevel').value = 0;
+            
+            updateJacket();
+        }
+
+        function deleteJacket() {
+            if (!confirm('Delete this jacket?')) return;
+            
+            localStorage.removeItem(`jacket_slot_${currentSlot}`);
+            resetJacket();
+            showNotification('Jacket Deleted!');
+        }
+
+        function getJacketData() {
+            return {
+                name: document.getElementById('jacketName').value || `Jacket ${currentSlot}`,
+                slot: currentSlot,
+                timestamp: Date.now(),
+                sleeveType: currentSleeveType,
+                jacketType: document.getElementById('jacketType').value,
+                colors: {
+                    base: document.getElementById('baseColor').value,
+                    accent: document.getElementById('accentColor').value,
+                    trim: document.getElementById('trimColor').value
+                },
+                material: document.getElementById('baseMaterial').value,
+                damage: {
+                    burns: parseInt(document.getElementById('burnLevel').value),
+                    scratches: parseInt(document.getElementById('scratchLevel').value),
+                    blood: parseInt(document.getElementById('bloodLevel').value),
+                    dirt: parseInt(document.getElementById('dirtLevel').value)
+                },
+                wear: document.getElementById('wearLevel').value,
+                studs: parseInt(document.getElementById('studAmount').value),
+                physics: {
+                    simulation: document.getElementById('clothPhysics').value,
+                    stiffness: parseInt(document.getElementById('stiffness').value),
+                    wind: parseInt(document.getElementById('windIntensity').value)
+                }
+            };
+        }
+
+        function applyJacketData(data) {
+            document.getElementById('jacketName').value = data.name;
+            document.getElementById('baseColor').value = data.colors.base;
+            document.getElementById('accentColor').value = data.colors.accent;
+            document.getElementById('trimColor').value = data.colors.trim;
+            document.getElementById('jacketType').value = data.jacketType;
+            document.getElementById('baseMaterial').value = data.material;
+            document.getElementById('burnLevel').value = data.damage.burns;
+            document.getElementById('scratchLevel').value = data.damage.scratches;
+            document.getElementById('bloodLevel').value = data.damage.blood;
+            document.getElementById('dirtLevel').value = data.damage.dirt;
+            document.getElementById('wearLevel').value = data.wear;
+            document.getElementById('studAmount').value = data.studs;
+            
+            changeSleeveType(data.sleeveType);
+            updateJacket();
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+
+        function returnToMenu() {
+            window.location.href = 'applesauce_mainmenu.html';
+        }
+
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate jacket slowly for preview
+            if (jacketGroup && !isDragging) {
+                jacketGroup.rotation.y += 0.002;
+            }
+            
+            // TODO: Update cloth physics here
+            
+            renderer.render(scene, camera);
+        }
+
+        // ============================================
+        // WINDOW RESIZE
+        // ============================================
+        window.addEventListener('resize', () => {
+            const canvas = document.getElementById('preview-canvas');
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        });
+
+        // ============================================
+        // INITIALIZE
+        // ============================================
+        window.addEventListener('load', () => {
+            initThreeJS();
+            createJacket();
+        });
+    </script>
+</body>
+</html>

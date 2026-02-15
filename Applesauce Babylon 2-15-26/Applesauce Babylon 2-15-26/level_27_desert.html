@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level 27: Desert Heat</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #FFE4B5 0%, #F4A460 100%);
+        }
+
+        /* Title Screen */
+        #title {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #F4A460 0%, #D2691E 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: #FFE4B5;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.5);
+            animation: titlePulse 2s ease-in-out infinite;
+        }
+
+        @keyframes titlePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        #title h1 {
+            font-size: 6em;
+            margin-bottom: 20px;
+            letter-spacing: 10px;
+        }
+
+        #title p {
+            font-size: 2em;
+            margin: 10px 0;
+        }
+
+        #title.fade-out {
+            animation: fadeOut 2s forwards;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; }
+        }
+
+        /* HUD */
+        #hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #FFE4B5;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border: 2px solid #F4A460;
+            border-radius: 5px;
+            z-index: 100;
+        }
+
+        #hud div {
+            margin: 5px 0;
+        }
+
+        /* Speech Bubble */
+        #speechBubble {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(210, 105, 30, 0.95);
+            border: 3px solid #FFE4B5;
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 600px;
+            display: none;
+            z-index: 200;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        #speechBubble.active {
+            display: block;
+            animation: bubbleAppear 0.3s ease-out;
+        }
+
+        @keyframes bubbleAppear {
+            from { transform: translateX(-50%) scale(0.8); opacity: 0; }
+            to { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+
+        #speakerName {
+            font-weight: bold;
+            color: #FFE4B5;
+            font-size: 20px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        #speechText {
+            color: #FFF;
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        #dialoguePrompt {
+            color: #FFE4B5;
+            font-size: 14px;
+            text-align: right;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        /* Objectives */
+        #objectives {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #F4A460;
+            padding: 15px;
+            color: #FFE4B5;
+            min-width: 250px;
+            z-index: 100;
+            border-radius: 5px;
+        }
+
+        .objective {
+            margin: 8px 0;
+            padding: 5px;
+            border-left: 3px solid #F4A460;
+            padding-left: 10px;
+        }
+
+        .objective.completed {
+            color: #90EE90;
+            border-left-color: #90EE90;
+            text-decoration: line-through;
+        }
+
+        /* Controls */
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #F4A460;
+            padding: 15px;
+            color: #FFE4B5;
+            font-size: 14px;
+            z-index: 100;
+            border-radius: 5px;
+            max-width: 300px;
+        }
+
+        #controls strong {
+            color: #F4A460;
+        }
+
+        /* Interact Prompt */
+        #interactPrompt {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(210, 105, 30, 0.9);
+            border: 2px solid #FFE4B5;
+            padding: 15px 30px;
+            color: #FFF;
+            font-size: 18px;
+            display: none;
+            z-index: 150;
+            border-radius: 10px;
+            animation: promptPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes promptPulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        #interactPrompt.visible {
+            display: block;
+        }
+
+        /* Desert Theme Enhancements */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 120%, 
+                rgba(255, 228, 181, 0.3) 0%, 
+                transparent 50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- Title Screen -->
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level 1: Desert Heat</p>
+        <p style="font-size: 16px; margin-top: 10px;">🏜️ GRIND THE DUNES 🏜️</p>
+        <p style="font-size: 14px; margin-top: 20px; opacity: 0.8;">Loading...</p>
+    </div>
+
+    <!-- Speech Bubble -->
+    <div id="speechBubble">
+        <div id="speakerName">SPEAKER</div>
+        <div id="speechText">Dialogue text goes here...</div>
+        <div id="dialoguePrompt">[Press F to continue...]</div>
+    </div>
+    
+    <!-- HUD -->
+    <div id="hud">
+        <div id="level-name">DESERT HEAT</div>
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+    </div>
+    
+    <!-- Objectives Panel -->
+    <div id="objectives"></div>
+    
+    <!-- Controls -->
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        F - Interact / Dialogue<br>
+        ESC - Pause<br>
+        <br>
+        <strong style="color: #F4A460;">Grind rails automatically!</strong>
+    </div>
+    
+    <!-- Interact Prompt -->
+    <div id="interactPrompt">Press F to interact</div>
+
+    <!-- Three.js via CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./three.module.js"
+            }
+        }
+    </script>
+    
+    <!-- Main Game Script -->
+    <script type="module">
+        // ===================================
+        // IMPORT CORE ENGINE
+        // ===================================
+        import * as THREE from 'three';
+        import { ApplesauceCore } from './engine/applesauce-core-33.js';
+        
+        // ===================================
+        // LEVEL CONFIGURATION - DESERT HEAT
+        // ===================================
+        const DesertHeatLevel = {
+            // Level metadata
+            meta: {
+                number: 1,
+                name: "Desert Heat",
+                description: "Grind through the scorching dunes and defeat the desert scorpions!"
+            },
+            
+            // Scene settings - Sandy desert theme
+            scene: {
+                background: 0xFFE4B5,  // Sandy beige sky
+                fog: {
+                    color: 0xF4A460,    // Sandy brown haze
+                    near: 100,
+                    far: 400
+                }
+            },
+            
+            // ===================================
+            // TERRAIN - Procedural Desert Dunes
+            // ===================================
+            terrain: {
+                mode: 'procedural',
+                size: 1000,
+                resolution: 1,
+                noise: {
+                    preset: 'dunes',  // Sandy wave pattern
+                    amplitude: 8,      // Gentle rolling dunes
+                    frequency: 0.01, // Add this
+                    octaves: 3       // Add this
+                },
+                
+                // Desert vegetation - Cacti!
+                vegetation: {
+                    type: 'scatter',
+                    count: 60,
+                    bounds: { 
+                        minX: -400, 
+                        maxX: 400, 
+                        minZ: -400, 
+                        maxZ: 400 
+                    },
+                    treeTypes: ['cactus'],  // Only cacti in desert
+                    minScale: 1.2,
+                    maxScale: 2.5
+                },
+                
+                // Scattered rocks
+                props: [
+                    { type: 'generic', position: { x: 30, z: 20 }, scale: 2 },
+                    { type: 'generic', position: { x: -25, z: 15 }, scale: 1.5 },
+                    { type: 'generic', position: { x: 50, z: -10 }, scale: 1.8 },
+                ]
+            },
+            
+            // Player start position
+            playerStart: {
+                x: 0,
+                z: 10
+            },
+            
+            // ===================================
+            // OBSTACLES - Desert Course
+            // ===================================
+            obstacles: [
+                // Starting area - gentle ramp
+                { 
+                    type: 'ramp', 
+                    x: 15, 
+                    z: 0, 
+                    width: 10, 
+                    height: 2.5,
+                    color: 0xD2691E  // Sandy brown
+                },
+                
+                // First rail - weathered wood
+                { 
+                    type: 'rail', 
+                    x: 35, 
+                    z: 0, 
+                    length: 12,
+                    color: 0x8B4513  // Saddle brown (weathered)
+                },
+                
+                // Canyon jump - Gap over dune
+                { 
+                    type: 'ramp', 
+                    x: 60, 
+                    z: -8, 
+                    width: 8, 
+                    height: 5,
+                    color: 0xDEB887  // Burlywood
+                },
+                { 
+                    type: 'ramp', 
+                    x: 78, 
+                    z: -8, 
+                    width: 8, 
+                    height: 5,
+                    color: 0xDEB887
+                },
+                
+                // S-curve rails
+                { 
+                    type: 'rail', 
+                    x: 95, 
+                    z: -5, 
+                    length: 10,
+                    color: 0x8B4513
+                },
+                { 
+                    type: 'rail', 
+                    x: 110, 
+                    z: 5, 
+                    length: 10,
+                    color: 0x8B4513
+                },
+                
+                // Final quarter pipe - Sun temple
+                { 
+                    type: 'quarter', 
+                    x: 130, 
+                    z: 0, 
+                    width: 15, 
+                    height: 8,
+                    color: 0xF4A460  // Sandy gold
+                }
+            ],
+            
+            // ===================================
+            // OBJECTIVES
+            // ===================================
+            objectives: [
+                {
+                    id: 'explore',
+                    description: 'Explore the desert',
+                    target: 1,
+                    current: 0
+                },
+                {
+                    id: 'score_5000',
+                    description: 'Score 5,000 points',
+                    target: 5000,
+                    current: 0,
+                    checker: (engine) => engine.state.score
+                },
+                {
+                    id: 'grind_rail',
+                    description: 'Grind a rail',
+                    target: 1,
+                    current: 0
+                },
+                {
+                    id: 'combo_10',
+                    description: 'Get a 10x combo',
+                    target: 10,
+                    current: 0,
+                    checker: (engine) => engine.state.combo
+                }
+            ],
+        
+            // ===================================
+            // LEVEL START HOOK
+            // ===================================
+            onLevelStart: (core) => {
+                console.log('🏜️ Desert Heat level starting...');
+                
+                // Complete exploration objective after spawn
+                setTimeout(() => {
+                    if (core.modules.objectives) {
+                        core.modules.objectives.setProgress('explore', 1);
+                    }
+                }, 1000);
+                
+                // ===================================
+                // SPAWN DESERT NOMAD NPC
+                // ===================================
+                if (core.modules.dialogue) {
+                    core.modules.dialogue.createNPC({
+                        name: 'Desert Nomad',
+                        position: new THREE.Vector3(12, 1, 8),
+                        color: 0xD2691E,  // Desert brown
+                        interactRadius: 6,
+                        dialogue: [
+                            {
+                                speaker: 'Desert Nomad',
+                                text: 'Welcome to the Scorching Dunes, skater.'
+                            },
+                            {
+                                speaker: 'Desert Nomad',
+                                text: 'The desert is harsh, but the rails are smooth. Keep your combo alive!'
+                            },
+                            {
+                                speaker: 'Desert Nomad',
+                                text: 'Watch out for scorpions - they are deadly in packs.'
+                            },
+                            {
+                                speaker: 'Desert Nomad',
+                                text: 'Master the dunes and prove your worth, skater!'
+                            }
+                        ]
+                    });
+                    
+                    console.log('✅ Desert Nomad spawned');
+                }
+                
+                // ===================================
+                // SPAWN SCORPION ENEMIES
+                // ===================================
+                if (core.modules.enemies) {
+                    // First pack - near starting area
+                    core.modules.enemies.spawnEnemy({
+                        type: 'basic',
+                        x: 25,
+                        z: 10,
+                        speed: 0.08,
+                        health: 30,
+                        color: 0x8B4513  // Brown scorpion
+                    });
+                    
+                    core.modules.enemies.spawnEnemy({
+                        type: 'basic',
+                        x: 30,
+                        z: -8,
+                        speed: 0.08,
+                        health: 30,
+                        color: 0x8B4513
+                    });
+                    
+                    // Second pack - middle area
+                    core.modules.enemies.spawnEnemy({
+                        type: 'basic',
+                        x: 70,
+                        z: 15,
+                        speed: 0.1,
+                        health: 40,
+                        color: 0x654321  // Darker scorpion
+                    });
+                    
+                    core.modules.enemies.spawnEnemy({
+                        type: 'basic',
+                        x: 75,
+                        z: -12,
+                        speed: 0.1,
+                        health: 40,
+                        color: 0x654321
+                    });
+                    
+                    // Boss scorpion - end area
+                    core.modules.enemies.spawnBoss({
+                        type: 'fast',
+                        x: 120,
+                        z: 0,
+                        speed: 0.15,
+                        health: 80,
+                        color: 0xFF4500  // Red scorpion (dangerous!)
+                    });
+                    
+                    console.log('✅ 5 scorpions spawned across the desert');
+                }
+                
+                // Add custom grind tracking
+                if (core.modules.objectives) {
+                    const originalOnGrind = core.onGrindStart || (() => {});
+                    core.onGrindStart = () => {
+                        originalOnGrind();
+                        // Mark grind objective as complete
+                        core.modules.objectives.setProgress('grind_rail', 1);
+                    };
+                }
+                
+                console.log('✅ Desert Heat level ready! Shred the dunes! 🏜️');
+            }
+        };
+        
+        // ===================================
+        // INITIALIZE GAME ENGINE
+        // ===================================
+        console.log('🎮 Initializing APPLESAUCE Desert Heat...');
+        
+        const game = new ApplesauceCore({
+            // Enable all features
+            goreEnabled: true,
+            dialogueEnabled: true,
+            objectivesEnabled: true,
+            enemiesEnabled: true,
+            terrainEnabled: true,
+            weatherEnabled: true,
+            pauseEnabled: true,
+            combatEnabled: true,
+            
+            // Game settings
+            maxSpeed: 1.2,
+            gravity: 0.015
+        });
+
+        console.log("Testing Terrain Config:", DesertHeatLevel.terrain);
+
+
+        
+        // ===================================
+        // LOAD & START LEVEL
+        // ===================================
+        async function startGame() {
+            try {
+                console.log('📦 Loading Desert Heat level...');
+                
+                // Load the level
+                await game.loadLevel(DesertHeatLevel);
+                
+                console.log('✅ Level loaded successfully!');
+                
+                // Fade out title screen after 3 seconds
+                setTimeout(() => {
+                    const title = document.getElementById('title');
+                    if (title) {
+                        title.classList.add('fade-out');
+                        setTimeout(() => {
+                            title.style.display = 'none';
+                        }, 2000);
+                    }
+                }, 3000);
+                
+                // Start the game loop
+                game.start();
+                
+                // Make game accessible for debugging
+                window.game = game;
+                
+                console.log('🎮 Game ready! Access via window.game');
+                console.log('🛹 WASD to move, SPACE to jump, F to talk!');
+                console.log('🏜️ Grind the dunes and defeat the scorpions!');
+                
+            } catch (error) {
+                console.error('❌ Failed to start game:', error);
+                console.error(error.stack);
+            }
+        }
+        
+        // Start the game when page loads
+        startGame();
+    </script>
+</body>
+</html>

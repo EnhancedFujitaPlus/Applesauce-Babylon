@@ -1,0 +1,29 @@
+{
+  "name": "Bee Helmet",
+  "slot": 1,
+  "timestamp": 1768336791249,
+  "colors": {
+    "shell": "#eeff00",
+    "visor": "#000000",
+    "accent": "#ffd700"
+  },
+  "material": "standard",
+  "decal": {
+    "image": null,
+    "scale": 1,
+    "rotation": 0,
+    "opacity": 100
+  },
+  "elements": [
+    "spikes",
+    "mohawk",
+    "horns",
+    "flames",
+    "chains",
+    "wings",
+    "concave",
+    "antennae",
+    "vents"
+  ],
+  "elementScale": 1
+}

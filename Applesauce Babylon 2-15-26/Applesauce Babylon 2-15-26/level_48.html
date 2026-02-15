@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE: In-Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        /* Basic HUD */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000;
+        }
+        
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+        
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+        
+        #kills {
+            font-size: 20px;
+            color: #FF0000;
+            margin-top: 5px;
+        }
+        
+        /* Objectives panel */
+        #objectives {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            min-width: 250px;
+            z-index: 100;
+        }
+        
+        #objectives h3 {
+            font-size: 18px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        .objective {
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        
+        .objective.complete {
+            color: #00FF00;
+            text-decoration: line-through;
+        }
+        
+        /* Loading screen */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 48px;
+            z-index: 1000;
+        }
+        
+        #loading-text {
+            margin-bottom: 20px;
+        }
+        
+        #loading-details {
+            font-size: 18px;
+            color: #FFD700;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading screen -->
+    <div id="loading">
+        <div id="loading-text">LOADING LEVEL...</div>
+        <div id="loading-details">Initializing...</div>
+    </div>
+    
+    <!-- Basic HUD (always present) -->
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="speed">SPEED: 0</div>
+        <div id="kills">KILLS: 0</div>
+    </div>
+    
+    <!-- Objectives panel -->
+    <div id="objectives">
+        <h3>OBJECTIVES:</h3>
+        <div id="objectivesList">
+            <!-- Objectives added dynamically -->
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- PARSE URL TO GET LEVEL ID                   -->
+    <!-- ============================================ -->
+    <script>
+        // Get level ID from URL: game.html?id=18
+        const urlParams = new URLSearchParams(window.location.search);
+        const levelId = urlParams.get('id');
+        
+        console.log('🎮 Level ID from URL:', levelId);
+        
+        if (!levelId) {
+            document.getElementById('loading-text').textContent = 'ERROR: No level ID!';
+            document.getElementById('loading-details').textContent = 'Add ?id=XX to URL';
+        }
+        
+        // Store for use in module
+        window.LEVEL_ID = levelId;
+    </script>
+    
+    <!-- ============================================ -->
+    <!-- LOAD LEVEL CONFIG (Regular Script)          -->
+    <!-- ============================================ -->
+    <script id="levelScript">
+        // This will be replaced dynamically
+        (function() {
+            const levelId = window.LEVEL_ID;
+            if (levelId) {
+                const script = document.createElement('script');
+                script.src = `./levels/level_${levelId}.js`;
+                script.onerror = function() {
+                    console.error('❌ Failed to load level file!');
+                    document.getElementById('loading-text').textContent = 'ERROR!';
+                    document.getElementById('loading-details').textContent = 
+                        `Cannot find ./levels/level_${levelId}.js`;
+                };
+                script.onload = function() {
+                    console.log(`✅ Level ${levelId} script loaded`);
+                    document.getElementById('loading-details').textContent = 
+                        'Level config loaded...';
+                };
+                document.body.appendChild(script);
+            }
+        })();
+    </script>
+    
+    <!-- ============================================ -->
+    <!-- LOAD GAME ENGINE (ES Module)                -->
+    <!-- ============================================ -->
+    <script type="module">
+        import { ApplesauceCore } from './engine/applesauce-core-33.js';
+        import { ApplesauceMusic } from './engine/music/applesauce-music.js';  // ← MINIMAL VERSION!
+        
+        console.log('🎮 APPLESAUCE Starting...');
+        document.getElementById('loading-details').textContent = 'Game engine loading...';
+        
+        // Wait for DOM and level script to be ready
+        function waitForLevel() {
+            return new Promise((resolve) => {
+                const checkInterval = setInterval(() => {
+                    // Look for level config
+                    const levelConfig = getLevelConfig();
+                    if (levelConfig) {
+                        clearInterval(checkInterval);
+                        resolve(levelConfig);
+                    }
+                }, 100);
+                
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    resolve(null);
+                }, 5000);
+            });
+        }
+        
+        // Helper function to find level config
+        function getLevelConfig() {
+            const levelId = window.LEVEL_ID;
+            if (!levelId) return null;
+            
+            // Try direct match: Level18Config
+            const directKey = `Level${levelId}Config`;
+            if (window[directKey]) {
+                console.log(`✅ Found ${directKey}`);
+                return window[directKey];
+            }
+            
+            // Try with leading zero: Level01Config
+            const paddedKey = `Level${levelId.padStart(2, '0')}Config`;
+            if (window[paddedKey]) {
+                console.log(`✅ Found ${paddedKey}`);
+                return window[paddedKey];
+            }
+            
+            // Try finding any LevelXXConfig
+            for (let key in window) {
+                if (key.startsWith('Level') && key.endsWith('Config')) {
+                    const match = key.match(/Level(\d+)Config/);
+                    if (match && match[1] == levelId) {
+                        console.log(`✅ Found ${key}`);
+                        return window[key];
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
+        // Initialize game
+        async function initGame() {
+            console.log('🎮 Waiting for level config...');
+            
+            const levelConfig = await waitForLevel();
+            
+            if (!levelConfig) {
+                console.error('❌ Level config not found!');
+                document.getElementById('loading-text').textContent = 'ERROR!';
+                document.getElementById('loading-details').textContent = 
+                    `Level ${window.LEVEL_ID} config not loaded`;
+                return;
+            }
+            
+            console.log(`✅ Level config found: ${levelConfig.meta.name}`);
+            document.getElementById('loading-details').textContent = 
+                `Creating game engine...`;
+            
+            // Create game instance
+            const game = new ApplesauceCore({
+                goreEnabled: true,
+                dialogueEnabled: true,
+                enemiesEnabled: true,
+                objectivesEnabled: true
+            });
+            
+            // ========================================
+            // MINIMAL MUSIC SYSTEM - SIMPLE!
+            // ========================================
+            game.modules.music = new ApplesauceMusic(game, {
+                volume: 0.5  // 50% volume
+            });
+            console.log('🎵 Minimal music system ready');
+            
+            // ========================================
+            // DONE - Let level handle the rest!
+            // ========================================
+            
+            console.log('✅ Game engine created');
+            document.getElementById('loading-details').textContent = 
+                `Loading ${levelConfig.meta.name}...`;
+            
+            // Small delay to ensure everything is initialized
+            setTimeout(() => {
+                console.log('🎮 Loading level...');
+                game.loadLevel(levelConfig);
+                
+                // START THE ANIMATION LOOP!
+                console.log('🎬 Starting animation loop...');
+                game.start();
+                
+                // Hide loading screen
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    console.log('✅ Level loaded! Game started!');
+                }, 500);
+            }, 100);
+            
+            // Make game accessible globally for debugging
+            window.game = game;
+            
+            // ESC to return to menu
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (confirm('Return to menu?')) {
+                        window.location.href = 'index.html';
+                    }
+                }
+            });
+        }
+        
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGame);
+        } else {
+            initGame();
+        }
+    </script>
+</body>
+</html>

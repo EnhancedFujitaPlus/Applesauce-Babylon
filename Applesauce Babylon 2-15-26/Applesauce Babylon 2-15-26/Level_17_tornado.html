@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level 8: Farms</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+        }
+        
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+        
+        #trick {
+            font-size: 28px;
+            color: #00FF00;
+            margin-bottom: 10px;
+            min-height: 35px;
+        }
+        
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+        
+        #height {
+            font-size: 24px;
+            color: #FFD700;
+            margin-top: 5px;
+        }
+        
+        #climbing {
+            font-size: 20px;
+            color: #00FF00;
+            margin-top: 5px;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #title h1 {
+            font-size: 72px;
+            color: #8B4513;
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+        
+        #objectives {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            min-width: 250px;
+        }
+    </style>
+</head>
+<body>
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level 8.2: THE FARMS</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #8B4513;">🐄 COW TIPPING MODE 🐄</p>
+    </div>
+    
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="height">HEIGHT: 0m</div>
+        <div id="climbing" style="display: none;">🪜 CLIMBING LADDER</div>
+        <div id="cowCount" style="font-size: 20px; color: #8B4513; margin-top: 5px;">COWS TIPPED: 0/15</div>
+    </div>
+    
+    <div id="objectives">
+        <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #FFD700;">OBJECTIVES:</div>
+        <div id="obj1" style="margin-bottom: 8px;">☐ Tip All 15 Cows (0/15)</div>
+        <div id="obj2" style="margin-bottom: 8px;">☐ Reach 50m Height (0m)</div>
+        <div id="obj3" style="margin-bottom: 8px;">☐ 50-50 a Tipped Cow</div>
+        <div id="obj4" style="margin-bottom: 8px;">☐ Defeat Queen Moo</div>
+    </div>
+    
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        W/S - Climb Ladders<br>
+        Run into cows to TIP them!<br>
+        50-50 tipped cows for tricks!<br>
+        Click to lock mouse
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="./engine/weather/TornadoSystem.js"></script>
+    <script>
+        // ======= SCENE SETUP =======
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x87CEEB, 100, 350);
+        
+        const camera = new THREE.PerspectiveCamera(75000, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        document.body.appendChild(renderer.domElement);
+        
+        // Hide title after 3 seconds
+        setTimeout(() => {
+            document.getElementById('title').classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('title').style.display = 'none';
+            }, 2000);
+        }, 3000);
+        
+        // ======= SKY GRADIENT =======
+        const skyGeo = new THREE.SphereGeometry(400, 32, 32);
+        const skyMat = new THREE.ShaderMaterial({
+            uniforms: {
+                topColor: { value: new THREE.Color(0x0077BE) },
+                bottomColor: { value: new THREE.Color(0x87CEEB) },
+                offset: { value: 20 },
+                exponent: { value: 0.6 }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                uniform float offset;
+                uniform float exponent;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition + offset).y;
+                    gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                }
+            `,
+            side: THREE.BackSide
+        });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(sky);
+        
+        // ======= LIGHTING =======
+        const ambientLight = new THREE.AmbientLight(0xFFE8CC, 0.6);
+        scene.add(ambientLight);
+        
+        const sun = new THREE.DirectionalLight(0xFFFFDD, 1.3);
+        sun.position.set(60, 80, 40);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -150;
+        sun.shadow.camera.right = 150;
+        sun.shadow.camera.top = 150;
+        sun.shadow.camera.bottom = -150;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        scene.add(sun);
+        
+        const fillLight = new THREE.DirectionalLight(0xFFE0B0, 0.3);
+        fillLight.position.set(-40, 30, -30);
+        scene.add(fillLight);
+        
+        // ======= MATERIALS =======
+        const grassMat = new THREE.MeshStandardMaterial({ color: 0x4A7C3D, roughness: 0.9 });
+        const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8B6F47, roughness: 0.95 });
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+        const redBarnMat = new THREE.MeshStandardMaterial({ color: 0xA52A2A, roughness: 0.7 });
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0xC0C0C0, roughness: 0.4, metalness: 0.6 });
+        const whiteMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.7 });
+        const blackMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.8 });
+        const pinkMat = new THREE.MeshStandardMaterial({ color: 0xFFB6C1, roughness: 0.6 });
+        const hayMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, roughness: 0.9 });
+        
+        // ======= GROUND =======
+        const groundGeo = new THREE.PlaneGeometry(2000, 2000, 500, 500);
+        const groundPositions = groundGeo.attributes.position;
+        
+        // NOTE: Terrain height variation - adjust multipliers for hillier/flatter terrain
+        for (let i = 0; i < groundPositions.count; i++) {
+            const x = groundPositions.getX(i);
+            const y = groundPositions.getY(i);
+            const height = Math.sin(x * 0.05) * 0.5 + Math.cos(y * 0.05) * 0.5;
+            groundPositions.setZ(i, height);
+        }
+        
+        groundGeo.computeVertexNormals();
+        const ground = new THREE.Mesh(groundGeo, grassMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        // Terrain height function
+        function getTerrainHeight(x, z) {
+            return Math.sin(x * 0.05) * 0.5 + Math.cos(z * 0.05) * 0.5;
+        }
+
+        // ======= TERRAIN WRAPPER WITH DEFORM METHOD =======
+        const terrain = {
+            mesh: ground,
+            geometry: groundGeo,
+            heightMap: new Map(),
+            
+            getHeight: function(x, z) {
+                return getTerrainHeight(x, z);
+            },
+            
+            deform: function(x, z, radius = 2, depth = 0.5) {
+                const positions = this.geometry.attributes.position;
+                let modified = false;
+                
+                for (let i = 0; i < positions.count; i++) {
+                    const vx = positions.getX(i);
+                    const vy = positions.getY(i);
+                    const dx = vx - x;
+                    const dy = vy - z;
+                    const distanceSq = dx * dx + dy * dy;
+                    
+                    if (distanceSq < radius * radius) {
+                        const currentHeight = positions.getZ(i);
+                        const force = (1 - Math.sqrt(distanceSq) / radius) * depth;
+                        positions.setZ(i, currentHeight - force);
+                        modified = true;
+                    }
+                }
+                
+                if (modified) {
+                    positions.needsUpdate = true;
+                    this.geometry.computeVertexNormals();
+                }
+            }
+        };
+
+        let tornado = null;
+
+        // Create tornado that moves across the farm
+        function initializeTornado() {
+            tornado = new TornadoSystem(scene, terrain, {
+                startX: -50,           // Start off to the side
+                startZ: 100,           // Far away initially
+                velocityX: 0.12,       // Move across the level
+                velocityZ: -0.08,      // Move toward player
+                radius: 30,            // Big enough to be scary
+                height: 40,            // Tall funnel
+                strength: 0.5,         // Strong pull
+                rotationSpeed: 0.2,    // Fast spin
+                deformRate: 3.0,      // Carves deep grooves
+                lifetime: 5000         // Lasts ~83 seconds
+            });
+            
+            console.log("🌪️ TORNADO SPAWNED! Watch out!");
+        }
+
+        initializeTornado();
+        
+        // ======= WATER TOWER WITH LADDERS =======
+        // NOTE: This is the main vertical challenge - climb to 50m for objective completion
+        function createWaterTower(x, z) {
+            const tower = new THREE.Group();
+            
+            // Base legs (4 support beams)
+            for (let i = 0; i < 4; i++) {
+                const angle = (i / 4) * Math.PI * 2;
+                const legX = Math.cos(angle) * 3;
+                const legZ = Math.sin(angle) * 3;
+                
+                const legGeo = new THREE.BoxGeometry(0.5, 45, 0.5);
+                const leg = new THREE.Mesh(legGeo, metalMat);
+                leg.position.set(legX, 22.5, legZ);
+                leg.castShadow = true;
+                tower.add(leg);
+            }
+            
+            // Water tank on top
+            const tankGeo = new THREE.CylinderGeometry(4, 4, 10, 16);
+            const tank = new THREE.Mesh(tankGeo, metalMat);
+            tank.position.y = 50;
+            tank.castShadow = true;
+            tower.add(tank);
+            
+            // Platform at top
+            const platformGeo = new THREE.BoxGeometry(10, 0.5, 10);
+            const platform = new THREE.Mesh(platformGeo, woodMat);
+            platform.position.y = 45;
+            platform.castShadow = true;
+            platform.receiveShadow = true;
+            platform.userData.isGrindable = true; // Can land on platform
+            tower.add(platform);
+            
+            // Create ladder rungs (every 1.5m)
+            for (let h = 0; h < 45; h += 1.5) {
+                const rungGeo = new THREE.BoxGeometry(0.3, 0.3, 1.2);
+                const rung = new THREE.Mesh(rungGeo, metalMat);
+                rung.position.set(3, h + 1, 0);
+                rung.userData.isLadder = true;
+                rung.userData.height = h;
+                tower.add(rung);
+            }
+            
+            // Ladder rails
+            for (let side of [-0.5, 0.5]) {
+                const railGeo = new THREE.BoxGeometry(0.2, 45, 0.2);
+                const rail = new THREE.Mesh(railGeo, metalMat);
+                rail.position.set(3, 22.5, side);
+                rail.userData.isLadder = true;
+                rail.castShadow = true;
+                tower.add(rail);
+            }
+            
+            tower.position.set(x, 0, z);
+            scene.add(tower);
+            return tower;
+        }
+        
+        const waterTower = createWaterTower(0, -80);
+        
+        // ======= BARN =======
+        function createBarn(x, z) {
+            const barn = new THREE.Group();
+            
+            const bodyGeo = new THREE.BoxGeometry(15, 12, 10);
+            const body = new THREE.Mesh(bodyGeo, redBarnMat);
+            body.position.y = 6;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            barn.add(body);
+            
+            const roofGeo = new THREE.ConeGeometry(11, 8, 4);
+            const roofMat = new THREE.MeshStandardMaterial({ color: 0x8B0000, roughness: 0.6 });
+            const roof = new THREE.Mesh(roofGeo, roofMat);
+            roof.position.y = 16;
+            roof.rotation.y = Math.PI / 4;
+            roof.castShadow = true;
+            barn.add(roof);
+            
+            const doorGeo = new THREE.BoxGeometry(4, 7, 0.3);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
+            const door = new THREE.Mesh(doorGeo, doorMat);
+            door.position.set(0, 3.5, 5.2);
+            barn.add(door);
+            
+            barn.position.set(x, 0, z);
+            scene.add(barn);
+            return barn;
+        }
+        
+        createBarn(-30, -30);
+        createBarn(-60, -30);
+        createBarn(-300, -300);
+        createBarn(-600, -300);
+        createBarn(300, 300);
+        createBarn(60, -50);
+        createBarn(100, -300);
+        createBarn(600, 300);
+        createBarn(350, 350);
+        createBarn(60, -100);
+        createBarn(10, -300);
+        createBarn(60, 30);
+        
+        // ======= HAY BALES =======
+        // NOTE: Hay bales can be used as ramps or obstacles
+        function createHayBale(x, z) {
+            const hay = new THREE.Group();
+            const baleGeo = new THREE.BoxGeometry(3, 2, 3);
+            const bale = new THREE.Mesh(baleGeo, hayMat);
+            bale.position.y = 1;
+            bale.castShadow = true;
+            bale.receiveShadow = true;
+            hay.add(bale);
+            
+            hay.position.set(x, 0, z);
+            scene.add(hay);
+            return hay;
+        }
+        
+        // Scatter hay bales around farm
+        createHayBale(20, -20);
+        createHayBale(25, -15);
+        createHayBale(30, -20);
+        createHayBale(-15, 15);
+        createHayBale(-20, 20);
+        createHayBale(40, 30);
+        
+        // ======= WATER TROUGHS =======
+        function createTrough(x, z) {
+            const trough = new THREE.Group();
+            const troughGeo = new THREE.BoxGeometry(4, 1, 1.5);
+            const troughMesh = new THREE.Mesh(troughGeo, metalMat);
+            troughMesh.position.y = 0.5;
+            troughMesh.castShadow = true;
+            trough.add(troughMesh);
+            
+            // Water inside
+            const waterGeo = new THREE.BoxGeometry(3.8, 0.5, 1.3);
+            const waterMat = new THREE.MeshStandardMaterial({ color: 0x4169E1, transparent: true, opacity: 0.7 });
+            const water = new THREE.Mesh(waterGeo, waterMat);
+            water.position.y = 0.8;
+            trough.add(water);
+            
+            trough.position.set(x, 0, z);
+            scene.add(trough);
+            return trough;
+        }
+        
+        createTrough(-45, -15);
+        createTrough(-75, -15);
+        
+        // ======= FENCES =======
+        // NOTE: Fences can be grinded like rails
+        function createFence(x, z, length, rotation = 0) {
+            const fence = new THREE.Group();
+            
+            for (let i = 0; i <= length; i += 5) {
+                const postGeo = new THREE.BoxGeometry(0.3, 2, 0.3);
+                const post = new THREE.Mesh(postGeo, woodMat);
+                post.position.set(i, 1, 0);
+                post.castShadow = true;
+                fence.add(post);
+            }
+            
+            // Rails
+            for (let h of [0.5, 1.5]) {
+                const railGeo = new THREE.BoxGeometry(length, 0.2, 0.2);
+                const rail = new THREE.Mesh(railGeo, woodMat);
+                rail.position.set(length / 2, h, 0);
+                rail.castShadow = true;
+                rail.userData.isGrindable = true;
+                fence.add(rail);
+            }
+            
+            fence.position.set(x, 0, z);
+            fence.rotation.y = rotation;
+            scene.add(fence);
+            return fence;
+        }
+        
+        createFence(-50, 10, 400);
+        createFence(10, -50, 300, Math.PI / 2);
+        createFence(-20, -60, 500);
+        createFence(-30, -60, 500);
+        createFence(-80, -60, 500);
+        createFence(200, -60, 500);
+        createFence(-450, -60, 500);
+        createFence(-700, -600, 500);
+        
+        // ======= COW CREATION =======
+        // NOTE: 15 cows scattered around farm - run into them to tip!
+        function createCow(x, z) {
+            const cow = new THREE.Group();
+            cow.userData.type = 'cow';
+            cow.userData.tipped = false;
+            cow.userData.alive = true;
+            
+            // Body
+            const bodyGeo = new THREE.BoxGeometry(2, 1.2, 3);
+            const body = new THREE.Mesh(bodyGeo, whiteMat);
+            body.position.y = 1.5;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            cow.add(body);
+            
+            // Black spots
+            for (let i = 0; i < 3; i++) {
+                const spotGeo = new THREE.SphereGeometry(0.3, 8, 8);
+                const spot = new THREE.Mesh(spotGeo, blackMat);
+                spot.position.set(
+                    (Math.random() - 0.5) * 1.5,
+                    1.5 + (Math.random() - 0.5) * 0.5,
+                    (Math.random() - 0.5) * 2
+                );
+                spot.scale.z = 0.5;
+                cow.add(spot);
+            }
+            
+            // Head
+            const headGeo = new THREE.BoxGeometry(1, 1, 1.2);
+            const head = new THREE.Mesh(headGeo, whiteMat);
+            head.position.set(0, 1.8, 1.8);
+            head.castShadow = true;
+            cow.add(head);
+            
+            // Snout
+            const snoutGeo = new THREE.BoxGeometry(0.6, 0.4, 0.4);
+            const snout = new THREE.Mesh(snoutGeo, pinkMat);
+            snout.position.set(0, 1.6, 2.6);
+            cow.add(snout);
+            
+            // Ears
+            for (let side of [-1, 1]) {
+                const earGeo = new THREE.ConeGeometry(0.3, 0.6, 8);
+                const ear = new THREE.Mesh(earGeo, whiteMat);
+                ear.position.set(side * 0.6, 2.3, 1.8);
+                ear.rotation.z = side * Math.PI / 6;
+                cow.add(ear);
+            }
+            
+            // Legs
+            for (let x of [-0.5, 0.5]) {
+                for (let z of [-1, 1]) {
+                    const legGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.5, 8);
+                    const leg = new THREE.Mesh(legGeo, whiteMat);
+                    leg.position.set(x, 0.75, z);
+                    leg.castShadow = true;
+                    cow.add(leg);
+                }
+            }
+            
+            // Tail
+            const tailGeo = new THREE.CylinderGeometry(0.1, 0.05, 1.5, 8);
+            const tail = new THREE.Mesh(tailGeo, whiteMat);
+            tail.position.set(0, 1.5, -1.8);
+            tail.rotation.x = Math.PI / 4;
+            cow.add(tail);
+            
+            // Udder
+            const udderGeo = new THREE.SphereGeometry(0.4, 8, 8);
+            const udder = new THREE.Mesh(udderGeo, pinkMat);
+            udder.position.set(0, 0.8, 0);
+            udder.scale.y = 0.6;
+            cow.add(udder);
+            
+            cow.position.set(x, 0, z);
+            cow.userData.originalY = 0;
+            scene.add(cow);
+            return cow;
+        }
+        
+        // Place 15 cows around the farm
+        const cows = [];
+        const cowPositions = [
+            [-40, -20], [-50, -25], [-35, -35],
+            [-70, -20], [-65, -30], [-55, -40],
+            [-20, 10], [-30, 15], [-15, 20],
+            [15, -30], [20, -40], [25, -25],
+            [30, 20], [35, 30], [40, 25],
+            [-40, -20], [-50, -25], [-35, -35],
+            [-70, -20], [-65, -30], [-55, -40],
+            [-20, 10], [-30, 15], [-15, 20],
+            [15, -30], [20, -40], [25, -25],
+            [30, 20], [35, 30], [40, 25]
+        ];
+        
+        cowPositions.forEach(pos => {
+            cows.push(createCow(pos[0], pos[1]));
+        });
+
+        const buildings = [];
+        
+        // ======= PLAYER =======
+        const player = new THREE.Group();
+        
+        const deckGeo = new THREE.BoxGeometry(0.8, 0.1, 2.5);
+        const deckMat = new THREE.MeshStandardMaterial({ color: 0xFF1493, metalness: 0.3, roughness: 0.7 });
+        const deck = new THREE.Mesh(deckGeo, deckMat);
+        deck.position.y = 0.3;
+        deck.castShadow = true;
+        player.add(deck);
+        
+        // Wheels
+        for (let pos of [[-0.3, 0.15, -0.8], [0.3, 0.15, -0.8], [-0.3, 0.15, 0.8], [0.3, 0.15, 0.8]]) {
+            const wheelGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 12);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.5 });
+            const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+            wheel.position.set(...pos);
+            wheel.rotation.z = Math.PI / 2;
+            wheel.castShadow = true;
+            player.add(wheel);
+        }
+        
+        // Body
+        const bodyGeo = new THREE.BoxGeometry(0.6, 1.2, 0.4);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.set(0, 1.2, -0.2);
+        body.castShadow = true;
+        player.add(body);
+        
+        // Head
+        const headGeo = new THREE.SphereGeometry(0.3, 16, 16);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xFFDBAC, roughness: 0.6 });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.set(0, 2.1, -0.2);
+        head.castShadow = true;
+        player.add(head);
+        
+        // Arms
+        for (let side of [-1, 1]) {
+            const armGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+            const arm = new THREE.Mesh(armGeo, bodyMat);
+            arm.position.set(side * 0.4, 1.2, -0.2);
+            arm.castShadow = true;
+            player.add(arm);
+        }
+        
+        player.position.set(0, 1, 10);
+        scene.add(player);
+
+        // Create debris when tornado destroys things
+        function createDebris(position, type, count = 10) {
+            for (let i = 0; i < count; i++) {
+                const size = Math.random() * 0.5 + 0.2;
+                const debris = new THREE.Mesh(
+                    new THREE.BoxGeometry(size, size, size),
+                    new THREE.MeshBasicMaterial({
+                        color: type === 'building' ? 0x8B4513 : 0x654321
+                    })
+                );
+                
+                debris.position.copy(position);
+                debris.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    Math.random() * 0.4 + 0.2,
+                    (Math.random() - 0.5) * 0.3
+                );
+                debris.lifetime = 200;
+                
+                scene.add(debris);
+                state.gibs.push(debris); // Add to existing gibs system
+            }
+        }
+
+
+        // Spawn multiple tornados at different times
+        function spawnTornadoWave() {
+            const tornado1 = new TornadoSystem(scene, terrain, {
+                startX: -60,
+                startZ: 120,
+                velocityX: 0.15,
+                velocityZ: -0.1,
+                radius: 8
+            });
+            
+            setTimeout(() => {
+                const tornado2 = new TornadoSystem(scene, terrain, {
+                    startX: 60,
+                    startZ: 150,
+                    velocityX: -0.12,
+                    velocityZ: -0.15,
+                    radius: 12,
+                    strength: 0.6
+                });
+            }, 10000); // Second tornado after 10 seconds
+        }
+        
+        // ======= GAME STATE =======
+        const state = {
+            score: 0,
+            combo: 0,
+            comboTimer: 0,
+            speed: 0,
+            maxSpeed: 1.2,
+            acceleration: 0.03,
+            friction: 0.96,
+            turnSpeed: 0.03,
+            rotation: 0,
+            velocityX: 0,
+            velocityZ: 0,
+            jumping: false,
+            jumpVelocity: 0,
+            gravity: -0.03,
+            grounded: true,
+            currentTrick: '',
+            trickTimer: 0,
+            spinning: false,
+            spinRotation: 0,
+            attemptingKickflip: false,
+            attemptingHeelflip: false,
+            grinding: false,
+            currentRail: null,
+            blood: [],
+            gibs: [],
+            climbing: false,
+            climbSpeed: 0.15,
+            nearLadder: null,
+            maxHeight: 0,
+            cowsTipped: 0,
+            objectives: {
+                tipCows: { complete: false, current: 0, target: 15 },
+                height: { complete: false, current: 0, target: 50 },
+                fiftyFiftyCow: { complete: false },
+                boss: { complete: false, spawned: false, health: 100 }
+            }
+        };
+        
+        const keys = {};
+        
+        // ======= AUDIO SYNTH =======
+        // NOTE: Using Web Audio API for sound effects - no external files needed
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playMoo() {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.frequency.setValueAtTime(200, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(150, audioContext.currentTime + 0.3);
+            
+            gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+            
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.4);
+        }
+        
+        function playLandSound() {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(100, audioContext.currentTime);
+            
+            gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+            
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.1);
+        }
+        
+        // ======= CONTROLS =======
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            // Ollie
+            if (e.key === ' ' && state.grounded && !state.jumping && !state.climbing) {
+                state.jumping = true;
+                state.jumpVelocity = 0.4;
+                state.grounded = false;
+                playLandSound();
+            }
+            
+            // Kickflip
+            if (e.key.toLowerCase() === 'q' && state.jumping && !state.spinning) {
+                state.spinning = true;
+                state.attemptingKickflip = true;
+                state.spinRotation = 0;
+            }
+            
+            // Heelflip
+            if (e.key.toLowerCase() === 'e' && state.jumping && !state.spinning) {
+                state.spinning = true;
+                state.attemptingHeelflip = true;
+                state.spinRotation = 0;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === renderer.domElement) {
+                state.rotation -= e.movementX * 0.002;
+            }
+        });
+        
+        renderer.domElement.addEventListener('click', () => {
+            renderer.domElement.requestPointerLock();
+        });
+        
+        // ======= GORE SYSTEM =======
+        // NOTE: Ported from Level 1 - creates blood splatter and flying body parts
+        function createBloodExplosion(position, velocity) {
+            const particleCount = 25;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const size = 0.1 + Math.random() * 0.2;
+                const particleGeo = new THREE.SphereGeometry(size, 4, 4);
+                const particleMat = new THREE.MeshStandardMaterial({
+                    color: 0x8B0000,
+                    transparent: true,
+                    opacity: 0.8,
+                    roughness: 0.9
+                });
+                const particle = new THREE.Mesh(particleGeo, particleMat);
+                
+                particle.position.copy(position);
+                particle.position.y += 1;
+                
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.2 + Math.random() * 0.3;
+                particle.velocity = new THREE.Vector3(
+                    Math.cos(angle) * speed + velocity.x * 0.3,
+                    0.3 + Math.random() * 0.4,
+                    Math.sin(angle) * speed + velocity.z * 0.3
+                );
+                
+                particle.lifetime = 800 + Math.random() * 400;
+                particle.castShadow = true;
+                
+                scene.add(particle);
+                state.blood.push(particle);
+            }
+        }
+        
+        function createGibs(position, velocity) {
+            const gibTypes = ['head', 'arm', 'leg', 'torso'];
+            
+            for (let i = 0; i < 4; i++) {
+                const type = gibTypes[i % gibTypes.length];
+                let gibGeo;
+                
+                switch(type) {
+                    case 'head':
+                        gibGeo = new THREE.SphereGeometry(0.3, 8, 8);
+                        break;
+                    case 'arm':
+                        gibGeo = new THREE.CylinderGeometry(0.1, 0.15, 0.8, 6);
+                        break;
+                    case 'leg':
+                        gibGeo = new THREE.CylinderGeometry(0.15, 0.2, 1.2, 6);
+                        break;
+                    case 'torso':
+                        gibGeo = new THREE.BoxGeometry(0.6, 0.8, 0.4);
+                        break;
+                }
+                
+                const gibMat = new THREE.MeshStandardMaterial({ color: 0xFFDBAC, roughness: 0.8 });
+                const gib = new THREE.Mesh(gibGeo, gibMat);
+                
+                gib.position.copy(position);
+                gib.position.y += 1;
+                
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.25 + Math.random() * 0.35;
+                gib.velocity = new THREE.Vector3(
+                    Math.cos(angle) * speed + velocity.x * 0.5,
+                    0.4 + Math.random() * 0.5,
+                    Math.sin(angle) * speed + velocity.z * 0.5
+                );
+                
+                gib.rotationVelocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3
+                );
+                
+                gib.lifetime = 1200;
+                gib.castShadow = true;
+                
+                scene.add(gib);
+                state.gibs.push(gib);
+            }
+        }
+        
+        // ======= COW TIPPING & COLLISION =======
+        function checkCowCollisions() {
+            const playerSpeed = Math.abs(state.speed);
+            const killThreshold = 0.15; // Lower than enemy kills for easier tipping
+            
+            cows.forEach(cow => {
+                if (!cow.userData.alive) return;
+                
+                const dx = player.position.x - cow.position.x;
+                const dz = player.position.z - cow.position.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                
+                if (dist < 3 && playerSpeed > 0.05) {
+                    if (!cow.userData.tipped) {
+                        // TIP THE COW!
+                        cow.userData.tipped = true;
+                        state.cowsTipped++;
+                        state.objectives.tipCows.current = state.cowsTipped;
+                        
+                        // Tip animation - rotate cow 90 degrees
+                        cow.rotation.z = Math.PI / 2;
+                        cow.position.y = 1;
+                        
+                        // Make it grindable after tipping
+                        cow.userData.isGrindable = true;
+                        cow.userData.isCow = true;
+                        
+                        playMoo();
+                        
+                        state.score += 500;
+                        state.currentTrick = '🐄 COW TIPPED! +500';
+                        state.trickTimer = 60;
+                        
+                        // Check if all cows tipped
+                        if (state.cowsTipped >= 15) {
+                            state.objectives.tipCows.complete = true;
+                        }
+                    } else if (playerSpeed > killThreshold) {
+                        // ROADKILL!
+                        cow.userData.alive = false;
+                        scene.remove(cow);
+                        
+                        const velocity = new THREE.Vector3(
+                            Math.sin(state.rotation) * state.speed,
+                            0,
+                            Math.cos(state.rotation) * state.speed
+                        );
+                        
+                        createBloodExplosion(cow.position, velocity);
+                        createGibs(cow.position, velocity);
+                        
+                        state.score += 1000;
+                        state.currentTrick = '💀 COW SLAUGHTER! +1000';
+                        state.trickTimer = 60;
+                    }
+                }
+            });
+        }
+        
+        // ======= GRINDING SYSTEM =======
+        function checkGrinding() {
+            if (state.jumping || !state.grounded) {
+                const grindables = [];
+                
+                // Check fences and water tower platform
+                scene.traverse((obj) => {
+                    if (obj.userData.isGrindable && !obj.userData.isCow) {
+                        grindables.push(obj);
+                    }
+                });
+                
+                // Check tipped cows
+                cows.forEach(cow => {
+                    if (cow.userData.tipped && cow.userData.alive) {
+                        grindables.push(cow);
+                    }
+                });
+                
+                let nearestRail = null;
+                let nearestDist = 2;
+                
+                grindables.forEach(rail => {
+                    const worldPos = new THREE.Vector3();
+                    rail.getWorldPosition(worldPos);
+                    
+                    const dx = player.position.x - worldPos.x;
+                    const dy = Math.abs(player.position.y - worldPos.y);
+                    const dz = player.position.z - worldPos.z;
+                    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (horizontalDist < nearestDist && dy < 2) {
+                        nearestDist = horizontalDist;
+                        nearestRail = rail;
+                    }
+                });
+                
+                if (nearestRail && !state.grinding) {
+                    state.grinding = true;
+                    state.currentRail = nearestRail;
+                    state.combo = Math.max(state.combo, 1);
+                    state.comboTimer = 60;
+                    
+                    if (nearestRail.userData.isCow) {
+                        // 50-50 on a cow!
+                        state.currentTrick = '🐄 50-50 THE COW! +1500';
+                        state.score += 1500;
+                        state.objectives.fiftyFiftyCow.complete = true;
+                    } else {
+                        state.currentTrick = '50-50 Grind!';
+                        state.score += 100;
+                    }
+                    state.trickTimer = 60;
+                }
+            }
+        }
+        
+        // ======= LADDER CLIMBING =======
+        function checkLadderProximity() {
+            let nearLadder = null;
+            let minDist = 2;
+            
+            scene.traverse((obj) => {
+                if (obj.userData.isLadder) {
+                    const worldPos = new THREE.Vector3();
+                    obj.getWorldPosition(worldPos);
+                    
+                    const dx = player.position.x - worldPos.x;
+                    const dy = player.position.y - worldPos.y;
+                    const dz = player.position.z - worldPos.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (dist < minDist && Math.abs(dy) < 3) {
+                        minDist = dist;
+                        nearLadder = obj;
+                    }
+                }
+            });
+            
+            state.nearLadder = nearLadder;
+        }
+        
+        // ======= QUEEN MOO BOSS =======
+        let queenMoo = null;
+        
+        function spawnQueenMoo() {
+            if (queenMoo) return;
+            
+            queenMoo = new THREE.Group();
+            queenMoo.userData.type = 'boss';
+            queenMoo.userData.health = 100;
+            queenMoo.userData.alive = true;
+            
+            // Larger, more imposing cow
+            const bodyGeo = new THREE.BoxGeometry(3, 2, 4.5);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.5, metalness: 0.2 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 2;
+            body.castShadow = true;
+            queenMoo.add(body);
+            
+            // Purple spots (royal)
+            for (let i = 0; i < 5; i++) {
+                const spotGeo = new THREE.SphereGeometry(0.4, 8, 8);
+                const spotMat = new THREE.MeshStandardMaterial({ color: 0x9370DB });
+                const spot = new THREE.Mesh(spotGeo, spotMat);
+                spot.position.set(
+                    (Math.random() - 0.5) * 2.5,
+                    2 + (Math.random() - 0.5) * 0.8,
+                    (Math.random() - 0.5) * 3
+                );
+                spot.scale.z = 0.5;
+                queenMoo.add(spot);
+            }
+            
+            // Crown
+            const crownGeo = new THREE.ConeGeometry(0.8, 1.2, 6);
+            const crownMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.9, roughness: 0.1 });
+            const crown = new THREE.Mesh(crownGeo, crownMat);
+            crown.position.set(0, 4, 2.5);
+            queenMoo.add(crown);
+            
+            // Head
+            const headGeo = new THREE.BoxGeometry(1.5, 1.5, 1.8);
+            const head = new THREE.Mesh(headGeo, bodyMat);
+            head.position.set(0, 3, 2.5);
+            head.castShadow = true;
+            queenMoo.add(head);
+            
+            // Glowing eyes
+            for (let side of [-1, 1]) {
+                const eyeGeo = new THREE.SphereGeometry(0.2, 8, 8);
+                const eyeMat = new THREE.MeshStandardMaterial({ 
+                    color: 0xFF0000, 
+                    emissive: 0xFF0000, 
+                    emissiveIntensity: 1 
+                });
+                const eye = new THREE.Mesh(eyeGeo, eyeMat);
+                eye.position.set(side * 0.4, 3.2, 3.5);
+                queenMoo.add(eye);
+            }
+            
+            // Legs
+            for (let x of [-1, 1]) {
+                for (let z of [-1.5, 1.5]) {
+                    const legGeo = new THREE.CylinderGeometry(0.3, 0.35, 2, 8);
+                    const leg = new THREE.Mesh(legGeo, bodyMat);
+                    leg.position.set(x, 1, z);
+                    leg.castShadow = true;
+                    queenMoo.add(leg);
+                }
+            }
+            
+            queenMoo.position.set(-50, 0, -20);
+            queenMoo.userData.velocity = new THREE.Vector3(0, 0, 0);
+            queenMoo.userData.chaseSpeed = 0.08;
+            
+            scene.add(queenMoo);
+            state.objectives.boss.spawned = true;
+            
+            // Announcement
+            state.currentTrick = '👑 QUEEN MOO APPEARS! 👑';
+            state.trickTimer = 120;
+        }
+        
+        function updateQueenMoo() {
+            if (!queenMoo || !queenMoo.userData.alive) return;
+            
+            // Chase player
+            const dx = player.position.x - queenMoo.position.x;
+            const dz = player.position.z - queenMoo.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            
+            if (dist > 3) {
+                queenMoo.userData.velocity.x = (dx / dist) * queenMoo.userData.chaseSpeed;
+                queenMoo.userData.velocity.z = (dz / dist) * queenMoo.userData.chaseSpeed;
+                
+                queenMoo.position.x += queenMoo.userData.velocity.x;
+                queenMoo.position.z += queenMoo.userData.velocity.z;
+                
+                // Face player
+                queenMoo.rotation.y = Math.atan2(dx, dz);
+            }
+            
+            // Check collision with player at high speed
+            if (dist < 4 && Math.abs(state.speed) > 0.15) {
+                queenMoo.userData.health -= 10;
+                
+                state.score += 2000;
+                state.currentTrick = `💥 HIT QUEEN MOO! (${queenMoo.userData.health}HP)`;
+                state.trickTimer = 60;
+                
+                // Knockback
+                const knockback = new THREE.Vector3(
+                    Math.sin(state.rotation) * 5,
+                    0,
+                    Math.cos(state.rotation) * 5
+                );
+                queenMoo.position.add(knockback);
+                
+                if (queenMoo.userData.health <= 0) {
+                    // BOSS DEFEATED!
+                    queenMoo.userData.alive = false;
+                    
+                    const velocity = new THREE.Vector3(
+                        Math.sin(state.rotation) * state.speed,
+                        0,
+                        Math.cos(state.rotation) * state.speed
+                    );
+                    
+                    createBloodExplosion(queenMoo.position, velocity);
+                    createGibs(queenMoo.position, velocity);
+                    
+                    scene.remove(queenMoo);
+                    
+                    state.objectives.boss.complete = true;
+                    state.score += 10000;
+                    state.currentTrick = '👑 QUEEN MOO DEFEATED! +10000 👑';
+                    state.trickTimer = 180;
+                }
+            }
+        }
+
+        function updateTornadoAI() {
+            if (tornado && tornado.isActive) {
+                const dx = player.position.x - tornado.position.x;
+                const dz = player.position.z - tornado.position.z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+                
+                if (distance > 30) {
+                    // Chase player when far away
+                    tornado.setVelocity(
+                        (dx / distance) * 0.15,
+                        (dz / distance) * 0.15
+                    );
+                } else {
+                    // Circle around player when close
+                    const angle = Math.atan2(dz, dx) + 0.02;
+                    tornado.setVelocity(
+                        Math.cos(angle) * 0.1,
+                        Math.sin(angle) * 0.1
+                    );
+                }
+            }
+        }
+        
+        // ======= UPDATE LOOP =======
+        function update() {
+            // Movement
+            if (!state.climbing) {
+                if (keys['w'] || keys['arrowup']) {
+                    state.speed = Math.min(state.speed + state.acceleration, state.maxSpeed);
+                }
+                if (keys['s'] || keys['arrowdown']) {
+                    state.speed = Math.max(state.speed - state.acceleration, -state.maxSpeed * 0.5);
+                }
+                if (keys['a'] || keys['arrowleft']) {
+                    state.rotation += state.turnSpeed;
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    state.rotation -= state.turnSpeed;
+                }
+                
+                state.speed *= state.friction;
+                
+                const forward = new THREE.Vector3(
+                    Math.sin(state.rotation),
+                    0,
+                    Math.cos(state.rotation)
+                );
+                
+                player.position.x += forward.x * state.speed;
+                player.position.z += forward.z * state.speed;
+                player.rotation.y = state.rotation;
+            }
+
+            // === TORNADO UPDATE ===
+        if (tornado && tornado.isActive) {
+        // Update tornado position and visuals
+        tornado.update(player.position);
+        
+        // Apply tornado physics to player
+        const tornadoForce = tornado.applyPhysicsToObject(player.position, 'player');
+        
+        if (tornadoForce) {
+            // Pull player toward tornado
+            state.velocityX += tornadoForce.pullX;
+            state.velocityZ += tornadoForce.pullZ;
+            
+            // Lift player upward
+            if (state.grounded) {
+                state.jumpVelocity = tornadoForce.lift * 0.8;
+                state.grounded = false;
+                state.jumping = true;
+            }
+            
+            // Spin the player!
+            state.rotation += tornadoForce.spin;
+            
+            // Visual feedback
+            if (tornado.isInsideTornado(player.position)) {
+                // Player is INSIDE the tornado - crazy effects!
+                deck.rotation.z += 100; // Spin the deck
+                
+                // Flash the screen (optional)
+                scene.fog.color.setHex(0x404040);
+                setTimeout(() => {
+                    scene.fog.color.setHex(0x87CEEB);
+                }, 100);
+            }
+        }
+
+        // Apply tornado to cows
+         cows.forEach(cow => {
+            if (!cow.userData.tipped) {
+                const cowForce = tornado.applyPhysicsToObject(cow.position, 'cow');
+                
+                if (cowForce && cowForce.pullX !== undefined) {
+                    // Tornado tips cows automatically!
+                    const forceStrength = tornado.getForceAtPosition(cow.position);
+                    
+                    if (forceStrength > 0.3) {
+                        tipCow(cow, true); // Auto-tip from tornado
+                        
+                        // Add cow to tornado debris (optional)
+                        cow.userData.inTornado = true;
+                        cow.userData.tornadoAngle = Math.random() * Math.PI * 2;
+                    }
+                }
+            }
+            
+            // Animate cows caught in tornado
+            if (cow.userData.inTornado) {
+                cow.userData.tornadoAngle += 0.1;
+                const dist = 5;
+                cow.position.x = tornado.position.x + Math.cos(cow.userData.tornadoAngle) * dist;
+                cow.position.z = tornado.position.z + Math.sin(cow.userData.tornadoAngle) * dist;
+                cow.position.y += 0.15; // Lift upward
+                cow.rotation.x += 0.05;
+                cow.rotation.z += 0.08;
+            }
+        });
+        
+        // Optional: Destroy objects in tornado's path
+        buildings.forEach(building => {
+            if (tornado.isInsideTornado(building.position)) {
+                // Create destruction effects
+                createDebris(building.position, 'building', 15);
+                scene.remove(building);
+                buildings = buildings.filter(b => b !== building);
+            }
+        });
+    }
+            
+            // Ladder climbing
+            checkLadderProximity();
+            
+            if (state.nearLadder && !state.jumping) {
+                if ((keys['w'] || keys['arrowup']) && !state.climbing) {
+                    state.climbing = true;
+                    state.grounded = false;
+                    document.getElementById('climbing').style.display = 'block';
+                }
+            }
+            
+            if (state.climbing) {
+                if (keys['w'] || keys['arrowup']) {
+                    player.position.y += state.climbSpeed;
+                } else if (keys['s'] || keys['arrowdown']) {
+                    player.position.y -= state.climbSpeed;
+                }
+                
+                // Exit ladder
+                if (keys[' '] || !state.nearLadder) {
+                    state.climbing = false;
+                    state.jumping = true;
+                    state.jumpVelocity = 0.2;
+                    document.getElementById('climbing').style.display = 'none';
+                }
+                
+                // Prevent falling through ground
+                const groundLevel = getTerrainHeight(player.position.x, player.position.z) + 1;
+                if (player.position.y < groundLevel) {
+                    player.position.y = groundLevel;
+                    state.climbing = false;
+                    state.grounded = true;
+                    document.getElementById('climbing').style.display = 'none';
+                }
+            }
+            
+            // Track max height
+            if (player.position.y > state.maxHeight) {
+                state.maxHeight = player.position.y;
+                state.objectives.height.current = Math.floor(state.maxHeight);
+                
+                if (state.maxHeight >= 50) {
+                    state.objectives.height.complete = true;
+                }
+            }
+            
+            // Jumping
+            if (state.jumping && !state.climbing) {
+                player.position.y += state.jumpVelocity;
+                state.jumpVelocity += state.gravity;
+                
+                const groundLevel = getTerrainHeight(player.position.x, player.position.z) + 1;
+                
+                if (player.position.y <= groundLevel) {
+                    player.position.y = groundLevel;
+                    state.jumping = false;
+                    state.jumpVelocity = 0;
+                    state.grounded = true;
+                    playLandSound();
+                    
+                    // Land tricks
+                    if (state.spinning) {
+                        const fullRotations = Math.floor(Math.abs(state.spinRotation) / (Math.PI * 2));
+                        
+                        if (fullRotations >= 1) {
+                            let trickName = '';
+                            let points = 0;
+                            
+                            if (state.attemptingKickflip) {
+                                trickName = 'Kickflip';
+                                points = 100;
+                                if (fullRotations > 1) {
+                                    trickName = `${fullRotations}x Kickflip`;
+                                    points = 100 * fullRotations;
+                                }
+                            } else if (state.attemptingHeelflip) {
+                                trickName = 'Heelflip';
+                                points = 120;
+                                if (fullRotations > 1) {
+                                    trickName = `${fullRotations}x Heelflip`;
+                                    points = 120 * fullRotations;
+                                }
+                            }
+                            
+                            state.score += points * (state.combo || 1);
+                            state.combo++;
+                            state.comboTimer = 60;
+                            state.currentTrick = `${trickName} +${points * state.combo}`;
+                            state.trickTimer = 60;
+                        }
+                    }
+                    
+                    state.spinning = false;
+                    state.spinRotation = 0;
+                    deck.rotation.x = 0;
+                    state.attemptingKickflip = false;
+                    state.attemptingHeelflip = false;
+                }
+            } else if (!state.climbing) {
+                const groundLevel = getTerrainHeight(player.position.x, player.position.z) + 1;
+                player.position.y = groundLevel;
+            }
+            
+            // Spin animation
+            if (state.spinning) {
+                state.spinRotation += 0.3;
+                deck.rotation.x = state.spinRotation;
+            }
+            
+            // Grinding
+            checkGrinding();
+            
+            if (state.grinding) {
+                state.score += 5;
+                state.combo = Math.max(state.combo, 1);
+                state.comboTimer = 10;
+                state.grounded = false;
+                state.jumping = true;
+                
+                if (state.currentRail) {
+                    const worldPos = new THREE.Vector3();
+                    state.currentRail.getWorldPosition(worldPos);
+                    const dx = player.position.x - worldPos.x;
+                    const dz = player.position.z - worldPos.z;
+                    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (horizontalDist > 4) {
+                        state.grinding = false;
+                        state.currentRail = null;
+                        state.jumpVelocity = -0.1;
+                    }
+                }
+            }
+            
+            // Combo timer
+            if (state.comboTimer > 0) {
+                state.comboTimer--;
+                if (state.comboTimer === 0 && state.grounded && !state.grinding) {
+                    state.combo = 0;
+                }
+            }
+            
+            if (state.trickTimer > 0) {
+                state.trickTimer--;
+                if (state.trickTimer === 0) {
+                    state.currentTrick = '';
+                }
+            }
+            
+            // Cow collisions
+            checkCowCollisions();
+            
+            // Update blood particles
+            for (let i = state.blood.length - 1; i >= 0; i--) {
+                const particle = state.blood[i];
+                
+                if (particle.lifetime !== undefined) {
+                    particle.lifetime--;
+                    if (particle.lifetime <= 0) {
+                        scene.remove(particle);
+                        state.blood.splice(i, 1);
+                        continue;
+                    }
+                    
+                    if (particle.material && particle.material.transparent) {
+                        const fadeStart = particle.lifetime < 200 ? particle.lifetime / 200 : 1;
+                        particle.material.opacity = Math.min(0.8, fadeStart * 0.8);
+                    }
+                }
+                
+                if (particle.velocity) {
+                    particle.position.add(particle.velocity);
+                    particle.velocity.y -= 0.015;
+                    
+                    const groundLevel = getTerrainHeight(particle.position.x, particle.position.z);
+                    if (particle.position.y < groundLevel + 0.1) {
+                        particle.position.y = groundLevel + 0.1;
+                        particle.velocity.multiplyScalar(0.3);
+                    }
+                    
+                    if (particle.position.y < groundLevel + 0.15 && particle.velocity.length() < 0.02) {
+                        particle.velocity = null;
+                        if (!particle.lifetime) {
+                            particle.lifetime = 1500;
+                        }
+                    }
+                }
+            }
+            
+            // Update gibs
+            for (let i = state.gibs.length - 1; i >= 0; i--) {
+                const gib = state.gibs[i];
+                
+                gib.lifetime--;
+                if (gib.lifetime <= 0) {
+                    scene.remove(gib);
+                    state.gibs.splice(i, 1);
+                    continue;
+                }
+                
+                if (gib.velocity.length() > 0.01) {
+                    gib.position.add(gib.velocity);
+                    gib.velocity.y -= 0.015;
+                    
+                    gib.rotation.x += gib.rotationVelocity.x;
+                    gib.rotation.y += gib.rotationVelocity.y;
+                    gib.rotation.z += gib.rotationVelocity.z;
+                    
+                    const groundLevel = getTerrainHeight(gib.position.x, gib.position.z);
+                    if (gib.position.y < groundLevel + 0.2) {
+                        gib.position.y = groundLevel + 0.2;
+                        gib.velocity.y *= -0.3;
+                        gib.velocity.x *= 0.5;
+                        gib.velocity.z *= 0.5;
+                        gib.rotationVelocity.multiplyScalar(0.5);
+                        
+                        if (Math.abs(gib.velocity.y) < 0.08) {
+                            gib.velocity.set(0, 0, 0);
+                            gib.rotationVelocity.set(0, 0, 0);
+                        }
+                    }
+                }
+            }
+            
+            // Check if ready to spawn boss
+            if (!state.objectives.boss.spawned && 
+                state.objectives.tipCows.complete && 
+                state.objectives.height.complete && 
+                state.objectives.fiftyFiftyCow.complete) {
+                spawnQueenMoo();
+            }
+            
+            // Update boss
+            updateQueenMoo();
+            
+            // Camera
+            const cameraOffset = new THREE.Vector3(
+                -Math.sin(state.rotation) * 12,
+                8,
+                -Math.cos(state.rotation) * 12
+            );
+            
+            camera.position.lerp(
+                player.position.clone().add(cameraOffset),
+                0.1
+            );
+            camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            
+            // Update HUD
+            document.getElementById('score').textContent = `SCORE: ${Math.floor(state.score)}`;
+            document.getElementById('combo').textContent = `COMBO: ${state.combo}x`;
+            document.getElementById('trick').textContent = state.currentTrick;
+            document.getElementById('speed').textContent = `SPEED: ${Math.floor(Math.abs(state.speed) * 100)}`;
+            document.getElementById('height').textContent = `HEIGHT: ${Math.floor(state.maxHeight)}m`;
+            document.getElementById('cowCount').textContent = `COWS TIPPED: ${state.cowsTipped}/15`;
+            
+            // Update objectives
+            const obj1 = state.objectives.tipCows;
+            const obj1Text = obj1.complete ? '☑' : '☐';
+            const obj1Color = obj1.complete ? 'color: #00FF00;' : '';
+            document.getElementById('obj1').innerHTML = `<span style="${obj1Color}">${obj1Text} Tip All 15 Cows (${obj1.current}/${obj1.target})</span>`;
+            
+            const obj2 = state.objectives.height;
+            const obj2Text = obj2.complete ? '☑' : '☐';
+            const obj2Color = obj2.complete ? 'color: #00FF00;' : '';
+            document.getElementById('obj2').innerHTML = `<span style="${obj2Color}">${obj2Text} Reach 50m Height (${obj2.current}m)</span>`;
+            
+            const obj3 = state.objectives.fiftyFiftyCow;
+            const obj3Text = obj3.complete ? '☑' : '☐';
+            const obj3Color = obj3.complete ? 'color: #00FF00;' : '';
+            document.getElementById('obj3').innerHTML = `<span style="${obj3Color}">${obj3Text} 50-50 a Tipped Cow</span>`;
+            
+            const obj4 = state.objectives.boss;
+            const obj4Text = obj4.complete ? '☑' : '☐';
+            const obj4Color = obj4.complete ? 'color: #00FF00;' : obj4.spawned ? 'color: #FF0000; font-weight: bold;' : '';
+            const obj4Label = obj4.spawned && !obj4.complete ? 'Defeat Queen Moo [ACTIVE]' : 'Defeat Queen Moo';
+            document.getElementById('obj4').innerHTML = `<span style="${obj4Color}">${obj4Text} ${obj4Label}</span>`;
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        animate();
+    </script>
+</body>
+</html>

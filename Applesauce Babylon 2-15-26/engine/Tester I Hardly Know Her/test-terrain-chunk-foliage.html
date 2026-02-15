@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chunk-Based Foliage System | Treaty Tech</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000; 
+            font-family: 'Courier New', monospace; 
+        }
+        #renderCanvas { 
+            width: 100%; 
+            height: 100%; 
+            display: block; 
+        }
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #0f0;
+            background: rgba(0,0,0,0.9);
+            padding: 20px;
+            border: 2px solid #0f0;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .stat { margin: 5px 0; }
+        .title { 
+            font-size: 16px; 
+            margin-bottom: 10px; 
+            color: #ff0; 
+            text-shadow: 0 0 5px #ff0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="hud">
+        <div class="title">🌲 CHUNK FOLIAGE SYSTEM</div>
+        <div class="stat">Active Chunks: <span id="activeChunks">0</span></div>
+        <div class="stat">Foliage Instances: <span id="foliageCount">0</span></div>
+        <div class="stat">Physics Bodies: <span id="physicsCount">0</span></div>
+        <div class="stat">Player Pos: <span id="playerPos">N/A</span></div>
+        <div class="stat">Current Chunk: <span id="currentChunk">N/A</span></div>
+        <div class="stat">Destroyed: <span id="destroyedCount">0</span></div>
+        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #0f0;">
+            <div>WASD - Move</div>
+            <div>SPACE - Jump</div>
+            <div>SHIFT - Sprint</div>
+            <div>E - Destroy nearby foliage</div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <script>
+
+        // ============================================
+        // CHUNK SYSTEM CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            chunkSize: 50,              // Size of each chunk
+            renderDistance: 2,          // Chunks to render in each direction
+            physicsDistance: 1,         // Chunks with active physics
+            foliageDensity: 200,         // Items per chunk
+            destructionRadius: 5,       // Range for destruction
+            lodDistances: [20, 50, 100] // LOD switch distances
+        };
+
+        // ============================================
+        // CHUNK MANAGER
+        // ============================================
+        class ChunkManager {
+            constructor(scene, physicsPlugin) {
+                this.scene = scene;
+                this.physicsPlugin = physicsPlugin;
+                this.chunks = new Map();
+                this.activeChunks = new Set();
+                this.foliageInstances = [];
+                this.physicsCache = new Map(); // Store physics bodies by instance
+                
+                // Foliage templates (instanced for performance)
+                this.templates = this.createFoliageTemplates();
+                
+                this.stats = {
+                    activeChunks: 0,
+                    foliageCount: 0,
+                    physicsCount: 0,
+                    destroyed: 0
+                };
+            }
+            
+            createFoliageTemplates() {
+                // Create base meshes for instancing
+                const templates = {};
+                
+                // Grass blade (small)
+                const grass = BABYLON.MeshBuilder.CreateCylinder("grassTemplate", {
+                    height: 1,
+                    diameterTop: 0.1,
+                    diameterBottom: 0.3,
+                    tessellation: 4
+                }, this.scene);
+                grass.position.y = -1000; // Hide template
+                const grassMat = new BABYLON.StandardMaterial("grassMat", this.scene);
+                grassMat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.3);
+                grass.material = grassMat;
+                templates.grass = grass;
+                
+                // Bush (medium)
+                const bush = BABYLON.MeshBuilder.CreateSphere("bushTemplate", {
+                    diameter: 2,
+                    segments: 8
+                }, this.scene);
+                bush.position.y = -1000;
+                bush.scaling.y = 0.7; // Flatten slightly
+                const bushMat = new BABYLON.StandardMaterial("bushMat", this.scene);
+                bushMat.diffuseColor = new BABYLON.Color3(0.1, 0.6, 0.2);
+                bush.material = bushMat;
+                templates.bush = bush;
+                
+                // Tree (large)
+                const tree = BABYLON.MeshBuilder.CreateCylinder("treeTemplate", {
+                    height: 6,
+                    diameterTop: 0.3,
+                    diameterBottom: 0.8,
+                    tessellation: 8
+                }, this.scene);
+                tree.position.y = -1000;
+                const treeMat = new BABYLON.StandardMaterial("treeMat", this.scene);
+                treeMat.diffuseColor = new BABYLON.Color3(0.4, 0.3, 0.1);
+                tree.material = treeMat;
+                
+                // Tree foliage
+                const foliage = BABYLON.MeshBuilder.CreateSphere("foliageTemplate", {
+                    diameter: 4,
+                    segments: 8
+                }, this.scene);
+                foliage.parent = tree;
+                foliage.position.y = 3.5;
+                const foliageMat = new BABYLON.StandardMaterial("foliageMat", this.scene);
+                foliageMat.diffuseColor = new BABYLON.Color3(0.15, 0.5, 0.2);
+                foliage.material = foliageMat;
+                
+                templates.tree = tree;
+                
+                return templates;
+            }
+            
+            getChunkKey(x, z) {
+                return `${x},${z}`;
+            }
+            
+            worldToChunk(x, z) {
+                return {
+                    x: Math.floor(x / CONFIG.chunkSize),
+                    z: Math.floor(z / CONFIG.chunkSize)
+                };
+            }
+            
+            generateChunk(chunkX, chunkZ, biomeType = 'grass') {
+                const key = this.getChunkKey(chunkX, chunkZ);
+                
+                if (this.chunks.has(key)) {
+                    return this.chunks.get(key);
+                }
+                
+                const chunk = {
+                    x: chunkX,
+                    z: chunkZ,
+                    key: key,
+                    foliage: [],
+                    physicsActive: false,
+                    biome: biomeType
+                };
+                
+                // Generate foliage positions
+                const offsetX = chunkX * CONFIG.chunkSize;
+                const offsetZ = chunkZ * CONFIG.chunkSize;
+                
+                for (let i = 0; i < CONFIG.foliageDensity; i++) {
+                    const x = offsetX + Math.random() * CONFIG.chunkSize;
+                    const z = offsetZ + Math.random() * CONFIG.chunkSize;
+                    
+                    // Determine foliage type based on biome and randomness
+                    let type, scale, mass;
+                    const rand = Math.random();
+                    
+                    if (rand < 0.5) {
+                        type = 'grass';
+                        scale = 0.5 + Math.random() * 0.5;
+                        mass = 0.1;
+                    } else if (rand < 0.8) {
+                        type = 'bush';
+                        scale = 0.8 + Math.random() * 0.4;
+                        mass = 5;
+                    } else {
+                        type = 'tree';
+                        scale = 0.8 + Math.random() * 0.6;
+                        mass = 50;
+                    }
+                    
+                    const instance = this.templates[type].createInstance(`${type}_${key}_${i}`);
+                    instance.position = new BABYLON.Vector3(x, scale * 0.5, z);
+                    instance.scaling = new BABYLON.Vector3(scale, scale, scale);
+                    instance.rotation.y = Math.random() * Math.PI * 2;
+                    
+                    // Store metadata
+                    instance.metadata = {
+                        chunkKey: key,
+                        type: type,
+                        mass: mass,
+                        scale: scale,
+                        destroyed: false,
+                        hasPhysics: false
+                    };
+                    
+                    chunk.foliage.push(instance);
+                    this.foliageInstances.push(instance);
+                }
+                
+                this.chunks.set(key, chunk);
+                return chunk;
+            }
+            
+            activateChunkPhysics(chunk) {
+                if (chunk.physicsActive) return;
+                
+                chunk.foliage.forEach(instance => {
+                    if (instance.metadata.destroyed || instance.metadata.hasPhysics) return;
+                    
+                    // Add physics body
+                    let shapeType;
+                    if (instance.metadata.type === 'grass') {
+                        shapeType = BABYLON.PhysicsShapeType.CAPSULE;
+                    } else if (instance.metadata.type === 'bush') {
+                        shapeType = BABYLON.PhysicsShapeType.SPHERE;
+                    } else {
+                        shapeType = BABYLON.PhysicsShapeType.CYLINDER;
+                    }
+                    
+                    const aggregate = new BABYLON.PhysicsAggregate(
+                        instance,
+                        shapeType,
+                        { 
+                            mass: instance.metadata.mass,
+                            restitution: 0.2,
+                            friction: 0.8
+                        },
+                        this.scene
+                    );
+                    
+                    // Store physics reference
+                    this.physicsCache.set(instance, aggregate);
+                    instance.metadata.hasPhysics = true;
+                    this.stats.physicsCount++;
+                });
+                
+                chunk.physicsActive = true;
+            }
+            
+            deactivateChunkPhysics(chunk) {
+                if (!chunk.physicsActive) return;
+                
+                chunk.foliage.forEach(instance => {
+                    if (!instance.metadata.hasPhysics) return;
+                    
+                    const aggregate = this.physicsCache.get(instance);
+                    if (aggregate) {
+                        aggregate.dispose();
+                        this.physicsCache.delete(instance);
+                        instance.metadata.hasPhysics = false;
+                        this.stats.physicsCount--;
+                    }
+                });
+                
+                chunk.physicsActive = false;
+            }
+            
+            unloadChunk(chunk) {
+                this.deactivateChunkPhysics(chunk);
+                
+                // Dispose instances
+                chunk.foliage.forEach(instance => {
+                    const index = this.foliageInstances.indexOf(instance);
+                    if (index > -1) {
+                        this.foliageInstances.splice(index, 1);
+                    }
+                    instance.dispose();
+                });
+                
+                this.chunks.delete(chunk.key);
+                this.activeChunks.delete(chunk.key);
+            }
+            
+            update(playerPosition) {
+                const playerChunk = this.worldToChunk(playerPosition.x, playerPosition.z);
+                const newActiveChunks = new Set();
+                
+                // Generate/load chunks in render distance
+                for (let x = playerChunk.x - CONFIG.renderDistance; x <= playerChunk.x + CONFIG.renderDistance; x++) {
+                    for (let z = playerChunk.z - CONFIG.renderDistance; z <= playerChunk.z + CONFIG.renderDistance; z++) {
+                        const key = this.getChunkKey(x, z);
+                        newActiveChunks.add(key);
+                        
+                        // Determine biome type based on position
+                        let biome = 'grass';
+                        if (Math.abs(x) > 3 || Math.abs(z) > 3) {
+                            biome = 'forest';
+                        }
+                        
+                        const chunk = this.generateChunk(x, z, biome);
+                        
+                        // Activate physics for nearby chunks
+                        const dx = x - playerChunk.x;
+                        const dz = z - playerChunk.z;
+                        const distance = Math.sqrt(dx * dx + dz * dz);
+                        
+                        if (distance <= CONFIG.physicsDistance) {
+                            this.activateChunkPhysics(chunk);
+                        } else {
+                            this.deactivateChunkPhysics(chunk);
+                        }
+                    }
+                }
+                
+                // Unload chunks outside render distance
+                for (const [key, chunk] of this.chunks) {
+                    if (!newActiveChunks.has(key)) {
+                        this.unloadChunk(chunk);
+                    }
+                }
+                
+                this.activeChunks = newActiveChunks;
+                this.stats.activeChunks = this.activeChunks.size;
+                this.stats.foliageCount = this.foliageInstances.length;
+            }
+            
+            destroyFoliageNear(position, radius) {
+                let destroyed = 0;
+                
+                this.foliageInstances.forEach(instance => {
+                    if (instance.metadata.destroyed) return;
+                    
+                    const dist = BABYLON.Vector3.Distance(position, instance.position);
+                    if (dist < radius) {
+                        this.destroyFoliage(instance);
+                        destroyed++;
+                    }
+                });
+                
+                return destroyed;
+            }
+            
+            destroyFoliage(instance) {
+                if (instance.metadata.destroyed) return;
+                
+                instance.metadata.destroyed = true;
+                this.stats.destroyed++;
+                
+                // Apply destruction force if physics active
+                const aggregate = this.physicsCache.get(instance);
+                if (aggregate) {
+                    // Apply upward impulse for "explosion" effect
+                    const impulse = new BABYLON.Vector3(
+                        (Math.random() - 0.5) * 100,
+                        Math.random() * 200,
+                        (Math.random() - 0.5) * 100
+                    );
+                    aggregate.body.applyImpulse(impulse, instance.getAbsolutePosition());
+                    
+                    // Fade out and dispose after delay
+                    setTimeout(() => {
+                        instance.visibility = 0.5;
+                    }, 500);
+                    
+                    setTimeout(() => {
+                        if (aggregate) {
+                            aggregate.dispose();
+                            this.physicsCache.delete(instance);
+                        }
+                        instance.dispose();
+                        
+                        const index = this.foliageInstances.indexOf(instance);
+                        if (index > -1) {
+                            this.foliageInstances.splice(index, 1);
+                        }
+                    }, 2000);
+                } else {
+                    // No physics, just fade and remove
+                    instance.visibility = 0;
+                    setTimeout(() => {
+                        instance.dispose();
+                        const index = this.foliageInstances.indexOf(instance);
+                        if (index > -1) {
+                            this.foliageInstances.splice(index, 1);
+                        }
+                    }, 100);
+                }
+            }
+        }
+
+        // ============================================
+        // MAIN APPLICATION
+        // ============================================
+        let player, playerAggregate, chunkManager;
+        const keys = {};
+        
+        async function init() {
+            const canvas = document.getElementById('renderCanvas');
+            const engine = new BABYLON.Engine(canvas, true);
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0.6, 0.8, 0.95, 1);
+            
+            // ── Camera ──
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 3, 18, BABYLON.Vector3.Zero(), scene);
+        camera.lowerRadiusLimit = 5;
+        camera.upperRadiusLimit = 50;
+        camera.attachControl(canvas, true);
+            
+            // Lighting
+            const light = new BABYLON.HemisphericLight("light", 
+                new BABYLON.Vector3(0, 1, 0), scene);
+            light.intensity = 0.8;
+            
+            const dirLight = new BABYLON.DirectionalLight("dirLight",
+                new BABYLON.Vector3(-1, -2, -1), scene);
+            dirLight.intensity = 0.5;
+            
+            // Initialize Havok Physics
+            console.log('🔄 Loading Havok Physics...');
+            const havok = await HavokPhysics();
+            const plugin = new BABYLON.HavokPlugin(true, havok);
+            scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), plugin);
+            console.log('✅ Havok Physics ready');
+            
+            // Create ground plane (large)
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {
+                width: 10000,
+                height: 10000
+            }, scene);
+            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.5, 0.3);
+            ground.material = groundMat;
+            new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, 
+                { mass: 0, friction: 0.8 }, scene);
+            
+            // Initialize chunk manager
+            chunkManager = new ChunkManager(scene, plugin);
+            console.log('✅ Chunk Manager initialized');
+            
+            // Create player
+            player = BABYLON.MeshBuilder.CreateCapsule("player", {
+                height: 2,
+                radius: 0.5
+            }, scene);
+            player.position = new BABYLON.Vector3(0, 5, 0);
+            const playerMat = new BABYLON.StandardMaterial("playerMat", scene);
+            playerMat.diffuseColor = new BABYLON.Color3(1, 0.5, 0);
+            player.material = playerMat;
+            
+            playerAggregate = new BABYLON.PhysicsAggregate(
+                player,
+                BABYLON.PhysicsShapeType.CAPSULE,
+                { mass: 70, restitution: 0, friction: 0.5 },
+                scene
+            );
+            
+            // Prevent rotation
+            playerAggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+            playerAggregate.body.setAngularDamping(1);
+            
+            // Camera follows player
+            camera.setTarget(player);
+            
+            // Input handling
+            window.addEventListener('keydown', (e) => {
+                keys[e.key.toLowerCase()] = true;
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                keys[e.key.toLowerCase()] = false;
+            });
+            
+            // Render loop
+            let lastTime = Date.now();
+            engine.runRenderLoop(() => {
+                const now = Date.now();
+                const dt = (now - lastTime) / 1000;
+                lastTime = now;
+                
+                // Player movement
+                const moveSpeed = keys['shift'] ? 30 : 15;
+                const moveForce = new BABYLON.Vector3(0, 0, 0);
+                
+                if (keys['w']) moveForce.z += moveSpeed;
+                if (keys['s']) moveForce.z -= moveSpeed;
+                if (keys['a']) moveForce.x -= moveSpeed;
+                if (keys['d']) moveForce.x += moveSpeed;
+                
+                if (moveForce.length() > 0) {
+                    playerAggregate.body.applyForce(
+                        moveForce.scale(100),
+                        player.getAbsolutePosition()
+                    );
+                }
+                
+                // Jump
+                if (keys[' ']) {
+                    const vel = playerAggregate.body.getLinearVelocity();
+                    if (Math.abs(vel.y) < 0.1) { // On ground
+                        playerAggregate.body.applyImpulse(
+                            new BABYLON.Vector3(0, 500, 0),
+                            player.getAbsolutePosition()
+                        );
+                    }
+                }
+                
+                // Destroy foliage
+                if (keys['e']) {
+                    const destroyed = chunkManager.destroyFoliageNear(
+                        player.position,
+                        CONFIG.destructionRadius
+                    );
+                    if (destroyed > 0) {
+                        console.log(`💥 Destroyed ${destroyed} foliage`);
+                    }
+                    keys['e'] = false; // Prevent spam
+                }
+                
+                // Update chunks based on player position
+                chunkManager.update(player.position);
+                
+                // Update HUD
+                const stats = chunkManager.stats;
+                document.getElementById('activeChunks').textContent = stats.activeChunks;
+                document.getElementById('foliageCount').textContent = stats.foliageCount;
+                document.getElementById('physicsCount').textContent = stats.physicsCount;
+                document.getElementById('destroyedCount').textContent = stats.destroyed;
+                
+                const pos = player.position;
+                document.getElementById('playerPos').textContent = 
+                    `[${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}]`;
+                
+                const chunk = chunkManager.worldToChunk(pos.x, pos.z);
+                document.getElementById('currentChunk').textContent = 
+                    `[${chunk.x}, ${chunk.z}]`;
+                
+                scene.render();
+            });
+            
+            window.addEventListener('resize', () => engine.resize());
+            
+            console.log('✅ System ready! Start exploring...');
+        }
+        
+        init();
+    </script>
+</body>
+</html>

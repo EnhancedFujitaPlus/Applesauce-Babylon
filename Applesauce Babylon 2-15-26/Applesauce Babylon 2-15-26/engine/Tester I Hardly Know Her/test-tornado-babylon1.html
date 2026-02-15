@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE — Tornado Vortex Test (Babylon.js + Havok)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none;
+        }
+
+        /* ── HUD ─────────────────────────────────────── */
+        #hud {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 2px 2px 0 #000;
+            font-size: 17px;
+            line-height: 1.7;
+            pointer-events: none;
+        }
+        #hud .label { color: #aaa; font-size: 13px; }
+
+        /* ── Tornado warning overlay ─────────────────── */
+        #tornadoWarning {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 56px;
+            color: #FF0000;
+            text-shadow: 4px 4px 0 #000;
+            display: none;
+            animation: pulse 1s infinite;
+            pointer-events: none;
+            z-index: 200;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50%      { opacity: 0.5; transform: translate(-50%, -50%) scale(1.12); }
+        }
+
+        /* ── Control panel ───────────────────────────── */
+        #controls {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            color: #ccc;
+            background: rgba(0,0,0,0.85);
+            padding: 14px 18px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            z-index: 100;
+            max-width: 340px;
+        }
+        #controls h3 {
+            color: #fff;
+            margin-bottom: 8px;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        #controls .key { color: #0f0; }
+
+        .btn-row { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+        button {
+            background: #2a1a0a;
+            color: #e0c090;
+            border: 2px solid #5a3a1a;
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            transition: background 0.15s;
+        }
+        button:hover { background: #4a2a10; }
+        button.active { background: #6a3a10; border-color: #ff8800; color: #fff; }
+
+        /* ── Weather preset bar ──────────────────────── */
+        #weatherBar {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        #weatherBar button {
+            font-size: 11px;
+            padding: 5px 10px;
+            width: 140px;
+            text-align: left;
+        }
+        #weatherBar .section-label {
+            color: #666;
+            font-family: monospace;
+            font-size: 10px;
+            padding: 4px 0 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+        <div>🌪️ APPLESAUCE — TORNADO VORTEX TEST</div>
+        <div><span class="label">POS</span> <span id="playerPos">0, 0</span></div>
+        <div><span class="label">TORNADO DIST</span> <span id="tornadoDist">—</span>m</div>
+        <div><span class="label">VORTEX PULL</span> <span id="windForce">0</span></div>
+        <div><span class="label">WIND</span> <span id="weatherWind">0</span> m/s</div>
+        <div><span class="label">TERRAIN HITS</span> <span id="deformCount">0</span></div>
+        <div><span class="label">TORNADOS</span> <span id="tornadoCount">0</span></div>
+    </div>
+
+    <!-- Warning overlay -->
+    <div id="tornadoWarning">⚠️ TORNADO ⚠️</div>
+
+    <!-- Controls -->
+    <div id="controls">
+        <h3>// CONTROLS</h3>
+        <span class="key">WASD</span> Move &nbsp;|&nbsp;
+        <span class="key">SPACE</span> Jump &nbsp;|&nbsp;
+        <span class="key">MOUSE</span> Look<br>
+        Click canvas to lock pointer<br>
+        <div class="btn-row">
+            <button onclick="spawnTornado()">🌪️ Spawn</button>
+            <button onclick="spawnMultiple()">🌪️ ×3</button>
+            <button onclick="clearTornados()">Clear All</button>
+            <button id="btnDeform" class="active" onclick="toggleDeform()">Deform: ON</button>
+        </div>
+    </div>
+
+    <!-- Weather presets -->
+    <div id="weatherBar">
+        <div class="section-label">─ WEATHER ─</div>
+        <button onclick="setWeather('clear')">☀️ Clear</button>
+        <button onclick="setWeather('overcast')">☁️ Overcast</button>
+        <button onclick="setWeather('heavy_rain')">🌧️ Heavy Rain</button>
+        <button onclick="setWeather('thunderstorm')">⛈️ Thunderstorm</button>
+        <button onclick="setWeather('blizzard')">❄️ Blizzard</button>
+        <button onclick="setWeather('dust_storm')">🏜️ Dust Storm</button>
+        <div class="section-label">─ CATASTROPHIC ─</div>
+        <button onclick="setWeather('ef5_tornado')">🌪️ EF5 Tornado</button>
+        <button onclick="setWeather('cat5_hurricane')">🌀 Cat-5 Hurricane</button>
+        <button onclick="setWeather('volcanic_ashfall')">🌋 Volcanic Ash</button>
+    </div>
+
+    <!-- Babylon.js -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+
+    <script>
+    // ════════════════════════════════════════════════════════════
+    //  INLINE WEATHER SYSTEM  (from weather-systems.js)
+    //  Embedded here so the test runs standalone — in production
+    //  you'd import from the module file.
+    // ════════════════════════════════════════════════════════════
+
+    class WeatherSystem {
+        constructor(scene, havokPlugin, config = {}) {
+            this.scene  = scene;
+            this.havok  = havokPlugin;
+
+            this.intensity = 0;
+            this.windDir   = new BABYLON.Vector3(1, 0, 0.3).normalize();
+            this.windSpeed = 0;
+
+            this._rain = null; this._snow = null;
+            this._dust = null; this._debris = null;
+
+            this._baseClearColor = scene.clearColor.clone();
+            this._transition     = null;
+            this._ambient = scene.getLightByName('ambient');
+            this._sun     = scene.getLightByName('sun');
+
+            this.config = {
+                maxRainDrops:     config.maxRainDrops     ?? 6000,
+                maxSnowFlakes:    config.maxSnowFlakes    ?? 3000,
+                maxDustParticles: config.maxDustParticles ?? 2500,
+                maxDebris:        config.maxDebris        ?? 400,
+                windPhysicsScale: config.windPhysicsScale ?? 1.0,
+                lightningEnabled: config.lightningEnabled !== false,
+            };
+
+            this._windTargets    = [];
+            this._lightningTimer = 0;
+            this._lightningFlash = null;
+        }
+
+        // ── Presets ────────────────────────────────────────
+        static PRESETS = {
+            clear:            { intensity:0,    windSpeed:2,  rain:0,   snow:0,   dust:0,   debris:0,   fogDensity:0,      skyTint:[0.53,0.81,0.92,1], ambientMul:1.0,  sunMul:1.0  },
+            overcast:         { intensity:0.15, windSpeed:5,  rain:0,   snow:0,   dust:0,   debris:0,   fogDensity:0.001,  skyTint:[0.6,0.62,0.65,1],  ambientMul:0.75, sunMul:0.5  },
+            light_rain:       { intensity:0.2,  windSpeed:8,  rain:0.25,snow:0,   dust:0,   debris:0,   fogDensity:0.0015, skyTint:[0.45,0.48,0.55,1], ambientMul:0.65, sunMul:0.35 },
+            heavy_rain:       { intensity:0.5,  windSpeed:20, rain:0.7, snow:0,   dust:0,   debris:0,   fogDensity:0.004,  skyTint:[0.3,0.32,0.38,1],  ambientMul:0.4,  sunMul:0.15 },
+            thunderstorm:     { intensity:0.65, windSpeed:35, rain:0.9, snow:0,   dust:0.1, debris:0.15,fogDensity:0.006,  skyTint:[0.2,0.2,0.25,1],   ambientMul:0.25, sunMul:0.05 },
+            light_snow:       { intensity:0.2,  windSpeed:6,  rain:0,   snow:0.3, dust:0,   debris:0,   fogDensity:0.002,  skyTint:[0.7,0.72,0.78,1],  ambientMul:0.7,  sunMul:0.4  },
+            blizzard:         { intensity:0.75, windSpeed:45, rain:0,   snow:1.0, dust:0.2, debris:0.2, fogDensity:0.015,  skyTint:[0.85,0.85,0.88,1], ambientMul:0.35, sunMul:0.05 },
+            dust_storm:       { intensity:0.6,  windSpeed:40, rain:0,   snow:0,   dust:1.0, debris:0.3, fogDensity:0.012,  skyTint:[0.65,0.5,0.3,1],   ambientMul:0.45, sunMul:0.15 },
+            cat5_hurricane:   { intensity:1.0,  windSpeed:75, rain:1.0, snow:0,   dust:0.3, debris:1.0, fogDensity:0.02,   skyTint:[0.12,0.12,0.14,1], ambientMul:0.15, sunMul:0.0  },
+            ef5_tornado:      { intensity:1.0,  windSpeed:90, rain:0.8, snow:0,   dust:0.6, debris:1.0, fogDensity:0.01,   skyTint:[0.15,0.18,0.1,1],  ambientMul:0.2,  sunMul:0.02 },
+            volcanic_ashfall: { intensity:0.85, windSpeed:15, rain:0,   snow:0,   dust:1.0, debris:0.5, fogDensity:0.025,  skyTint:[0.25,0.18,0.12,1], ambientMul:0.2,  sunMul:0.0  },
+        };
+
+        setPreset(name) {
+            const p = WeatherSystem.PRESETS[name]; if (!p) return;
+            this._applySnapshot(p); this._transition = null;
+        }
+        transitionTo(name, duration = 3) {
+            const target = WeatherSystem.PRESETS[name]; if (!target) return;
+            this._transition = { from: this._captureSnapshot(), to: target, elapsed: 0, duration };
+        }
+        registerWindTarget(body, mass = 70) { this._windTargets.push({ body, mass }); }
+        setWindDirection(x, y, z) { this.windDir = new BABYLON.Vector3(x, y, z).normalize(); }
+        setIntensity(v) { this.intensity = BABYLON.Scalar.Clamp(v, 0, 1); }
+
+        update(dt, player) {
+            if (this._transition) {
+                this._transition.elapsed += dt;
+                const t = Math.min(this._transition.elapsed / this._transition.duration, 1);
+                const s = t * t * (3 - 2 * t);
+                this._applySnapshot(this._lerpSnapshot(this._transition.from, this._transition.to, s));
+                if (t >= 1) this._transition = null;
+            }
+            const origin = player?.collider?.position ?? player?.position ?? BABYLON.Vector3.Zero();
+            this._moveEmitters(origin);
+            this._applyWindForces(dt);
+            if (this.config.lightningEnabled && this.intensity >= 0.5) this._updateLightning(dt);
+        }
+
+        // ── Particle builders ──────────────────────────────
+        _ensureRain() {
+            if (this._rain) return this._rain;
+            const em = new BABYLON.BoxParticleEmitter();
+            em.minEmitBox = new BABYLON.Vector3(-40, 30, -40);
+            em.maxEmitBox = new BABYLON.Vector3( 40, 35,  40);
+            const ps = new BABYLON.ParticleSystem('rain', this.config.maxRainDrops, this.scene);
+            ps.particleEmitterType = em; ps.emitter = BABYLON.Vector3.Zero();
+            ps.particleTexture = this._tex('rain');
+            ps.minLifeTime = 0.3; ps.maxLifeTime = 0.6;
+            ps.minSize = 0.04; ps.maxSize = 0.08;
+            ps.direction1 = new BABYLON.Vector3(-0.3,-1,-0.1);
+            ps.direction2 = new BABYLON.Vector3( 0.3,-1, 0.1);
+            ps.minEmitPower = 40; ps.maxEmitPower = 55;
+            ps.color1 = new BABYLON.Color4(0.6,0.65,0.75,0.6);
+            ps.color2 = new BABYLON.Color4(0.5,0.55,0.7,0.4);
+            ps.colorDead = new BABYLON.Color4(0.4,0.45,0.6,0);
+            ps.gravity = new BABYLON.Vector3(0,-9.81,0);
+            ps.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+            ps.emitRate = 0; ps.start();
+            return (this._rain = ps);
+        }
+        _ensureSnow() {
+            if (this._snow) return this._snow;
+            const em = new BABYLON.BoxParticleEmitter();
+            em.minEmitBox = new BABYLON.Vector3(-50,25,-50);
+            em.maxEmitBox = new BABYLON.Vector3( 50,35, 50);
+            const ps = new BABYLON.ParticleSystem('snow', this.config.maxSnowFlakes, this.scene);
+            ps.particleEmitterType = em; ps.emitter = BABYLON.Vector3.Zero();
+            ps.particleTexture = this._tex('snow');
+            ps.minLifeTime = 3; ps.maxLifeTime = 6;
+            ps.minSize = 0.06; ps.maxSize = 0.18;
+            ps.direction1 = new BABYLON.Vector3(-0.2,-1,-0.2);
+            ps.direction2 = new BABYLON.Vector3( 0.2,-1, 0.2);
+            ps.minEmitPower = 1; ps.maxEmitPower = 3;
+            ps.color1 = new BABYLON.Color4(1,1,1,0.9);
+            ps.color2 = new BABYLON.Color4(0.9,0.92,0.97,0.7);
+            ps.colorDead = new BABYLON.Color4(0.8,0.82,0.88,0);
+            ps.gravity = new BABYLON.Vector3(0,-1.2,0);
+            ps.emitRate = 0; ps.start();
+            return (this._snow = ps);
+        }
+        _ensureDust() {
+            if (this._dust) return this._dust;
+            const em = new BABYLON.BoxParticleEmitter();
+            em.minEmitBox = new BABYLON.Vector3(-45,0,-45);
+            em.maxEmitBox = new BABYLON.Vector3( 45,8, 45);
+            const ps = new BABYLON.ParticleSystem('dust', this.config.maxDustParticles, this.scene);
+            ps.particleEmitterType = em; ps.emitter = BABYLON.Vector3.Zero();
+            ps.particleTexture = this._tex('dust');
+            ps.minLifeTime = 1.5; ps.maxLifeTime = 4;
+            ps.minSize = 0.3; ps.maxSize = 1.2;
+            ps.direction1 = new BABYLON.Vector3(-1,0.1,-0.5);
+            ps.direction2 = new BABYLON.Vector3( 1,0.4, 0.5);
+            ps.minEmitPower = 5; ps.maxEmitPower = 15;
+            ps.color1 = new BABYLON.Color4(0.6,0.5,0.35,0.35);
+            ps.color2 = new BABYLON.Color4(0.5,0.42,0.3,0.2);
+            ps.colorDead = new BABYLON.Color4(0.4,0.35,0.25,0);
+            ps.gravity = new BABYLON.Vector3(0,-0.5,0);
+            ps.emitRate = 0; ps.start();
+            return (this._dust = ps);
+        }
+        _ensureDebris() {
+            if (this._debris) return this._debris;
+            const em = new BABYLON.BoxParticleEmitter();
+            em.minEmitBox = new BABYLON.Vector3(-30,0,-30);
+            em.maxEmitBox = new BABYLON.Vector3( 30,5, 30);
+            const ps = new BABYLON.ParticleSystem('debris', this.config.maxDebris, this.scene);
+            ps.particleEmitterType = em; ps.emitter = BABYLON.Vector3.Zero();
+            ps.particleTexture = this._tex('debris');
+            ps.minLifeTime = 1; ps.maxLifeTime = 3;
+            ps.minSize = 0.15; ps.maxSize = 0.6;
+            ps.minAngularSpeed = -4; ps.maxAngularSpeed = 4;
+            ps.direction1 = new BABYLON.Vector3(-1,0.5,-1);
+            ps.direction2 = new BABYLON.Vector3( 1,2,   1);
+            ps.minEmitPower = 8; ps.maxEmitPower = 25;
+            ps.color1 = new BABYLON.Color4(0.35,0.28,0.2,0.9);
+            ps.color2 = new BABYLON.Color4(0.25,0.22,0.18,0.7);
+            ps.colorDead = new BABYLON.Color4(0.2,0.18,0.15,0);
+            ps.gravity = new BABYLON.Vector3(0,-4,0);
+            ps.emitRate = 0; ps.start();
+            return (this._debris = ps);
+        }
+
+        // ── Procedural textures ────────────────────────────
+        _tex(type) {
+            const key = `__wtex_${type}`;
+            if (this.scene.metadata?.[key]) return this.scene.metadata[key];
+            const s = 32;
+            const dt = new BABYLON.DynamicTexture(key, s, this.scene, false);
+            const ctx = dt.getContext();
+            ctx.clearRect(0,0,s,s);
+            if (type === 'rain') {
+                ctx.strokeStyle = 'rgba(200,210,230,0.8)'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(s/2,2); ctx.lineTo(s/2,s-2); ctx.stroke();
+            } else if (type === 'snow') {
+                const g = ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+                g.addColorStop(0,'rgba(255,255,255,0.9)'); g.addColorStop(1,'rgba(255,255,255,0)');
+                ctx.fillStyle = g; ctx.fillRect(0,0,s,s);
+            } else if (type === 'dust') {
+                const g = ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+                g.addColorStop(0,'rgba(180,160,120,0.5)'); g.addColorStop(1,'rgba(180,160,120,0)');
+                ctx.fillStyle = g; ctx.fillRect(0,0,s,s);
+            } else if (type === 'debris') {
+                ctx.fillStyle = 'rgba(80,65,50,0.85)'; ctx.fillRect(6,6,s-12,s-12);
+            }
+            dt.update();
+            if (!this.scene.metadata) this.scene.metadata = {};
+            this.scene.metadata[key] = dt;
+            return dt;
+        }
+
+        // ── Snapshot helpers ───────────────────────────────
+        _captureSnapshot() {
+            const sc = this.scene.clearColor;
+            return {
+                intensity: this.intensity, windSpeed: this.windSpeed,
+                rain:   this._rain   ? this._rain.emitRate   / this.config.maxRainDrops    : 0,
+                snow:   this._snow   ? this._snow.emitRate   / this.config.maxSnowFlakes   : 0,
+                dust:   this._dust   ? this._dust.emitRate   / this.config.maxDustParticles : 0,
+                debris: this._debris ? this._debris.emitRate / this.config.maxDebris        : 0,
+                fogDensity: this.scene.fogDensity || 0,
+                skyTint: [sc.r, sc.g, sc.b, sc.a],
+                ambientMul: this._ambient ? this._ambient.intensity / 0.6 : 1,
+                sunMul:     this._sun     ? this._sun.intensity     / 0.8 : 1,
+            };
+        }
+        _applySnapshot(s) {
+            this.intensity = s.intensity;
+            this.windSpeed = s.windSpeed;
+            if (s.rain   > 0) this._ensureRain().emitRate   = s.rain   * this.config.maxRainDrops;     else if (this._rain)   this._rain.emitRate   = 0;
+            if (s.snow   > 0) this._ensureSnow().emitRate   = s.snow   * this.config.maxSnowFlakes;    else if (this._snow)   this._snow.emitRate   = 0;
+            if (s.dust   > 0) this._ensureDust().emitRate   = s.dust   * this.config.maxDustParticles;  else if (this._dust)   this._dust.emitRate   = 0;
+            if (s.debris > 0) this._ensureDebris().emitRate  = s.debris * this.config.maxDebris;         else if (this._debris) this._debris.emitRate = 0;
+            if (s.fogDensity > 0) {
+                this.scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+                this.scene.fogDensity = s.fogDensity;
+                this.scene.fogColor = new BABYLON.Color3(s.skyTint[0]*0.9, s.skyTint[1]*0.9, s.skyTint[2]*0.9);
+            } else { this.scene.fogMode = BABYLON.Scene.FOGMODE_NONE; }
+            this.scene.clearColor = new BABYLON.Color4(s.skyTint[0], s.skyTint[1], s.skyTint[2], s.skyTint[3]);
+            if (this._ambient) this._ambient.intensity = 0.6 * s.ambientMul;
+            if (this._sun)     this._sun.intensity     = 0.8 * s.sunMul;
+            this._updateParticleWindBias();
+        }
+        _lerpSnapshot(a, b, t) {
+            const l = (x, y) => x + (y - x) * t;
+            return {
+                intensity: l(a.intensity,b.intensity), windSpeed: l(a.windSpeed,b.windSpeed),
+                rain: l(a.rain,b.rain), snow: l(a.snow,b.snow), dust: l(a.dust,b.dust), debris: l(a.debris,b.debris),
+                fogDensity: l(a.fogDensity,b.fogDensity),
+                skyTint: [l(a.skyTint[0],b.skyTint[0]), l(a.skyTint[1],b.skyTint[1]), l(a.skyTint[2],b.skyTint[2]), l(a.skyTint[3],b.skyTint[3])],
+                ambientMul: l(a.ambientMul,b.ambientMul), sunMul: l(a.sunMul,b.sunMul),
+            };
+        }
+
+        // ── Wind physics ───────────────────────────────────
+        _applyWindForces(dt) {
+            if (this.windSpeed < 1 || !this._windTargets.length) return;
+            const mag = this.windSpeed * this.windSpeed * 0.05 * this.config.windPhysicsScale;
+            const gust = this.intensity > 0.7 ? 1 + Math.sin(performance.now() * 0.003) * 0.35 : 1;
+            const force = this.windDir.scale(mag * gust);
+            for (const t of this._windTargets) {
+                try { t.body.applyForce(force.scale(t.mass / 70), t.body.getObjectCenterWorld()); }
+                catch(_) {}
+            }
+            this._windTargets = this._windTargets.filter(t => { try { t.body.getObjectCenterWorld(); return true; } catch { return false; } });
+        }
+        _updateParticleWindBias() {
+            const b = this.windDir.scale(this.windSpeed * 0.02);
+            if (this._rain) {
+                this._rain.direction1 = new BABYLON.Vector3(-0.3+b.x,-1,-0.1+b.z);
+                this._rain.direction2 = new BABYLON.Vector3( 0.3+b.x,-1, 0.1+b.z);
+            }
+            if (this._dust) {
+                this._dust.direction1 = new BABYLON.Vector3(-1+b.x,0.1,-0.5+b.z);
+                this._dust.direction2 = new BABYLON.Vector3( 1+b.x,0.4, 0.5+b.z);
+            }
+        }
+        _moveEmitters(origin) {
+            [this._rain, this._snow, this._dust, this._debris].forEach(ps => { if (ps) ps.emitter = origin; });
+        }
+
+        // ── Lightning ──────────────────────────────────────
+        _updateLightning(dt) {
+            this._lightningTimer -= dt;
+            if (this._lightningTimer <= 0) {
+                const lo = BABYLON.Scalar.Lerp(8, 1.5, this.intensity);
+                const hi = BABYLON.Scalar.Lerp(15, 4, this.intensity);
+                this._lightningTimer = lo + Math.random() * (hi - lo);
+                this._flash();
+            }
+            if (this._lightningFlash) {
+                this._lightningFlash.intensity *= 0.85;
+                if (this._lightningFlash.intensity < 0.01) this._lightningFlash.intensity = 0;
+            }
+        }
+        _flash() {
+            if (!this._lightningFlash) {
+                this._lightningFlash = new BABYLON.PointLight('lightning', new BABYLON.Vector3(0,60,0), this.scene);
+                this._lightningFlash.diffuse = new BABYLON.Color3(0.85,0.85,1);
+                this._lightningFlash.range = 300;
+                this._lightningFlash.intensity = 0;
+            }
+            this._lightningFlash.position = new BABYLON.Vector3((Math.random()-0.5)*120, 50+Math.random()*30, (Math.random()-0.5)*120);
+            const p = 2 + this.intensity * 6;
+            this._lightningFlash.intensity = p;
+            setTimeout(() => { if (this._lightningFlash) this._lightningFlash.intensity = p * 0.6; }, 80);
+        }
+
+        dispose() {
+            [this._rain,this._snow,this._dust,this._debris].forEach(ps => { if (ps) { ps.stop(); ps.dispose(); } });
+            if (this._lightningFlash) this._lightningFlash.dispose();
+            this._windTargets = [];
+        }
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  DEFORMABLE TERRAIN (ported from your Three.js version)
+    // ════════════════════════════════════════════════════════════
+
+    class DeformableTerrain {
+        constructor(scene) {
+            this.scene = scene;
+            this.chunks = [];
+            this.deformCount = 0;
+            this.deformationEnabled = true;
+            this._build();
+        }
+
+        _build() {
+            const chunkSize = 1000;
+            const subdivisions = 80;
+
+            for (let i = 0; i < 3; i++) {
+                const ground = BABYLON.MeshBuilder.CreateGround(`terrain_${i}`, {
+                    width:  chunkSize,
+                    height: chunkSize,
+                    subdivisions: subdivisions,
+                    updatable: true,          // required for deformation
+                }, this.scene);
+
+                ground.position.z = i * chunkSize - chunkSize;
+                ground.receiveShadows = true;
+
+                // Initial hills
+                const positions = ground.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+                for (let j = 0; j < positions.length; j += 3) {
+                    const x = positions[j];
+                    const z = positions[j + 2];
+                    positions[j + 1] += Math.sin(x * 0.1) * 2 + Math.cos(z * 0.1) * 2;
+                }
+                ground.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+                ground.createNormals(true);
+
+                // Material
+                const mat = new BABYLON.StandardMaterial(`terrainMat_${i}`, this.scene);
+                mat.diffuseColor  = new BABYLON.Color3(0.13, 0.55, 0.13);
+                mat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+                ground.material   = mat;
+
+                this.chunks.push({
+                    mesh:   ground,
+                    startZ: ground.position.z - chunkSize / 2,
+                    endZ:   ground.position.z + chunkSize / 2,
+                });
+            }
+        }
+
+        /**
+         * Deform terrain at (worldX, worldZ) — direct port of your
+         * Three.js deform() with Babylon vertex data API.
+         */
+        deform(worldX, worldZ, radius = 2, depth = 0.5) {
+            if (!this.deformationEnabled) return;
+
+            const chunk = this.chunks.find(c => worldZ >= c.startZ && worldZ <= c.endZ);
+            if (!chunk) return;
+
+            const mesh = chunk.mesh;
+            const positions = mesh.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+            if (!positions) return;
+
+            // Offset into local space
+            const localX = worldX - mesh.position.x;
+            const localZ = worldZ - mesh.position.z;
+            let modified = false;
+
+            for (let i = 0; i < positions.length; i += 3) {
+                const vx = positions[i];
+                const vz = positions[i + 2];
+                const dx = vx - localX;
+                const dz = vz - localZ;
+                const distSq = dx * dx + dz * dz;
+
+                if (distSq < radius * radius) {
+                    const force = (1 - Math.sqrt(distSq) / radius) * depth;
+                    positions[i + 1] -= force;
+                    modified = true;
+                }
+            }
+
+            if (modified) {
+                mesh.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+                mesh.createNormals(true);
+                this.deformCount++;
+            }
+        }
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  TORNADO VORTEX SYSTEM  (Babylon.js + Havok)
+    //
+    //  Ported & expanded from your Three.js TornadoSystem.
+    //  New features:
+    //    • Multi-layer funnel (inner + outer wall with vertex animation)
+    //    • Havok force field — radial pull + tangential spin + uplift
+    //    • Ground dust ring particle system
+    //    • Orbiting mesh debris with angular velocity
+    //    • Terrain deformation as it moves
+    //    • Intensity scaling (hooks into WeatherSystem.intensity)
+    // ════════════════════════════════════════════════════════════
+
+    class TornadoVortex {
+        constructor(scene, terrain, havokPlugin, config = {}) {
+            this.scene   = scene;
+            this.terrain = terrain;
+            this.havok   = havokPlugin;
+
+            // ── Core properties (matching your Three.js version) ───
+            this.position = new BABYLON.Vector3(
+                config.startX ?? 0,
+                0,
+                config.startZ ?? 0
+            );
+            this.velocity = new BABYLON.Vector3(
+                config.velocityX ?? 0.1,
+                0,
+                config.velocityZ ?? 0.05
+            );
+            this.radius        = config.radius        ?? 8;
+            this.height        = config.height        ?? 40;
+            this.strength      = config.strength      ?? 0.4;
+            this.rotationSpeed = config.rotationSpeed  ?? 0.15;
+            this.deformRate    = config.deformRate     ?? 0.025;
+            this.rotation      = 0;
+            this.isActive      = true;
+            this.age           = 0;
+
+            // ── Visual layers ──────────────────────────────────────
+            this._root        = null;   // transform node (parent for all visuals)
+            this._outerFunnel = null;   // semi-transparent outer wall
+            this._innerFunnel = null;   // denser inner core
+            this._cloudCap    = null;   // mesocyclone cloud at top
+            this._debrisMeshes = [];    // orbiting solid debris
+            this._dustRing    = null;   // particle system at ground level
+            this._vortexDust  = null;   // particle system swirling upward
+
+            // ── Physics targets (bodies pulled by vortex) ──────────
+            this._physicsTargets = [];  // [{ body, mass }]
+
+            this._build();
+            console.log(`🌪️ TornadoVortex spawned at (${this.position.x.toFixed(0)}, ${this.position.z.toFixed(0)})`);
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  BUILD VISUALS
+        // ────────────────────────────────────────────────────────
+
+        _build() {
+            // Root transform
+            this._root = new BABYLON.TransformNode('tornado_root', this.scene);
+            this._root.position = this.position.clone();
+
+            // ── Outer funnel (wide, semi-transparent) ──────────
+            this._outerFunnel = BABYLON.MeshBuilder.CreateCylinder('outerFunnel', {
+                diameterTop:    this.radius * 0.5,
+                diameterBottom: this.radius * 2,
+                height:         this.height,
+                tessellation:   24,
+                subdivisions:   20,
+                sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+            }, this.scene);
+
+            const outerMat = new BABYLON.StandardMaterial('outerFunnelMat', this.scene);
+            outerMat.diffuseColor  = new BABYLON.Color3(0.25, 0.25, 0.28);
+            outerMat.alpha         = 0.35;
+            outerMat.backFaceCulling = false;
+            outerMat.disableLighting = true;
+            this._outerFunnel.material = outerMat;
+            this._outerFunnel.parent   = this._root;
+            this._outerFunnel.position.y = this.height / 2;
+
+            // Store original verts for animation
+            this._outerVerts = this._outerFunnel.getVerticesData(BABYLON.VertexBuffer.PositionKind).slice();
+
+            // ── Inner funnel (narrow, denser) ──────────────────
+            this._innerFunnel = BABYLON.MeshBuilder.CreateCylinder('innerFunnel', {
+                diameterTop:    this.radius * 0.2,
+                diameterBottom: this.radius * 1.0,
+                height:         this.height * 0.85,
+                tessellation:   16,
+                subdivisions:   16,
+                sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+            }, this.scene);
+
+            const innerMat = new BABYLON.StandardMaterial('innerFunnelMat', this.scene);
+            innerMat.diffuseColor  = new BABYLON.Color3(0.15, 0.15, 0.17);
+            innerMat.alpha         = 0.55;
+            innerMat.backFaceCulling = false;
+            innerMat.disableLighting = true;
+            this._innerFunnel.material = innerMat;
+            this._innerFunnel.parent   = this._root;
+            this._innerFunnel.position.y = this.height * 0.425;
+
+            this._innerVerts = this._innerFunnel.getVerticesData(BABYLON.VertexBuffer.PositionKind).slice();
+
+            // ── Cloud cap (flattened sphere — mesocyclone) ─────
+            this._cloudCap = BABYLON.MeshBuilder.CreateSphere('cloudCap', {
+                diameter:   this.radius * 3.5,
+                segments:   16,
+            }, this.scene);
+            const cloudMat = new BABYLON.StandardMaterial('cloudCapMat', this.scene);
+            cloudMat.diffuseColor  = new BABYLON.Color3(0.12, 0.12, 0.14);
+            cloudMat.alpha         = 0.75;
+            cloudMat.disableLighting = true;
+            this._cloudCap.material  = cloudMat;
+            this._cloudCap.parent    = this._root;
+            this._cloudCap.position.y = this.height + 2;
+            this._cloudCap.scaling.y  = 0.3;
+
+            // ── Orbiting debris meshes ─────────────────────────
+            this._buildDebris(35);
+
+            // ── Ground dust ring (particle system) ─────────────
+            this._buildDustRing();
+
+            // ── Vortex updraft particles ───────────────────────
+            this._buildVortexDust();
+        }
+
+        _buildDebris(count) {
+            for (let i = 0; i < count; i++) {
+                const sx = 0.2 + Math.random() * 0.5;
+                const sy = 0.15 + Math.random() * 0.35;
+                const sz = 0.2 + Math.random() * 0.5;
+                const mesh = BABYLON.MeshBuilder.CreateBox(`debris_${i}`, {
+                    width: sx, height: sy, depth: sz
+                }, this.scene);
+
+                const mat = new BABYLON.StandardMaterial(`debrisMat_${i}`, this.scene);
+                // Mix of wood browns and grey concrete
+                const shade = Math.random();
+                if (shade < 0.5) {
+                    mat.diffuseColor = new BABYLON.Color3(0.55 + Math.random()*0.15, 0.35 + Math.random()*0.1, 0.15);
+                } else {
+                    mat.diffuseColor = new BABYLON.Color3(0.4 + Math.random()*0.15, 0.4 + Math.random()*0.15, 0.4 + Math.random()*0.15);
+                }
+                mat.disableLighting = true;
+                mesh.material = mat;
+
+                mesh.metadata = {
+                    angle:       (i / count) * Math.PI * 2,
+                    heightRatio: Math.random(),
+                    orbitRadius: this.radius * (0.5 + Math.random() * 0.5),
+                    orbitSpeed:  0.04 + Math.random() * 0.06,
+                    bobSpeed:    0.02 + Math.random() * 0.03,
+                    bobPhase:    Math.random() * Math.PI * 2,
+                    tumbleX:     (Math.random() - 0.5) * 0.12,
+                    tumbleY:     (Math.random() - 0.5) * 0.08,
+                };
+                this._debrisMeshes.push(mesh);
+            }
+        }
+
+        _buildDustRing() {
+            const ps = new BABYLON.ParticleSystem('dustRing', 1500, this.scene);
+            // Emit from a flat ring at ground level
+            ps.createCylinderEmitter(this.radius * 1.2, 0.5, 0, 0);
+            ps.emitter = this.position.clone();
+
+            ps.particleTexture = this._dustTex();
+            ps.minLifeTime = 0.8;  ps.maxLifeTime = 2.0;
+            ps.minSize = 0.5;      ps.maxSize = 2.0;
+            ps.minEmitPower = 1;   ps.maxEmitPower = 4;
+            ps.direction1 = new BABYLON.Vector3(-1, 0.2, -1);
+            ps.direction2 = new BABYLON.Vector3( 1, 0.5,  1);
+
+            ps.color1    = new BABYLON.Color4(0.55, 0.45, 0.3, 0.45);
+            ps.color2    = new BABYLON.Color4(0.45, 0.38, 0.25, 0.3);
+            ps.colorDead = new BABYLON.Color4(0.35, 0.3, 0.2, 0);
+            ps.gravity   = new BABYLON.Vector3(0, 0.3, 0);
+            ps.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+            ps.emitRate  = 600;
+            ps.start();
+
+            this._dustRing = ps;
+        }
+
+        _buildVortexDust() {
+            const ps = new BABYLON.ParticleSystem('vortexDust', 2000, this.scene);
+            ps.createCylinderEmitter(this.radius * 0.8, this.height * 0.8, 0, 0);
+            ps.emitter = this.position.clone();
+
+            ps.particleTexture = this._dustTex();
+            ps.minLifeTime = 1.5;  ps.maxLifeTime = 3.5;
+            ps.minSize = 0.2;      ps.maxSize = 0.8;
+            ps.minEmitPower = 3;   ps.maxEmitPower = 10;
+
+            // Upward spiral feel
+            ps.direction1 = new BABYLON.Vector3(-0.5, 1, -0.5);
+            ps.direction2 = new BABYLON.Vector3( 0.5, 3,  0.5);
+
+            ps.color1    = new BABYLON.Color4(0.4, 0.35, 0.25, 0.5);
+            ps.color2    = new BABYLON.Color4(0.3, 0.28, 0.2,  0.35);
+            ps.colorDead = new BABYLON.Color4(0.25, 0.22, 0.18, 0);
+            ps.gravity   = new BABYLON.Vector3(0, 2, 0);
+            ps.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+            ps.emitRate  = 800;
+            ps.start();
+
+            this._vortexDust = ps;
+        }
+
+        /** Reusable procedural dust texture */
+        _dustTex() {
+            const key = '__tornado_dust_tex';
+            if (this.scene.metadata?.[key]) return this.scene.metadata[key];
+            const s = 32;
+            const dt = new BABYLON.DynamicTexture(key, s, this.scene, false);
+            const ctx = dt.getContext();
+            ctx.clearRect(0,0,s,s);
+            const g = ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+            g.addColorStop(0, 'rgba(180,160,120,0.6)');
+            g.addColorStop(1, 'rgba(180,160,120,0)');
+            ctx.fillStyle = g; ctx.fillRect(0,0,s,s);
+            dt.update();
+            if (!this.scene.metadata) this.scene.metadata = {};
+            this.scene.metadata[key] = dt;
+            return dt;
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  REGISTER PHYSICS TARGET (player, loose objects)
+        // ────────────────────────────────────────────────────────
+
+        registerPhysicsTarget(body, mass = 70) {
+            this._physicsTargets.push({ body, mass });
+        }
+
+        unregisterPhysicsTarget(body) {
+            this._physicsTargets = this._physicsTargets.filter(t => t.body !== body);
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  UPDATE  (called every frame)
+        // ────────────────────────────────────────────────────────
+
+        update(dt, playerPosition) {
+            if (!this.isActive) return;
+            this.age += dt;
+
+            // ── Move along path ────────────────────────────────
+            this.position.addInPlace(this.velocity.scale(dt * 60));
+            this._root.position.copyFrom(this.position);
+
+            // ── Spin ───────────────────────────────────────────
+            this.rotation += this.rotationSpeed * dt * 60;
+
+            // ── Animate funnel vertex distortion ───────────────
+            this._animateFunnel(this._outerFunnel, this._outerVerts, 1.0);
+            this._animateFunnel(this._innerFunnel, this._innerVerts, 1.5);
+
+            // ── Rotate cloud cap ───────────────────────────────
+            this._cloudCap.rotation.y = this.rotation * 0.4;
+
+            // ── Update orbiting debris ─────────────────────────
+            this._updateDebris(dt);
+
+            // ── Move particle emitters ─────────────────────────
+            const emitterPos = this.position.clone();
+            if (this._dustRing)  this._dustRing.emitter  = emitterPos;
+            if (this._vortexDust) {
+                const mid = emitterPos.clone();
+                mid.y = this.height * 0.4;
+                this._vortexDust.emitter = mid;
+            }
+
+            // ── Terrain deformation ────────────────────────────
+            if (this.terrain && this.terrain.deformationEnabled) {
+                this.terrain.deform(
+                    this.position.x,
+                    this.position.z,
+                    this.radius * 0.6,
+                    this.deformRate
+                );
+            }
+
+            // ── Havok vortex forces ────────────────────────────
+            this._applyVortexForces(dt);
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  FUNNEL VERTEX ANIMATION
+        //  Twists vertices per-ring to create a swirling distortion
+        //  that makes it look alive rather than a static cone.
+        // ────────────────────────────────────────────────────────
+
+        _animateFunnel(mesh, baseVerts, speedMul) {
+            const verts = baseVerts.slice();
+            const time = this.age * speedMul;
+
+            for (let i = 0; i < verts.length; i += 3) {
+                const x = verts[i];
+                const y = verts[i + 1];
+                const z = verts[i + 2];
+
+                // Height ratio 0..1 from bottom to top
+                const hRatio = (y + this.height / 2) / this.height;
+
+                // Twist angle increases with height and time
+                const twist = time * this.rotationSpeed * 3 + hRatio * Math.PI * 2;
+
+                // Displacement oscillation — wobble increases with height
+                const wobble = Math.sin(time * 2 + hRatio * 5) * hRatio * 0.6;
+                const wobbleZ = Math.cos(time * 1.7 + hRatio * 4) * hRatio * 0.5;
+
+                // Apply twist rotation around Y axis
+                const cos = Math.cos(twist * 0.3);
+                const sin = Math.sin(twist * 0.3);
+                verts[i]     = x * cos - z * sin + wobble;
+                verts[i + 2] = x * sin + z * cos + wobbleZ;
+            }
+
+            mesh.updateVerticesData(BABYLON.VertexBuffer.PositionKind, verts);
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  ORBITING DEBRIS
+        // ────────────────────────────────────────────────────────
+
+        _updateDebris(dt) {
+            const dtScale = dt * 60;
+
+            for (const mesh of this._debrisMeshes) {
+                const d = mesh.metadata;
+                d.angle += d.orbitSpeed * dtScale;
+                d.heightRatio = (d.heightRatio + 0.002 * dtScale) % 1;
+                d.bobPhase += d.bobSpeed * dtScale;
+
+                // Radius narrows as debris rises (matches funnel taper)
+                const taper = 1 - d.heightRatio * 0.6;
+                const r = d.orbitRadius * taper;
+
+                mesh.position.set(
+                    this.position.x + Math.cos(d.angle) * r,
+                    this.position.y + d.heightRatio * this.height + Math.sin(d.bobPhase) * 0.5,
+                    this.position.z + Math.sin(d.angle) * r
+                );
+
+                // Tumble
+                mesh.rotation.x += d.tumbleX * dtScale;
+                mesh.rotation.y += d.tumbleY * dtScale;
+            }
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  HAVOK VORTEX FORCE FIELD
+        //
+        //  Three force components (matching your Three.js approach
+        //  but now applied as real Havok impulses):
+        //    1. Radial pull   — toward center
+        //    2. Tangential    — spinning force (perpendicular to radial)
+        //    3. Uplift        — vertical lift inside the funnel
+        // ────────────────────────────────────────────────────────
+
+        _applyVortexForces(dt) {
+            for (const target of this._physicsTargets) {
+                let pos;
+                try { pos = target.body.getObjectCenterWorld(); }
+                catch { continue; }
+
+                const dx = this.position.x - pos.x;
+                const dz = this.position.z - pos.z;
+                const distXZ = Math.sqrt(dx * dx + dz * dz);
+
+                const effectRadius = this.radius * 2.5;
+                if (distXZ > effectRadius) continue;
+
+                // Normalized proximity (1 at center, 0 at edge)
+                const proximity = 1 - (distXZ / effectRadius);
+                const forceMul  = proximity * this.strength * (target.mass / 70);
+
+                // Direction toward center (normalized)
+                const toCenter = distXZ > 0.01
+                    ? new BABYLON.Vector3(dx / distXZ, 0, dz / distXZ)
+                    : BABYLON.Vector3.Zero();
+
+                // 1) Radial pull — toward the funnel center
+                const pull = toCenter.scale(forceMul * 800);
+
+                // 2) Tangential spin — perpendicular to radial, creates orbit
+                const tangent = new BABYLON.Vector3(-toCenter.z, 0, toCenter.x);
+                const spin = tangent.scale(forceMul * 600);
+
+                // 3) Uplift — stronger near center
+                const liftPower = proximity * proximity * forceMul * 500;
+                const lift = new BABYLON.Vector3(0, liftPower, 0);
+
+                // Combine and apply
+                const total = pull.add(spin).add(lift);
+                try {
+                    target.body.applyForce(total, pos);
+                } catch (_) {}
+            }
+
+            // Prune dead bodies
+            this._physicsTargets = this._physicsTargets.filter(t => {
+                try { t.body.getObjectCenterWorld(); return true; }
+                catch { return false; }
+            });
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  QUERY — for HUD / gameplay checks
+        // ────────────────────────────────────────────────────────
+
+        getDistanceTo(pos) {
+            const dx = this.position.x - pos.x;
+            const dz = this.position.z - pos.z;
+            return Math.sqrt(dx * dx + dz * dz);
+        }
+
+        getForceAt(pos) {
+            const dist = this.getDistanceTo(pos);
+            const effectRadius = this.radius * 2.5;
+            if (dist > effectRadius) return 0;
+            return (1 - dist / effectRadius) * this.strength;
+        }
+
+        // ────────────────────────────────────────────────────────
+        //  CLEANUP
+        // ────────────────────────────────────────────────────────
+
+        destroy() {
+            this.isActive = false;
+            this._debrisMeshes.forEach(m => { m.dispose(); });
+            this._debrisMeshes = [];
+            if (this._outerFunnel) this._outerFunnel.dispose();
+            if (this._innerFunnel) this._innerFunnel.dispose();
+            if (this._cloudCap)    this._cloudCap.dispose();
+            if (this._dustRing)    { this._dustRing.stop();  this._dustRing.dispose(); }
+            if (this._vortexDust)  { this._vortexDust.stop(); this._vortexDust.dispose(); }
+            if (this._root)        this._root.dispose();
+            this._physicsTargets = [];
+            console.log('🌪️ Tornado destroyed');
+        }
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  MAIN — BOOT BABYLON, SPAWN EVERYTHING
+    // ════════════════════════════════════════════════════════════
+
+    let engine, scene, camera, havokPlugin;
+    let terrain, weather;
+    let playerMesh, playerAggregate;
+    let tornados = [];
+
+    async function main() {
+        // ── Engine + Scene ──────────────────────────────────
+        const canvas = document.getElementById('renderCanvas');
+        engine = new BABYLON.Engine(canvas, true, { stencil: true });
+        scene  = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0.53, 0.81, 0.92, 1);
+        scene.collisionsEnabled = true;
+
+        // ── Havok Physics ───────────────────────────────────
+        const havokInstance = await HavokPhysics();
+        havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+        scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), havokPlugin);
+
+        // ── Camera (FPS-style for this test) ────────────────
+        camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
+        camera.minZ = 0.1;
+        camera.speed = 0;            // we handle movement ourselves
+        camera.angularSensibility = 3000;
+        camera.attachControl(canvas, true);
+
+        // Pointer lock on click
+        canvas.addEventListener('click', () => {
+            canvas.requestPointerLock?.();
+            camera.attachControl(canvas, true);
+        });
+
+        // ── Lighting (named so WeatherSystem finds them) ────
+        const ambient = new BABYLON.HemisphericLight('ambient', new BABYLON.Vector3(0,1,0), scene);
+        ambient.intensity   = 0.6;
+        ambient.groundColor = new BABYLON.Color3(0.2, 0.2, 0.3);
+
+        const sun = new BABYLON.DirectionalLight('sun', new BABYLON.Vector3(-1,-2,-1), scene);
+        sun.position  = new BABYLON.Vector3(50, 100, 50);
+        sun.intensity = 0.8;
+
+        // Shadow generator
+        const shadowGen = new BABYLON.ShadowGenerator(2048, sun);
+        shadowGen.useBlurExponentialShadowMap = true;
+        shadowGen.blurScale = 2;
+        shadowGen.setDarkness(0.4);
+
+        // ── Terrain ─────────────────────────────────────────
+        terrain = new DeformableTerrain(scene);
+
+        // Add physics to each terrain chunk
+        terrain.chunks.forEach(chunk => {
+            new BABYLON.PhysicsAggregate(
+                chunk.mesh,
+                BABYLON.PhysicsShapeType.MESH,
+                { mass: 0, friction: 0.8, restitution: 0.1 },
+                scene
+            );
+        });
+
+        // ── Player ──────────────────────────────────────────
+        playerMesh = BABYLON.MeshBuilder.CreateBox('player', { width: 1, height: 2, depth: 0.5 }, scene);
+        playerMesh.position = new BABYLON.Vector3(0, 8, 0);
+        const playerMat = new BABYLON.StandardMaterial('playerMat', scene);
+        playerMat.diffuseColor = new BABYLON.Color3(1, 0.08, 0.58);
+        playerMesh.material = playerMat;
+        playerMesh.receiveShadows = true;
+        shadowGen.addShadowCaster(playerMesh);
+
+        playerAggregate = new BABYLON.PhysicsAggregate(
+            playerMesh,
+            BABYLON.PhysicsShapeType.BOX,
+            { mass: 70, friction: 0.6, restitution: 0.05 },
+            scene
+        );
+
+        // Lock Y-axis rotation so player stays upright
+        playerAggregate.body.setMassProperties({
+            inertia: new BABYLON.Vector3(0, 0, 0),
+        });
+
+        // ── Weather System ──────────────────────────────────
+        weather = new WeatherSystem(scene, havokPlugin);
+        weather.registerWindTarget(playerAggregate.body, 70);
+        weather.setPreset('overcast');
+
+        // ── Scatter some loose physics objects ──────────────
+        for (let i = 0; i < 15; i++) {
+            const size = 0.3 + Math.random() * 0.7;
+            const box = BABYLON.MeshBuilder.CreateBox(`loose_${i}`, {
+                width: size, height: size, depth: size
+            }, scene);
+            box.position = new BABYLON.Vector3(
+                (Math.random() - 0.5) * 60,
+                5 + Math.random() * 3,
+                (Math.random() - 0.5) * 60
+            );
+            const mat = new BABYLON.StandardMaterial(`looseMat_${i}`, scene);
+            mat.diffuseColor = new BABYLON.Color3(0.5 + Math.random() * 0.3, 0.3, 0.15);
+            box.material = mat;
+            shadowGen.addShadowCaster(box);
+
+            const agg = new BABYLON.PhysicsAggregate(
+                box, BABYLON.PhysicsShapeType.BOX,
+                { mass: 5 + Math.random() * 15, friction: 0.5, restitution: 0.3 },
+                scene
+            );
+
+            // Register with weather wind
+            weather.registerWindTarget(agg.body, agg.body.getMassProperties().mass);
+        }
+
+        // ── Input ───────────────────────────────────────────
+        setupInput();
+
+        // ── Game loop ───────────────────────────────────────
+        engine.runRenderLoop(() => {
+            const dt = engine.getDeltaTime() / 1000;
+            updatePlayer(dt);
+            weather.update(dt, { position: playerMesh.position });
+
+            // Update all active tornados
+            tornados.forEach(t => t.update(dt, playerMesh.position));
+
+            updateHUD();
+            scene.render();
+        });
+
+        window.addEventListener('resize', () => engine.resize());
+
+        // Spawn a starter tornado after 2 sec
+        setTimeout(() => spawnTornado(), 2000);
+        console.log('🌪️ Tornado Vortex Test ready!');
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  INPUT + PLAYER MOVEMENT
+    // ════════════════════════════════════════════════════════════
+
+    const keys = {};
+
+    function setupInput() {
+        scene.onKeyboardObservable.add((kbInfo) => {
+            const key = kbInfo.event.key.toLowerCase();
+            if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) keys[key] = true;
+            if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYUP)   keys[key] = false;
+        });
+    }
+
+    function updatePlayer(dt) {
+        const body = playerAggregate.body;
+        const moveForce = 4000;
+
+        // Get camera forward/right projected onto XZ plane
+        const camForward = camera.getForwardRay().direction;
+        const forward = new BABYLON.Vector3(camForward.x, 0, camForward.z).normalize();
+        const right   = BABYLON.Vector3.Cross(BABYLON.Vector3.Up(), forward).normalize();
+
+        let impulse = BABYLON.Vector3.Zero();
+
+        if (keys['w'] || keys['arrowup'])    impulse.addInPlace(forward.scale(moveForce));
+        if (keys['s'] || keys['arrowdown'])  impulse.addInPlace(forward.scale(-moveForce * 0.6));
+        if (keys['a'] || keys['arrowleft'])  impulse.addInPlace(right.scale(moveForce * 0.8));
+        if (keys['d'] || keys['arrowright']) impulse.addInPlace(right.scale(-moveForce * 0.8));
+
+        if (impulse.length() > 0) {
+            body.applyForce(impulse, playerMesh.position);
+        }
+
+        // Jump
+        if (keys[' ']) {
+            const vel = body.getLinearVelocity();
+            if (Math.abs(vel.y) < 1.5) {
+                body.applyImpulse(new BABYLON.Vector3(0, 350, 0), playerMesh.position);
+            }
+            keys[' '] = false; // single press
+        }
+
+        // Ground friction damping
+        const vel = body.getLinearVelocity();
+        body.setLinearVelocity(new BABYLON.Vector3(vel.x * 0.96, vel.y, vel.z * 0.96));
+
+        // Camera follow
+        const camOffset = forward.scale(-12).add(new BABYLON.Vector3(0, 6, 0));
+        const targetCamPos = playerMesh.position.add(camOffset);
+        camera.position = BABYLON.Vector3.Lerp(camera.position, targetCamPos, 0.08);
+        camera.setTarget(BABYLON.Vector3.Lerp(camera.getTarget(), playerMesh.position, 0.1));
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  TORNADO MANAGEMENT (button handlers)
+    // ════════════════════════════════════════════════════════════
+
+    function spawnTornado() {
+        const t = new TornadoVortex(scene, terrain, havokPlugin, {
+            startX:    (Math.random() - 0.5) * 80,
+            startZ:    (Math.random() - 0.5) * 80,
+            velocityX: (Math.random() - 0.5) * 0.3,
+            velocityZ: (Math.random() - 0.5) * 0.3,
+            radius:    6 + Math.random() * 6,
+            strength:  0.3 + Math.random() * 0.3,
+        });
+
+        // Register player + all loose physics bodies
+        t.registerPhysicsTarget(playerAggregate.body, 70);
+
+        // Also register loose objects
+        scene.meshes.forEach(m => {
+            if (m.name.startsWith('loose_')) {
+                const agg = m.physicsBody;
+                if (agg) t.registerPhysicsTarget(agg, 10);
+            }
+        });
+
+        tornados.push(t);
+    }
+
+    function spawnMultiple() {
+        for (let i = 0; i < 3; i++) setTimeout(() => spawnTornado(), i * 400);
+    }
+
+    function clearTornados() {
+        tornados.forEach(t => t.destroy());
+        tornados = [];
+    }
+
+    function toggleDeform() {
+        terrain.deformationEnabled = !terrain.deformationEnabled;
+        const btn = document.getElementById('btnDeform');
+        btn.textContent = `Deform: ${terrain.deformationEnabled ? 'ON' : 'OFF'}`;
+        btn.classList.toggle('active', terrain.deformationEnabled);
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  WEATHER PRESET BUTTON HANDLER
+    // ════════════════════════════════════════════════════════════
+
+    function setWeather(name) {
+        weather.transitionTo(name, 3);
+    }
+
+
+    // ════════════════════════════════════════════════════════════
+    //  HUD
+    // ════════════════════════════════════════════════════════════
+
+    function updateHUD() {
+        const pp = playerMesh.position;
+        document.getElementById('playerPos').textContent =
+            `${pp.x.toFixed(1)}, ${pp.z.toFixed(1)}`;
+
+        let closestDist = Infinity;
+        let maxForce = 0;
+        for (const t of tornados) {
+            const d = t.getDistanceTo(pp);
+            if (d < closestDist) closestDist = d;
+            const f = t.getForceAt(pp);
+            if (f > maxForce) maxForce = f;
+        }
+
+        document.getElementById('tornadoDist').textContent =
+            closestDist === Infinity ? '—' : closestDist.toFixed(1);
+        document.getElementById('windForce').textContent = maxForce.toFixed(3);
+        document.getElementById('weatherWind').textContent = weather.windSpeed.toFixed(0);
+        document.getElementById('deformCount').textContent = terrain.deformCount;
+        document.getElementById('tornadoCount').textContent = tornados.length;
+
+        // Warning overlay
+        document.getElementById('tornadoWarning').style.display =
+            closestDist < 20 ? 'block' : 'none';
+    }
+
+
+    // ── BOOT ────────────────────────────────────────────────
+    main().catch(err => console.error('💀 Boot failed:', err));
+    </script>
+</body>
+</html>

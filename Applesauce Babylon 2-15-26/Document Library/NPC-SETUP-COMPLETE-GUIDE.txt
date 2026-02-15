@@ -1,0 +1,311 @@
+NPC NOT SHOWING - ROOT CAUSE & FIX
+===================================
+
+## 🐛 THE ACTUAL PROBLEM:
+
+**Two issues were preventing NPCs from showing:**
+
+### Issue #1: NPCs Not Positioned on Terrain ✅ FIXED
+- NPCs were spawning at Y=0 instead of terrain height
+- Fixed in `applesauce-dialogue-r182-fixed.js`
+
+### Issue #2: onLevelStart() Never Called ⚠️ CRITICAL
+- **The core engine's `loadLevel()` function never calls `onLevelStart()`**
+- Your NPCs are defined in config, but never actually spawned!
+- This is why you see terrain but no NPCs/enemies
+
+## ✅ THE COMPLETE FIX:
+
+### 1. Update Core Engine
+**FILE:** applesauce-core-r182-full-fixed.js
+
+**What changed:**
+```javascript
+// BEFORE (loadLevel function):
+if (levelConfig.objectives && this.modules.objectives) {
+    this.modules.objectives.init(levelConfig.objectives);
+}
+console.log(`✅ Level loaded successfully`);
+// ❌ Never calls onLevelStart!
+
+// AFTER:
+if (levelConfig.objectives && this.modules.objectives) {
+    this.modules.objectives.init(levelConfig.objectives);
+}
+
+// Call level's onLevelStart hook
+if (levelConfig.onLevelStart && typeof levelConfig.onLevelStart === 'function') {
+    console.log('🎬 Calling level onLevelStart...');
+    levelConfig.onLevelStart(this);
+    console.log('✅ onLevelStart complete');
+}
+
+console.log(`✅ Level loaded successfully`);
+```
+
+### 2. Update Dialogue Module
+**FILE:** applesauce-dialogue-r182-fixed.js
+- NPCs now calculate terrain height correctly
+
+### 3. Use Correct HTML Setup
+**FILE:** APPLESAUCE-LEVEL-TEMPLATE.html
+- Shows exactly how to load ES modules
+- Correct script loading order
+
+## 📋 REQUIRED FILES:
+
+Put these in your game folder:
+
+```
+your-game-folder/
+├── three.module.js
+├── applesauce-core-r182-full-fixed.js ← NEW FIXED CORE
+├── applesauce-terrain-r182.js
+├── applesauce-dialogue-r182-fixed.js ← FIXED DIALOGUE
+├── applesauce-enemies-r182.js
+├── applesauce-gore-r182.js
+├── applesauce-objectives-r182.js
+├── level-test-npcs-config.js ← TEST LEVEL
+└── your-level.html ← USE TEMPLATE
+```
+
+## 🔧 HTML SETUP (CRITICAL):
+
+### ❌ WRONG WAY (Won't work with r182):
+```html
+<!-- Old r128 style - DON'T DO THIS -->
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+```
+
+### ✅ RIGHT WAY (ES Modules):
+```html
+<!-- STEP 1: Load level config (regular script) -->
+<script src="./level-test-npcs-config.js"></script>
+
+<!-- STEP 2: Load game engine (ES module) -->
+<script type="module">
+    import { ApplesauceCore } from './applesauce-core-r182-full-fixed.js';
+    
+    const game = new ApplesauceCore({
+        dialogueEnabled: true,
+        enemiesEnabled: true,
+        objectivesEnabled: true,
+        goreEnabled: true
+    });
+    
+    // Load level
+    game.loadLevel(window.LevelTestNPCs);
+</script>
+```
+
+**KEY POINTS:**
+1. Level config = regular `<script src="">` (NO "type='module'")
+2. Game engine = `<script type="module">` with imports
+3. Load config BEFORE loading engine
+
+## 🎯 WHAT SHOULD HAPPEN:
+
+### In Console (F12):
+```
+🎮 Starting APPLESAUCE...
+✅ Level config found: NPC TEST LEVEL
+✅ Game engine created
+🎮 Loading level...
+📦 Loading level: NPC TEST LEVEL
+🏔️ Terrain module loaded
+🏔️ Generating terrain...
+✅ Generated 1 terrain chunks
+💬 Dialogue module loaded
+🎬 Calling level onLevelStart...
+--- Spawning NPC 1 ---
+Name: Test NPC 1
+Position: (5, 0, 15)
+Color: 0xFF0000
+✅ NPC "Test NPC 1" created successfully
+   Mesh position: (5, 0, 15)
+   Mesh visible: true
+   In scene: true
+✅ onLevelStart complete
+✅ Level 99 loaded successfully
+```
+
+### In Game:
+1. Terrain appears (green ground)
+2. Player can move with WASD
+3. **You see 3 colored NPCs** (Red at z=15, Green at z=20, Blue at z=30)
+4. Walk near them → "Press F to talk to [Name]"
+5. Press F → Dialogue appears on right side
+
+## 🔍 DEBUGGING CHECKLIST:
+
+### If NPCs Still Don't Show:
+
+**1. Check Console for onLevelStart:**
+```
+Look for: 🎬 Calling level onLevelStart...
+```
+- ✅ If you see this → Core is fixed correctly
+- ❌ If you don't see this → Core didn't call onLevelStart
+
+**2. Check for NPC Spawn Messages:**
+```
+Look for: --- Spawning NPC 1 ---
+          ✅ NPC "Test NPC 1" created successfully
+```
+- ✅ If you see this → NPCs are being created
+- ❌ If you don't see this → onLevelStart not running
+
+**3. Check Mesh Status:**
+```
+Look for: Mesh visible: true
+          In scene: true
+```
+- Both should be TRUE
+- If false → Rendering/scene issue
+
+**4. Check ES Module Loading:**
+```
+Look for: THREE is not defined
+          Cannot find module
+          Unexpected token 'import'
+```
+- These mean ES modules aren't loading correctly
+- Check `<script type="module">` is present
+- Check file paths are correct
+- Make sure using a live server (not file://)
+
+**5. Check Level Config Loaded:**
+```
+Look for: ✅ Level config found: [Level Name]
+```
+- If you see "❌ Level config not found":
+  - Check `<script src="level-config.js">` comes BEFORE `<script type="module">`
+  - Check file path is correct
+  - Check `window.LevelTestNPCs` exists
+
+## 🚀 STEP-BY-STEP SETUP:
+
+### Step 1: Prepare Files
+1. Download all files to same folder
+2. Make sure three.module.js is present
+3. Use the FIXED versions:
+   - applesauce-core-r182-full-fixed.js
+   - applesauce-dialogue-r182-fixed.js
+
+### Step 2: Create HTML
+1. Use APPLESAUCE-LEVEL-TEMPLATE.html as your starting point
+2. Or copy the ES module loading pattern from it
+3. Make sure script order is: config first, then module
+
+### Step 3: Start Live Server
+**IMPORTANT:** ES modules require a web server!
+
+```bash
+# Using Python:
+python -m http.server 8000
+
+# Using Node:
+npx http-server
+
+# Or use VS Code "Live Server" extension
+```
+
+Then open: http://localhost:8000/your-file.html
+
+**Don't use file:// - ES modules won't work!**
+
+### Step 4: Test
+1. Open browser
+2. Open console (F12)
+3. Look for the messages listed above
+4. Press W to move forward
+5. You should see 3 colored NPCs
+
+### Step 5: Apply to Your Levels
+Once test level works:
+1. Replace core in your project: applesauce-core-r182-full-fixed.js
+2. Replace dialogue: applesauce-dialogue-r182-fixed.js
+3. Update HTML to use ES module pattern
+4. Your existing level configs will work!
+
+## 📝 CONFIG FILES DON'T NEED IMPORTS
+
+Your level config files are just plain JavaScript objects:
+
+```javascript
+// level-config.js
+// NO IMPORTS NEEDED!
+
+window.LevelXX = {
+    meta: { ... },
+    terrain: { ... },
+    npcs: [ ... ],
+    
+    onLevelStart: function(game) {
+        // This gets called by loadLevel now!
+        this.npcs.forEach(npc => {
+            game.modules.dialogue.createNPC(npc);
+        });
+    }
+};
+```
+
+Load it as regular script:
+```html
+<script src="./level-config.js"></script>
+```
+
+## ⚡ QUICK TEST:
+
+```bash
+# 1. Put all files in folder
+# 2. Start server:
+python -m http.server 8000
+
+# 3. Open in browser:
+http://localhost:8000/APPLESAUCE-LEVEL-TEMPLATE.html
+
+# 4. Check console for:
+✅ onLevelStart complete
+✅ NPC "Test NPC 1" created successfully
+
+# 5. Press W to move forward
+# 6. You should see 3 colored NPCs!
+```
+
+## 🎯 WHAT WAS MISSING:
+
+**In your original core engine:**
+- `loadLevel()` created terrain ✅
+- `loadLevel()` created player ✅
+- `loadLevel()` initialized objectives ✅
+- `loadLevel()` called `onLevelStart()` ❌ MISSING!
+
+**Without onLevelStart:**
+- NPCs never spawn (they're just sitting in config)
+- Enemies never spawn
+- Level-specific logic never runs
+
+**Now with the fix:**
+- Everything spawns correctly! ✅
+
+## 📦 FILES IN THIS PACKAGE:
+
+1. **applesauce-core-r182-full-fixed.js** - Fixed core (calls onLevelStart)
+2. **applesauce-dialogue-r182-fixed.js** - Fixed dialogue (terrain height)
+3. **APPLESAUCE-LEVEL-TEMPLATE.html** - Complete working HTML
+4. **level-test-npcs-config.js** - Test level with debug logging
+5. **NPC-SETUP-COMPLETE-GUIDE.txt** - This file
+
+## 🎮 YOU'RE ALMOST THERE!
+
+The systems are good - just needed these two fixes:
+1. Core needed to call onLevelStart ✅ FIXED
+2. NPCs needed terrain height ✅ FIXED
+
+Use the template HTML and the fixed core/dialogue files, and everything should work!
+
+---
+
+🛹 Let's get those NPCs showing up!

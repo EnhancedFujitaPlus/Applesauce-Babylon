@@ -1,0 +1,453 @@
+APPLESAUCE r182 - ALL MODULES GUIDE
+====================================
+
+All your game modules have been converted to Three.js r182 ES modules!
+
+## 📦 FILE STRUCTURE:
+
+your-game-folder/
+├── three.module.js                      ← Three.js r182
+├── applesauce-core-r182-full.js         ← Core engine with all modules
+├── applesauce-gore-r182.js              ← Gore system
+├── applesauce-dialogue-r182.js          ← Dialogue & NPCs
+├── applesauce-enemies-r182.js           ← Enemies & AI
+├── applesauce-objectives-r182.js        ← Objectives tracking
+├── applesauce-main-menu-modular-r182.html
+└── level-XX-config.js
+
+## ✅ WHAT WAS CHANGED:
+
+All four modules were converted from r128 to r182:
+
+### 1. Gore Module ✅
+- Added `import * as THREE from './three.module.js'`
+- Added `export class ApplesauceGore`
+- No breaking changes to functionality
+
+### 2. Dialogue Module ✅
+- Added `import * as THREE from './three.module.js'`
+- Added `export class ApplesauceDialogue`
+- Added `.clear()` method for cleanup
+- No breaking changes to functionality
+
+### 3. Enemies Module ✅
+- Added `import * as THREE from './three.module.js'`
+- Added `export class ApplesauceEnemies`
+- No breaking changes to functionality
+- Already integrated with gore system
+
+### 4. Objectives Module ✅
+- Added `export class ApplesauceObjectives`
+- Added `.init()` method for level config integration
+- Can now load objectives from level configs automatically
+- No breaking changes to functionality
+
+### 5. Core Engine ✅
+- Imports all four modules
+- Auto-initializes all modules (can be disabled in config)
+- Already has update loops for all modules
+- All modules work together seamlessly
+
+## 🎮 QUICK START:
+
+### Step 1: Replace Your Core File
+Use **applesauce-core-r182-full.js** instead of your old core
+
+### Step 2: Add All Module Files
+Make sure you have all five module files:
+- applesauce-gore-r182.js
+- applesauce-dialogue-r182.js
+- applesauce-enemies-r182.js
+- applesauce-objectives-r182.js
+
+### Step 3: Initialize Game
+```javascript
+const game = new ApplesauceCore({
+    goreEnabled: true,           // Enable gore (default: true)
+    dialogueEnabled: true,       // Enable dialogue (default: true)
+    enemiesEnabled: true,        // Enable enemies (default: true)
+    objectivesEnabled: true      // Enable objectives (default: true)
+});
+```
+
+All modules are enabled by default! You can disable any module by setting its config to `false`.
+
+## 🩸 GORE MODULE
+
+**Usage:**
+```javascript
+// Blood splatter
+game.modules.gore.createBloodSplatter(position, velocity, 30);
+
+// Blood pool
+game.modules.gore.createBloodPool(position, 2);
+
+// Body parts
+game.modules.gore.createGibs(position, velocity, 5);
+
+// Everything!
+game.modules.gore.createMassiveSplatter(position, velocity);
+```
+
+**See:** GORE-SYSTEM-GUIDE.txt for complete documentation
+
+## 💬 DIALOGUE MODULE
+
+**Create NPCs:**
+```javascript
+const npc = game.modules.dialogue.createNPC({
+    name: "Skate Guru",
+    position: { x: 10, y: 0, z: 20 },
+    color: 0x00FF00,
+    interactRadius: 5,
+    dialogue: [
+        { speaker: "Skate Guru", text: "Welcome to the park!" },
+        { speaker: "Skate Guru", text: "Press Q for kickflips!" }
+    ]
+});
+```
+
+**How it works:**
+- Player walks near NPC (within interactRadius)
+- Prompt appears: "Press F to talk to [Name]"
+- Press F to start dialogue
+- Press F again to advance through lines
+- Letter-by-letter typing animation
+- Press F to skip typing animation
+
+**Required HTML elements:**
+```html
+<div id="speechBubble" class="speech-bubble">
+    <div id="speakerName"></div>
+    <div id="speechText"></div>
+</div>
+<div id="interactPrompt"></div>
+```
+
+## 👀 ENEMIES MODULE
+
+**Spawn Enemies:**
+```javascript
+// Single enemy
+const enemy = game.modules.enemies.spawnEnemy({
+    position: { x: 0, z: 50 },
+    behavior: 'wander',  // 'wander', 'static', 'flee'
+    speed: 0.02,
+    color: 0xFF6666
+});
+
+// Line formation
+game.modules.enemies.spawnLine(0, 50, 5, 3);  // x, z, count, spacing
+
+// Cluster formation
+game.modules.enemies.spawnCluster(0, 50, 8, 5);  // x, z, count, radius
+
+// Boss enemy
+const boss = game.modules.enemies.spawnBoss({
+    position: { x: 0, z: 100 },
+    health: 10,
+    speed: 0.03
+});
+```
+
+**Collision System:**
+- Player speed > 0.2 = ROADKILL (enemy dies)
+- Player speed < 0.2 = BUMP (player slowed)
+- Roadkills trigger gore effects automatically
+- Adds 500 * combo to score
+- Tracks kills for objectives
+
+**Enemy Behaviors:**
+- **wander**: Random walking around
+- **static**: Doesn't move
+- **flee**: Runs away from player (within 20 units)
+
+**Boss:**
+- 10 health (takes multiple hits to kill)
+- Always chases player
+- Melee attack when close
+- Flash red when damaged
+
+## 🎯 OBJECTIVES MODULE
+
+**Auto-load from Level Config:**
+```javascript
+// In your level config:
+window.Level01Config = {
+    objectives: {
+        survive: { 
+            duration: 180,
+            description: "Survive 3 minutes"
+        },
+        score: { 
+            target: 10000,
+            description: "Reach 10,000 points"
+        },
+        kills: {
+            count: 5,
+            description: "Roadkill 5 people"
+        }
+    }
+};
+
+// Objectives auto-load when level loads!
+```
+
+**Manual Creation:**
+```javascript
+// Roadkill objective
+game.modules.objectives.addKillObjective(10, "Roadkill 10 people");
+
+// Score objective
+game.modules.objectives.addScoreObjective(50000, "Get 50k points");
+
+// Trick objective
+game.modules.objectives.addTrickObjective('kickflip', 5, "Land 5 kickflips");
+
+// Boss objective
+game.modules.objectives.addBossObjective("Defeat the boss");
+
+// Custom objective
+game.modules.objectives.add({
+    id: 'custom',
+    description: "Do something cool",
+    type: 'custom',
+    target: 1,
+    checker: (engine) => {
+        // Return current progress
+        return engine.customCounter || 0;
+    },
+    onComplete: (engine) => {
+        console.log('Custom objective complete!');
+    }
+});
+```
+
+**Required HTML element:**
+```html
+<div id="objectives"></div>
+```
+
+## 🔗 HOW MODULES WORK TOGETHER:
+
+### Example: Roadkill with Gore
+```javascript
+// When player hits enemy at high speed:
+// 1. Enemies module detects collision
+// 2. Enemies module calls gore.createMassiveSplatter()
+// 3. Enemies module increments kill count
+// 4. Objectives module checks if kill objective is complete
+// All automatic! ✨
+```
+
+### Example: NPC Quest with Objectives
+```javascript
+// Create NPC with quest
+const questGiver = game.modules.dialogue.createNPC({
+    name: "Quest Master",
+    position: { x: 0, y: 0, z: 10 },
+    dialogue: [
+        { speaker: "Quest Master", text: "Defeat 10 enemies for me!" },
+        { speaker: "Quest Master", text: "I'll reward you handsomely!" }
+    ]
+});
+
+// Add objective
+game.modules.objectives.addKillObjective(10, "Complete Quest Master's challenge");
+```
+
+### Example: Boss Fight Level
+```javascript
+// In level config:
+window.Level10Config = {
+    objectives: {
+        boss: {
+            description: "Defeat the Giant Skater"
+        }
+    }
+};
+
+// In level setup:
+function setupBossFight(game) {
+    // Spawn boss
+    const boss = game.modules.enemies.spawnBoss({
+        position: { x: 0, z: 100 },
+        health: 20,
+        speed: 0.04
+    });
+    
+    // Boss defeat triggers objective automatically!
+}
+```
+
+## 🎨 LEVEL CONFIG INTEGRATION:
+
+All modules can be configured via level configs:
+
+```javascript
+window.LevelXXConfig = {
+    meta: {
+        name: "ENEMY GAUNTLET",
+        theme: "combat"
+    },
+    
+    // Objectives - loaded automatically
+    objectives: {
+        survive: { duration: 120 },
+        score: { target: 25000 },
+        kills: { count: 15 }
+    },
+    
+    // Enemies - spawn manually in level setup
+    enemies: {
+        wander: { count: 10, spacing: 5 },
+        boss: { health: 15, position: { x: 0, z: 100 } }
+    },
+    
+    // NPCs - spawn manually
+    npcs: [
+        {
+            name: "Helper",
+            position: { x: -10, y: 0, z: 5 },
+            dialogue: [
+                { speaker: "Helper", text: "Watch out for enemies!" }
+            ]
+        }
+    ]
+};
+```
+
+## ⚙️ MODULE CONFIGURATION:
+
+### Disable Modules:
+```javascript
+// Disable specific modules
+const game = new ApplesauceCore({
+    goreEnabled: false,        // No blood/gibs
+    dialogueEnabled: false,    // No NPCs/dialogue
+    enemiesEnabled: false,     // No enemies
+    objectivesEnabled: false   // No objectives
+});
+```
+
+### Check if Module is Active:
+```javascript
+if (game.modules.gore) {
+    // Gore is enabled
+}
+
+if (game.modules.enemies) {
+    // Enemies are enabled
+}
+```
+
+## 🧹 CLEANUP:
+
+All modules have `.clear()` methods that are automatically called when switching levels:
+
+```javascript
+// Manual cleanup (usually not needed)
+game.modules.gore.clear();        // Remove all blood/gibs
+game.modules.dialogue.clear();    // Remove all NPCs
+game.modules.enemies.clear();     // Remove all enemies
+game.modules.objectives.clear();  // Clear all objectives
+```
+
+The core engine handles this automatically in `game.clearLevel()`.
+
+## 🎯 COMMON PATTERNS:
+
+### Pattern 1: Combat Level
+```javascript
+// Spawn enemies throughout level
+game.modules.enemies.spawnCluster(0, 50, 10, 15);
+game.modules.enemies.spawnLine(20, 80, 5, 4);
+
+// Add kill objective
+game.modules.objectives.addKillObjective(15, "Clear the arena");
+```
+
+### Pattern 2: Tutorial Level
+```javascript
+// Create tutorial NPC
+const tutor = game.modules.dialogue.createNPC({
+    name: "Tutorial Bot",
+    position: { x: 0, y: 0, z: 5 },
+    dialogue: [
+        { speaker: "Tutorial Bot", text: "Welcome! Use arrow keys to move." },
+        { speaker: "Tutorial Bot", text: "Press Space to jump!" },
+        { speaker: "Tutorial Bot", text: "Press Q for kickflips!" }
+    ]
+});
+
+// Add simple objectives
+game.modules.objectives.addScoreObjective(1000, "Get 1000 points");
+game.modules.objectives.addTrickObjective('kickflip', 3, "Land 3 kickflips");
+```
+
+### Pattern 3: Boss Fight
+```javascript
+// Spawn boss
+const boss = game.modules.enemies.spawnBoss({
+    position: { x: 0, z: 100 },
+    health: 25
+});
+
+// Add boss objective
+game.modules.objectives.addBossObjective("Defeat the Boss");
+
+// Optional: Pre-fight dialogue
+const herald = game.modules.dialogue.createNPC({
+    name: "Herald",
+    position: { x: -5, y: 0, z: 50 },
+    dialogue: [
+        { speaker: "Herald", text: "The boss awaits beyond..." },
+        { speaker: "Herald", text: "Good luck, skater!" }
+    ]
+});
+```
+
+## 🐛 TROUBLESHOOTING:
+
+**Modules not loading?**
+- Check all module files are in same folder as core
+- Verify imports in applesauce-core-r182-full.js
+- Open browser console (F12) for errors
+
+**Objectives not updating?**
+- Make sure objectives module is enabled
+- Check that `<div id="objectives"></div>` exists in HTML
+- Verify checker functions return correct values
+
+**NPCs not appearing?**
+- Check dialogue module is enabled
+- Verify NPC position is on terrain
+- Look for console errors
+
+**Enemies not dying?**
+- Make sure player speed > 0.2 for roadkills
+- Check gore module is enabled for visual feedback
+- Verify collision detection is working
+
+**Gore not showing?**
+- Ensure goreEnabled: true in config
+- Check that gore effects are being called
+- Run gore-test-demo.html to verify setup
+
+## 📚 RELATED FILES:
+
+- **GORE-SYSTEM-GUIDE.txt** - Complete gore documentation
+- **SETUP-GUIDE-R182-MODULES.txt** - ES modules setup
+- **gore-test-demo.html** - Interactive gore test
+
+## 🎉 YOU'RE ALL SET!
+
+All four modules are now:
+- ✅ Converted to ES modules
+- ✅ Compatible with Three.js r182
+- ✅ Integrated with core engine
+- ✅ Work together seamlessly
+- ✅ Easy to enable/disable
+- ✅ Documented and ready to use
+
+Start building levels with NPCs, enemies, objectives, and gore! 🛹💀

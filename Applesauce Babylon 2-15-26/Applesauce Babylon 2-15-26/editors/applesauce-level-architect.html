@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APPLESAUCE — Level Architect</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --concrete-dark: #3a3632;
+    --concrete-mid: #6b6560;
+    --concrete-light: #b8b2aa;
+    --concrete-pale: #e8e4de;
+    --concrete-white: #f4f1ec;
+    --glass-tint: #c8ddd4;
+    --glass-border: rgba(120,180,155,0.4);
+    --steel: #a0a4a8;
+    --wood-warm: #8b6842;
+    --wood-dark: #5a3d22;
+    --terrazzo-cream: #e6e1d7;
+    --water-blue: #4a8090;
+    --accent-gold: #d4a853;
+    --accent-red: #c45544;
+    --text-primary: #2a2622;
+    --text-secondary: #7a756e;
+    --text-inverse: #f0ede8;
+    --panel-bg: rgba(244,241,236,0.96);
+    --code-bg: #2a2622;
+    --floor-0: #6b9e8a;
+    --floor-1: #8b9ec4;
+    --floor-2: #c4a06b;
+    --floor-neg1: #8b6e8a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Instrument Sans', sans-serif;
+    background: var(--concrete-dark);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ═══ Top Bar ═══ */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 52px;
+    background: var(--concrete-dark);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    z-index: 100;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .topbar-brand {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: var(--concrete-pale);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .topbar-brand span { color: var(--accent-gold); }
+  .topbar-tabs {
+    display: flex; gap: 2px;
+  }
+  .topbar-tab {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    background: transparent;
+    color: var(--concrete-light);
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .topbar-tab:hover { background: rgba(255,255,255,0.06); color: var(--concrete-pale); }
+  .topbar-tab.active { background: rgba(212,168,83,0.15); color: var(--accent-gold); }
+
+  /* ═══ Main Layout ═══ */
+  .main {
+    position: fixed;
+    top: 52px; bottom: 0; left: 0; right: 0;
+    display: flex;
+  }
+
+  /* ═══ Canvas Area ═══ */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    background: var(--concrete-mid);
+    overflow: hidden;
+  }
+  .canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+  .canvas-wrap canvas:active { cursor: grabbing; }
+
+  /* ═══ Floor Legend ═══ */
+  .floor-legend {
+    position: absolute; bottom: 16px; left: 16px;
+    display: flex; flex-direction: column; gap: 4px;
+    background: rgba(42,38,34,0.85);
+    padding: 10px 14px;
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+  }
+  .floor-legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--concrete-pale);
+    cursor: pointer;
+    opacity: 1;
+    transition: opacity 0.15s;
+  }
+  .floor-legend-item.dimmed { opacity: 0.35; }
+  .floor-swatch {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+  }
+
+  .zoom-controls {
+    position: absolute; bottom: 16px; right: 16px;
+    display: flex; gap: 4px;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px;
+    background: rgba(42,38,34,0.85);
+    border: none; border-radius: 6px;
+    color: var(--concrete-pale);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+    transition: background 0.15s;
+    font-family: 'DM Mono', monospace;
+  }
+  .zoom-btn:hover { background: rgba(42,38,34,1); }
+
+  .info-overlay {
+    position: absolute; top: 12px; left: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--concrete-pale);
+    background: rgba(42,38,34,0.85);
+    padding: 8px 12px;
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+    line-height: 1.6;
+  }
+  .info-overlay .stat-label { color: var(--concrete-light); }
+  .info-overlay .stat-value { color: var(--accent-gold); }
+
+  .preset-bar {
+    position: absolute; top: 12px; right: 16px;
+    display: flex; gap: 3px;
+    background: rgba(42,38,34,0.85);
+    padding: 4px;
+    border-radius: 6px;
+    backdrop-filter: blur(8px);
+  }
+  .preset-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 5px 10px;
+    background: transparent;
+    color: var(--concrete-light);
+    border: none;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+  }
+  .preset-btn:hover { background: rgba(255,255,255,0.08); color: var(--concrete-pale); }
+  .preset-btn.active { background: rgba(212,168,83,0.2); color: var(--accent-gold); }
+  .preset-divider {
+    width: 1px;
+    background: rgba(255,255,255,0.1);
+    margin: 2px 4px;
+  }
+
+  /* ═══ Side Panel ═══ */
+  .sidepanel {
+    width: 440px;
+    min-width: 440px;
+    background: var(--panel-bg);
+    border-left: 1px solid rgba(0,0,0,0.08);
+    overflow-y: auto;
+    transition: min-width 0.3s, width 0.3s;
+  }
+  .sidepanel.collapsed { width: 0; min-width: 0; overflow: hidden; }
+
+  .panel-toggle {
+    position: absolute; right: 440px; top: 50%;
+    transform: translateY(-50%);
+    width: 20px; height: 48px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    color: var(--text-secondary);
+    z-index: 50;
+    transition: right 0.3s;
+  }
+  .sidepanel.collapsed ~ .panel-toggle { right: 0; }
+
+  .panel-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+  .panel-section:last-child { border-bottom: none; }
+
+  .panel-header {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .panel-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  .room-card {
+    background: white;
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-bottom: 6px;
+    border: 1px solid rgba(0,0,0,0.06);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .room-card:hover { border-color: var(--accent-gold); transform: translateX(2px); }
+  .room-card.selected { border-color: var(--accent-gold); box-shadow: 0 0 0 1px var(--accent-gold); }
+
+  .room-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .room-card-name { font-weight: 600; font-size: 13px; color: var(--text-primary); }
+  .room-card-type {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--concrete-pale);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .room-card-stats {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    display: flex; gap: 10px;
+  }
+  .room-card-stats span { color: var(--concrete-mid); }
+
+  .code-block {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    color: var(--concrete-pale);
+    white-space: pre;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .code-block .kw { color: var(--accent-gold); }
+  .code-block .str { color: var(--floor-0); }
+  .code-block .cmt { color: var(--concrete-mid); }
+  .code-block .num { color: #c4a06b; }
+  .code-block .fn { color: #8bb8c4; }
+
+  .swatch-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .swatch {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .swatch:hover { border-color: var(--accent-gold); }
+  .swatch canvas { width: 100%; height: 100%; display: block; }
+  .swatch-label {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(42,38,34,0.8);
+    font-family: 'DM Mono', monospace;
+    font-size: 8px;
+    color: var(--concrete-pale);
+    padding: 2px 4px;
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  .guide-content { display: none; }
+  .guide-content.active { display: block; }
+
+  .guide-step {
+    margin-bottom: 20px;
+    padding-left: 20px;
+    border-left: 2px solid var(--concrete-pale);
+  }
+  .guide-step-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-gold);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .guide-step h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .guide-step p {
+    font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 8px;
+  }
+  .guide-step code {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .guide-table {
+    width: 100%; font-size: 11px; border-collapse: collapse; margin: 8px 0;
+  }
+  .guide-table th {
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+  }
+  .guide-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    color: var(--text-primary);
+  }
+  .guide-table td:first-child {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--concrete-mid);
+  }
+
+  .sidepanel::-webkit-scrollbar { width: 6px; }
+  .sidepanel::-webkit-scrollbar-track { background: transparent; }
+  .sidepanel::-webkit-scrollbar-thumb { background: var(--concrete-light); border-radius: 3px; }
+  .code-block::-webkit-scrollbar { width: 4px; height: 4px; }
+  .code-block::-webkit-scrollbar-thumb { background: var(--concrete-mid); border-radius: 2px; }
+
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(42,38,34,0.92);
+    color: var(--concrete-pale);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  .tooltip.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">APPLESAUCE <span>Level Architect</span></div>
+  <div class="topbar-tabs">
+    <button class="topbar-tab active" data-tab="plan">Floor Plan</button>
+    <button class="topbar-tab" data-tab="code">Source</button>
+    <button class="topbar-tab" data-tab="guide">Build Guide</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="canvas-wrap">
+    <canvas id="planCanvas"></canvas>
+    <div class="info-overlay" id="infoOverlay">
+      <span class="stat-label">rooms:</span> <span class="stat-value" id="statRooms">-</span>&nbsp;&nbsp;
+      <span class="stat-label">floors:</span> <span class="stat-value" id="statFloors">-</span>&nbsp;&nbsp;
+      <span class="stat-label">connections:</span> <span class="stat-value" id="statEdges">-</span>
+    </div>
+    <div class="preset-bar" id="presetBar"></div>
+    <div class="floor-legend" id="floorLegend"></div>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn">+</button>
+      <button class="zoom-btn" id="zoomOut">-</button>
+      <button class="zoom-btn" id="zoomFit">*</button>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <div class="sidepanel" id="sidePanel">
+    <!-- PLAN TAB -->
+    <div class="guide-content active" id="tabPlan">
+      <div class="panel-section">
+        <div class="panel-header">Current Level</div>
+        <div class="panel-title" id="levelTitle">-</div>
+        <div class="panel-subtitle" id="levelDesc">-</div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-header">Materials</div>
+        <div class="swatch-grid" id="swatchGrid"></div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-header">Rooms</div>
+        <div id="roomList"></div>
+      </div>
+    </div>
+
+    <!-- CODE TAB -->
+    <div class="guide-content" id="tabCode">
+      <div class="panel-section">
+        <div class="panel-header">Preset Source</div>
+        <div class="panel-subtitle">The code that builds this level graph. Copy and modify to create your own.</div>
+        <div class="code-block" id="codeBlock"></div>
+      </div>
+    </div>
+
+    <!-- GUIDE TAB -->
+    <div class="guide-content" id="tabGuide">
+      <div class="panel-section">
+        <div class="panel-header">Level Building Guide</div>
+        <div class="panel-title">Building APPLESAUCE Levels</div>
+        <div class="panel-subtitle">Step-by-step walkthrough for the expanded room graph system.</div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 01</div>
+          <h3>Create a RoomGraph</h3>
+          <p>Every level starts with a <code>RoomGraph</code> instance. This is a directed graph where nodes are rooms and edges are doorways. The graph handles all world-position calculation via BFS traversal.</p>
+          <div class="code-block"><span class="kw">const</span> g = <span class="kw">new</span> <span class="fn">RoomGraph</span>();</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 02</div>
+          <h3>Add Rooms</h3>
+          <p>Use <code>g.addRoom(type, label, options)</code>. The type determines default dimensions. The options object overrides any default.</p>
+          <div class="code-block"><span class="kw">const</span> entry = g.<span class="fn">addRoom</span>(<span class="str">'hallway'</span>, <span class="str">'Entry'</span>, {
+  floorLevel: <span class="num">1</span>,
+  depth: <span class="num">10</span>,
+  windowWall: <span class="str">'west'</span>,
+  material: <span class="str">'polished_concrete'</span>
+});</div>
+          <table class="guide-table">
+            <tr><th>Type</th><th>Use For</th><th>Default W x D</th></tr>
+            <tr><td>hallway</td><td>Corridor with optional windowWall</td><td>4 x 14</td></tr>
+            <tr><td>room</td><td>Standard room (bedroom, office)</td><td>14 x 10</td></tr>
+            <tr><td>large_room</td><td>Living room, master suite</td><td>22 x 16</td></tr>
+            <tr><td>gallery</td><td>Long glass corridor (hero piece)</td><td>4.5 x 28</td></tr>
+            <tr><td>atrium</td><td>Multi-story void + skylight</td><td>16 x 16</td></tr>
+            <tr><td>terrace</td><td>Open-air platform, cantilever</td><td>18 x 12</td></tr>
+            <tr><td>loggia</td><td>Covered walkway, open one side</td><td>4 x 20</td></tr>
+            <tr><td>pool_deck</td><td>Courtyard with water plane</td><td>20 x 30</td></tr>
+            <tr><td>mezzanine</td><td>Half-floor balcony overlook</td><td>14 x 6</td></tr>
+            <tr><td>ramp</td><td>Gradual slope (modern stairs)</td><td>4 x 18</td></tr>
+            <tr><td>courtyard</td><td>Open-top with terrain gen</td><td>24 x 24</td></tr>
+            <tr><td>staircase</td><td>Vertical connector</td><td>5 x 14</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 03</div>
+          <h3>Set Floor Levels</h3>
+          <p>Each room has <code>floorLevel</code> (default 0). Each floor = 6 world Y units. Negative values go underground. For the LA mansion vibe: enter high, cascade down.</p>
+          <div class="code-block"><span class="cmt">// Enter at floor 1, outdoor at floor 0</span>
+<span class="kw">const</span> living = g.<span class="fn">addRoom</span>(<span class="str">'large_room'</span>, <span class="str">'Living'</span>, { floorLevel: <span class="num">1</span> });
+<span class="kw">const</span> terrace = g.<span class="fn">addRoom</span>(<span class="str">'terrace'</span>, <span class="str">'Deck'</span>, { floorLevel: <span class="num">0</span> });
+<span class="kw">const</span> gallery = g.<span class="fn">addRoom</span>(<span class="str">'gallery'</span>, <span class="str">'Upper'</span>, { floorLevel: <span class="num">2</span> });</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 04</div>
+          <h3>Connect Rooms</h3>
+          <p><code>g.connect(fromId, toId, fromWall, toWall)</code> creates doorways and controls spatial layout. The first room is placed at origin; all others are positioned by BFS.</p>
+          <div class="code-block">g.<span class="fn">connect</span>(entry.id, living.id, <span class="str">'south'</span>, <span class="str">'north'</span>);
+<span class="cmt">// B placed south of A</span>
+
+g.<span class="fn">connect</span>(living.id, kitchen.id, <span class="str">'east'</span>, <span class="str">'west'</span>);
+<span class="cmt">// kitchen placed east of living</span></div>
+          <p>Compass: <code>north</code> = -Z, <code>south</code> = +Z, <code>east</code> = +X, <code>west</code> = -X</p>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 05</div>
+          <h3>Assign Materials</h3>
+          <p>Set <code>material</code> (walls) and <code>floorMaterial</code> per room. All large surfaces use tri-planar mapping so textures work on walls, floors, and angles without UV stretching.</p>
+          <table class="guide-table">
+            <tr><th>Material</th><th>Character</th><th>Best For</th></tr>
+            <tr><td>board_formed</td><td>Warm grey, wood grain imprint</td><td>Feature walls</td></tr>
+            <tr><td>polished_concrete</td><td>Light, smooth, near-white</td><td>Floors, ceilings</td></tr>
+            <tr><td>glass</td><td>Green-tint, reflective</td><td>Window walls (auto)</td></tr>
+            <tr><td>brushed_steel</td><td>Anisotropic metallic</td><td>Railings, columns</td></tr>
+            <tr><td>wood_plank</td><td>Walnut, warm grain</td><td>Bedrooms, accents</td></tr>
+            <tr><td>terrazzo</td><td>Polished + aggregate chips</td><td>Gallery floors</td></tr>
+            <tr><td>stone_paver</td><td>Grid with grout lines</td><td>Pool decks</td></tr>
+            <tr><td>water</td><td>Reflective/refractive</td><td>Pools (auto)</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 06</div>
+          <h3>Add Terrain &amp; Water</h3>
+          <p>Outdoor rooms accept <code>terrain</code> for procedural ground. Pool decks use <code>waterBody</code> for reflective planes.</p>
+          <div class="code-block"><span class="kw">const</span> pool = g.<span class="fn">addRoom</span>(<span class="str">'pool_deck'</span>, <span class="str">'Pool'</span>, {
+  floorLevel: <span class="num">0</span>,
+  terrain: <span class="str">'cliff'</span>,
+  waterBody: {
+    shape: <span class="str">'rectangular'</span>,
+    width: <span class="num">14</span>, depth: <span class="num">6</span>,
+    offsetX: <span class="num">0</span>, offsetZ: <span class="num">4</span>
+  }
+});</div>
+          <p>Terrain types: <code>landscaped</code> (garden), <code>hillside</code> (slope), <code>rooftop</code> (pavers), <code>cliff</code> (drop-off).</p>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 07</div>
+          <h3>Build the Level Config</h3>
+          <p>Pass graph to <code>ModernLevel.createFromGraph()</code> for a config compatible with <code>ApplesauceCore.loadLevel()</code>.</p>
+          <div class="code-block"><span class="kw">const</span> level = ModernLevel.<span class="fn">createFromGraph</span>(graph, {
+  rays: <span class="str">'extreme'</span>,
+  skybox: <span class="str">'golden_hour'</span>,
+  levelName: <span class="str">'My LA Mansion'</span>
+});
+<span class="kw">await</span> engine.<span class="fn">loadLevel</span>(level);</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">STEP 08</div>
+          <h3>Tri-Planar Mapping</h3>
+          <p>Large surfaces use tri-planar projection: the shader samples the texture 3 times (XY, XZ, YZ planes) and blends using <code>abs(worldNormal)</code> raised to a <code>sharpness</code> exponent. This prevents stretching where walls meet floors.</p>
+          <p>The GLSL chunk is stored in <code>material.metadata.triPlanar</code> and injected by the DungeonBuilder at shader compile time via Babylon's <code>onCompiled</code> hook.</p>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="guide-step">
+          <div class="guide-step-num">DESIGN TIPS</div>
+          <h3>Frutiger-Brutalist Principles</h3>
+          <p><strong>Cascade down:</strong> Entry at top floor, step down to outdoor zones. The building unfolds below the player.</p>
+          <p><strong>Contrast materials:</strong> Board-formed concrete walls + terrazzo floors + wood accent rooms. The tension between raw and warm IS the aesthetic.</p>
+          <p><strong>Long sightlines:</strong> Galleries with <code>windowWall</code> and atriums with <code>spansFloors</code> create through-views that reward exploration.</p>
+          <p><strong>Anchor with water:</strong> Pool at the lowest level gives the composition a destination. Every ramp leads toward light and water.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="panel-toggle" id="panelToggle">&#9666;</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// ROOM GRAPH (inlined from your module)
+// ═══════════════════════════════════════════════════════════════
+
+class RoomGraph {
+  constructor() { this.nodes = []; this.edges = []; this._nextId = 0; }
+
+  addRoom(type, label, opts = {}) {
+    const defaults = RoomGraph.DEFAULTS[type] || RoomGraph.DEFAULTS.room;
+    const node = {
+      id: this._nextId++, type, label: label || type,
+      width: opts.width || defaults.width,
+      depth: opts.depth || defaults.depth,
+      height: opts.height || defaults.height,
+      windows: opts.windows !== undefined ? opts.windows : defaults.windows,
+      openTop: opts.openTop || ['courtyard','terrace','pool_deck'].includes(type),
+      floorLevel: opts.floorLevel || 0,
+      position: null,
+      material: opts.material || defaults.material || 'board_formed',
+      floorMaterial: opts.floorMaterial || defaults.floorMaterial || null,
+      windowWall: opts.windowWall || defaults.windowWall || 'none',
+      terrain: opts.terrain || defaults.terrain || null,
+      waterBody: opts.waterBody || null,
+      openSides: opts.openSides || defaults.openSides || [],
+      openSide: opts.openSide || null,
+      skylight: opts.skylight || false,
+      skylightGrid: opts.skylightGrid || [4,4],
+      spansFloors: opts.spansFloors || 1,
+      style: opts.style || defaults.style || null,
+      ...opts
+    };
+    this.nodes.push(node);
+    return node;
+  }
+
+  connect(fromId, toId, fromWall = 'south', toWall = 'north') {
+    this.edges.push({ from: fromId, to: toId, fromWall, toWall });
+  }
+
+  layout() {
+    if (!this.nodes.length) return;
+    const placed = new Set();
+    const queue = [];
+    const wt = 0.8, FH = 6;
+    this.nodes[0].position = { x: 0, y: (this.nodes[0].floorLevel || 0) * FH, z: 0 };
+    placed.add(this.nodes[0].id);
+    queue.push(this.nodes[0]);
+    while (queue.length) {
+      const cur = queue.shift();
+      const proc = (e, out) => {
+        const oid = out ? e.to : e.from;
+        if (placed.has(oid)) return;
+        const t = this.nodes.find(n => n.id === oid);
+        if (!t) return;
+        const pw = out ? e.fromWall : e.toWall;
+        const cw = out ? e.toWall : e.fromWall;
+        t.position = this._calc(cur, t, pw, cw, wt, FH);
+        placed.add(t.id); queue.push(t);
+      };
+      this.edges.filter(e => e.from === cur.id).forEach(e => proc(e, true));
+      this.edges.filter(e => e.to === cur.id).forEach(e => proc(e, false));
+    }
+  }
+
+  _calc(p, c, pw, cw, wt, fh) {
+    const px = p.position.x, pz = p.position.z, cy = (c.floorLevel || 0) * fh, gap = wt * 2;
+    let x = px, z = pz;
+    switch (pw) {
+      case 'south': z = pz + p.depth/2 + c.depth/2 + gap; break;
+      case 'north': z = pz - p.depth/2 - c.depth/2 - gap; break;
+      case 'east':  x = px + p.width/2 + c.width/2 + gap; break;
+      case 'west':  x = px - p.width/2 - c.width/2 - gap; break;
+    }
+    return { x, y: cy, z };
+  }
+
+  getFloorCount() {
+    const l = this.nodes.map(n => n.floorLevel || 0);
+    return Math.max(...l) - Math.min(...l) + 1;
+  }
+  getFloorLevels() {
+    return [...new Set(this.nodes.map(n => n.floorLevel || 0))].sort((a,b) => b - a);
+  }
+}
+
+RoomGraph.DEFAULTS = {
+  hallway:   { width: 4, depth: 14, height: 4.5, windows: 0, material: 'polished_concrete', windowWall: 'none' },
+  room:      { width: 14, depth: 10, height: 4.5, windows: 1, material: 'board_formed' },
+  large_room:{ width: 22, depth: 16, height: 5.5, windows: 3, material: 'board_formed' },
+  courtyard: { width: 24, depth: 24, height: 0, windows: 0, terrain: 'landscaped', material: 'terrazzo' },
+  staircase: { width: 5, depth: 14, height: 5, windows: 1, material: 'polished_concrete', style: 'floating' },
+  gallery:   { width: 4.5, depth: 28, height: 5, windows: 0, material: 'polished_concrete', floorMaterial: 'terrazzo', windowWall: 'east' },
+  terrace:   { width: 18, depth: 12, height: 1.2, windows: 0, material: 'brushed_steel', floorMaterial: 'wood_deck', openSides: ['south'] },
+  atrium:    { width: 16, depth: 16, height: 14, windows: 0, material: 'board_formed', floorMaterial: 'terrazzo', skylight: true, spansFloors: 2 },
+  loggia:    { width: 4, depth: 20, height: 4.5, windows: 0, material: 'board_formed', floorMaterial: 'polished_concrete', openSide: 'south' },
+  pool_deck: { width: 20, depth: 30, height: 0, windows: 0, material: 'polished_concrete', floorMaterial: 'stone_paver', terrain: 'rooftop' },
+  mezzanine: { width: 14, depth: 6, height: 4.5, windows: 0, material: 'polished_concrete', floorMaterial: 'wood_plank' },
+  ramp:      { width: 4, depth: 18, height: 5, windows: 1, material: 'polished_concrete', windowWall: 'east' }
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// PRESETS
+// ═══════════════════════════════════════════════════════════════
+
+const Presets = {
+  la_hilltop: {
+    name: 'LA Hilltop', category: 'modern',
+    desc: 'Multi-level brutalist mansion cascading down a hillside.',
+    build(g) {
+      const entry = g.addRoom('hallway','Entry',{floorLevel:1,depth:10,windowWall:'west',material:'polished_concrete'});
+      const living = g.addRoom('large_room','Living Room',{floorLevel:1,width:18,depth:14,material:'board_formed'});
+      const kitchen = g.addRoom('room','Kitchen',{floorLevel:1,width:12,depth:10,material:'polished_concrete',floorMaterial:'terrazzo'});
+      const rampUp = g.addRoom('ramp','Upper Ramp',{floorLevel:1,windowWall:'east'});
+      const gallery = g.addRoom('gallery','Gallery Walk',{floorLevel:2,depth:24,windowWall:'west'});
+      const atrium = g.addRoom('atrium','Central Atrium',{floorLevel:1,height:12,spansFloors:2,skylight:true});
+      const master = g.addRoom('large_room','Master Suite',{floorLevel:2,width:16,depth:12,material:'wood_plank'});
+      const terrace = g.addRoom('terrace','Main Terrace',{floorLevel:0,width:18,depth:8,openSides:['south','west']});
+      const pool = g.addRoom('pool_deck','Pool',{floorLevel:0,width:22,depth:16,terrain:'hillside',waterBody:{shape:'rectangular',width:14,depth:6,offsetX:0,offsetZ:2}});
+      g.connect(entry.id,living.id,'south','north');
+      g.connect(living.id,kitchen.id,'east','west');
+      g.connect(living.id,atrium.id,'south','north');
+      g.connect(entry.id,rampUp.id,'east','west');
+      g.connect(rampUp.id,gallery.id,'south','north');
+      g.connect(gallery.id,atrium.id,'east','west');
+      g.connect(atrium.id,master.id,'east','west');
+      g.connect(living.id,terrace.id,'west','east');
+      g.connect(kitchen.id,pool.id,'south','north');
+    },
+    source: `const g = new RoomGraph();
+
+// Floor 1: Main Living Level
+const entry   = g.addRoom('hallway', 'Entry', {
+  floorLevel: 1, depth: 10,
+  windowWall: 'west', material: 'polished_concrete'
+});
+const living  = g.addRoom('large_room', 'Living Room', {
+  floorLevel: 1, width: 18, depth: 14,
+  material: 'board_formed'
+});
+const kitchen = g.addRoom('room', 'Kitchen', {
+  floorLevel: 1, width: 12, depth: 10,
+  material: 'polished_concrete', floorMaterial: 'terrazzo'
+});
+
+// Floor 2: Upper Level
+const rampUp  = g.addRoom('ramp', 'Upper Ramp', {
+  floorLevel: 1, windowWall: 'east'
+});
+const gallery = g.addRoom('gallery', 'Gallery Walk', {
+  floorLevel: 2, depth: 24, windowWall: 'west'
+});
+const atrium  = g.addRoom('atrium', 'Central Atrium', {
+  floorLevel: 1, height: 12,
+  spansFloors: 2, skylight: true
+});
+const master  = g.addRoom('large_room', 'Master Suite', {
+  floorLevel: 2, width: 16, depth: 12,
+  material: 'wood_plank'
+});
+
+// Floor 0: Outdoor Lower Level
+const terrace = g.addRoom('terrace', 'Main Terrace', {
+  floorLevel: 0, width: 18, depth: 8,
+  openSides: ['south', 'west']
+});
+const pool    = g.addRoom('pool_deck', 'Pool', {
+  floorLevel: 0, width: 22, depth: 16,
+  terrain: 'hillside',
+  waterBody: { shape: 'rectangular',
+    width: 14, depth: 6, offsetX: 0, offsetZ: 2 }
+});
+
+// Connections
+g.connect(entry.id, living.id, 'south', 'north');
+g.connect(living.id, kitchen.id, 'east', 'west');
+g.connect(living.id, atrium.id, 'south', 'north');
+g.connect(entry.id, rampUp.id, 'east', 'west');
+g.connect(rampUp.id, gallery.id, 'south', 'north');
+g.connect(gallery.id, atrium.id, 'east', 'west');
+g.connect(atrium.id, master.id, 'east', 'west');
+g.connect(living.id, terrace.id, 'west', 'east');
+g.connect(kitchen.id, pool.id, 'south', 'north');`
+  },
+
+  concrete_tower: {
+    name: 'Concrete Tower', category: 'modern',
+    desc: 'Vertical brutalist monument. Spiraling ramp galleries.',
+    build(g) {
+      const base = g.addRoom('atrium','Ground Atrium',{floorLevel:0,width:14,depth:14,height:10,spansFloors:2,skylight:true});
+      const r1 = g.addRoom('ramp','Ramp 1',{floorLevel:0,windowWall:'both'});
+      const g1 = g.addRoom('gallery','Gallery 1',{floorLevel:1,depth:20,windowWall:'both'});
+      const r2 = g.addRoom('ramp','Ramp 2',{floorLevel:1,windowWall:'both'});
+      const g2 = g.addRoom('gallery','Gallery 2',{floorLevel:2,depth:20,windowWall:'both'});
+      const r3 = g.addRoom('ramp','Ramp 3',{floorLevel:2,windowWall:'both'});
+      const obs = g.addRoom('large_room','Observatory',{floorLevel:3,width:14,depth:14,windows:8});
+      g.connect(base.id,r1.id,'east','west');
+      g.connect(r1.id,g1.id,'south','north');
+      g.connect(g1.id,r2.id,'east','west');
+      g.connect(r2.id,g2.id,'south','north');
+      g.connect(g2.id,r3.id,'east','west');
+      g.connect(r3.id,obs.id,'south','north');
+    },
+    source: `const g = new RoomGraph();
+const base = g.addRoom('atrium', 'Ground Atrium', {
+  floorLevel: 0, width: 14, depth: 14,
+  height: 10, spansFloors: 2, skylight: true
+});
+const r1 = g.addRoom('ramp', 'Ramp 1', { floorLevel: 0, windowWall: 'both' });
+const g1 = g.addRoom('gallery', 'Gallery 1', { floorLevel: 1, depth: 20, windowWall: 'both' });
+const r2 = g.addRoom('ramp', 'Ramp 2', { floorLevel: 1, windowWall: 'both' });
+const g2 = g.addRoom('gallery', 'Gallery 2', { floorLevel: 2, depth: 20, windowWall: 'both' });
+const r3 = g.addRoom('ramp', 'Ramp 3', { floorLevel: 2, windowWall: 'both' });
+const obs = g.addRoom('large_room', 'Observatory', { floorLevel: 3, width: 14, depth: 14, windows: 8 });
+
+g.connect(base.id, r1.id, 'east', 'west');
+g.connect(r1.id, g1.id, 'south', 'north');
+g.connect(g1.id, r2.id, 'east', 'west');
+g.connect(r2.id, g2.id, 'south', 'north');
+g.connect(g2.id, r3.id, 'east', 'west');
+g.connect(r3.id, obs.id, 'south', 'north');`
+  },
+
+  cliffside: {
+    name: 'Cliffside', category: 'modern',
+    desc: 'Cantilevered retreat over a cliff. Stahl House meets Tadao Ando.',
+    build(g) {
+      const approach = g.addRoom('loggia','Covered Approach',{floorLevel:1,depth:16,openSide:'east'});
+      const living = g.addRoom('large_room','Living Space',{floorLevel:1,width:16,depth:12,material:'board_formed'});
+      const terrace = g.addRoom('terrace','Infinity Terrace',{floorLevel:1,width:20,depth:6,openSides:['south','east','west'],terrain:'cliff'});
+      const stDown = g.addRoom('staircase','Cliff Stairs',{floorLevel:1,style:'cantilever'});
+      const poolLvl = g.addRoom('pool_deck','Infinity Pool',{floorLevel:0,width:18,depth:10,terrain:'cliff',waterBody:{shape:'rectangular',width:14,depth:4,offsetX:0,offsetZ:1}});
+      const bedroom = g.addRoom('room','Bedroom',{floorLevel:1,width:10,depth:10,material:'wood_plank'});
+      g.connect(approach.id,living.id,'south','north');
+      g.connect(living.id,terrace.id,'south','north');
+      g.connect(living.id,bedroom.id,'east','west');
+      g.connect(terrace.id,stDown.id,'east','west');
+      g.connect(stDown.id,poolLvl.id,'south','north');
+    },
+    source: `const g = new RoomGraph();
+const approach = g.addRoom('loggia', 'Covered Approach', {
+  floorLevel: 1, depth: 16, openSide: 'east'
+});
+const living = g.addRoom('large_room', 'Living Space', {
+  floorLevel: 1, width: 16, depth: 12, material: 'board_formed'
+});
+const terrace = g.addRoom('terrace', 'Infinity Terrace', {
+  floorLevel: 1, width: 20, depth: 6,
+  openSides: ['south', 'east', 'west'], terrain: 'cliff'
+});
+const stDown = g.addRoom('staircase', 'Cliff Stairs', {
+  floorLevel: 1, style: 'cantilever'
+});
+const poolLvl = g.addRoom('pool_deck', 'Infinity Pool', {
+  floorLevel: 0, width: 18, depth: 10, terrain: 'cliff',
+  waterBody: { shape: 'rectangular', width: 14, depth: 4, offsetX: 0, offsetZ: 1 }
+});
+const bedroom = g.addRoom('room', 'Bedroom', {
+  floorLevel: 1, width: 10, depth: 10, material: 'wood_plank'
+});
+
+g.connect(approach.id, living.id, 'south', 'north');
+g.connect(living.id, terrace.id, 'south', 'north');
+g.connect(living.id, bedroom.id, 'east', 'west');
+g.connect(terrace.id, stDown.id, 'east', 'west');
+g.connect(stDown.id, poolLvl.id, 'south', 'north');`
+  },
+
+  castle_keep: {
+    name: 'Castle Keep', category: 'medieval',
+    desc: 'Classic medieval castle with great hall, courtyard, and tower.',
+    build(g) {
+      const a=g.addRoom('hallway','Entrance Hall',{floorLevel:0});
+      const b=g.addRoom('large_room','Great Hall',{floorLevel:0,windows:4});
+      const c=g.addRoom('courtyard','Inner Courtyard',{floorLevel:0});
+      const d=g.addRoom('room','Armory',{floorLevel:0,windows:1});
+      const e=g.addRoom('staircase','Spiral Staircase',{floorLevel:0});
+      const f=g.addRoom('hallway','Upper Gallery',{floorLevel:1,depth:16});
+      const h=g.addRoom('large_room','Throne Room',{floorLevel:1,windows:4});
+      const i=g.addRoom('staircase','Tower Stairs',{floorLevel:1});
+      const j=g.addRoom('room','Tower Chamber',{floorLevel:2,windows:3});
+      g.connect(a.id,b.id,'south','north');
+      g.connect(b.id,c.id,'south','north');
+      g.connect(b.id,d.id,'east','west');
+      g.connect(c.id,e.id,'east','west');
+      g.connect(e.id,f.id,'south','north');
+      g.connect(f.id,h.id,'south','north');
+      g.connect(h.id,i.id,'east','west');
+      g.connect(i.id,j.id,'south','north');
+    },
+    source: `const g = new RoomGraph();
+const entrance  = g.addRoom('hallway', 'Entrance Hall', { floorLevel: 0 });
+const greatHall = g.addRoom('large_room', 'Great Hall', { floorLevel: 0, windows: 4 });
+const courtyard = g.addRoom('courtyard', 'Inner Courtyard', { floorLevel: 0 });
+const armory    = g.addRoom('room', 'Armory', { floorLevel: 0, windows: 1 });
+const stairsUp  = g.addRoom('staircase', 'Spiral Staircase', { floorLevel: 0 });
+const gallery   = g.addRoom('hallway', 'Upper Gallery', { floorLevel: 1, depth: 16 });
+const throneRm  = g.addRoom('large_room', 'Throne Room', { floorLevel: 1, windows: 4 });
+const stairs2   = g.addRoom('staircase', 'Tower Stairs', { floorLevel: 1 });
+const tower     = g.addRoom('room', 'Tower Chamber', { floorLevel: 2, windows: 3 });
+
+g.connect(entrance.id, greatHall.id, 'south', 'north');
+g.connect(greatHall.id, courtyard.id, 'south', 'north');
+g.connect(greatHall.id, armory.id, 'east', 'west');
+g.connect(courtyard.id, stairsUp.id, 'east', 'west');
+g.connect(stairsUp.id, gallery.id, 'south', 'north');
+g.connect(gallery.id, throneRm.id, 'south', 'north');
+g.connect(throneRm.id, stairs2.id, 'east', 'west');
+g.connect(stairs2.id, tower.id, 'south', 'north');`
+  },
+
+  tower: {
+    name: 'Tower', category: 'medieval',
+    desc: 'Vertical tower: base, guard room, observatory.',
+    build(g) {
+      const a=g.addRoom('room','Base Chamber',{floorLevel:0,windows:2});
+      const b=g.addRoom('staircase','Stone Stairs',{floorLevel:0});
+      const c=g.addRoom('room','Guard Room',{floorLevel:1,windows:2});
+      const d=g.addRoom('staircase','Winding Stairs',{floorLevel:1});
+      const e=g.addRoom('large_room','Observatory',{floorLevel:2,windows:4});
+      g.connect(a.id,b.id,'south','north');
+      g.connect(b.id,c.id,'south','north');
+      g.connect(c.id,d.id,'south','north');
+      g.connect(d.id,e.id,'south','north');
+    },
+    source: `const g = new RoomGraph();
+const base    = g.addRoom('room', 'Base Chamber', { floorLevel: 0, windows: 2 });
+const stairs1 = g.addRoom('staircase', 'Stone Stairs', { floorLevel: 0 });
+const mid     = g.addRoom('room', 'Guard Room', { floorLevel: 1, windows: 2 });
+const stairs2 = g.addRoom('staircase', 'Winding Stairs', { floorLevel: 1 });
+const top     = g.addRoom('large_room', 'Observatory', { floorLevel: 2, windows: 4 });
+
+g.connect(base.id, stairs1.id, 'south', 'north');
+g.connect(stairs1.id, mid.id, 'south', 'north');
+g.connect(mid.id, stairs2.id, 'south', 'north');
+g.connect(stairs2.id, top.id, 'south', 'north');`
+  },
+
+  catacombs: {
+    name: 'Catacombs', category: 'medieval',
+    desc: 'Underground tombs descending to negative floors.',
+    build(g) {
+      const a=g.addRoom('hallway','Descent',{floorLevel:0});
+      const b=g.addRoom('room','Outer Crypt',{floorLevel:0});
+      const c=g.addRoom('hallway','Bone Corridor',{floorLevel:0,depth:16});
+      const d=g.addRoom('large_room','Burial Chamber',{floorLevel:0,windows:0});
+      const e=g.addRoom('staircase','Deep Stairs',{floorLevel:0});
+      const f=g.addRoom('room','The Depths',{floorLevel:-1,windows:0});
+      const h=g.addRoom('large_room','Ancient Vault',{floorLevel:-1,windows:0});
+      g.connect(a.id,b.id,'south','north');
+      g.connect(b.id,c.id,'south','north');
+      g.connect(c.id,d.id,'south','north');
+      g.connect(d.id,e.id,'east','west');
+      g.connect(e.id,f.id,'south','north');
+      g.connect(f.id,h.id,'south','north');
+    },
+    source: `const g = new RoomGraph();
+const entry   = g.addRoom('hallway', 'Descent', { floorLevel: 0 });
+const crypt1  = g.addRoom('room', 'Outer Crypt', { floorLevel: 0 });
+const hall    = g.addRoom('hallway', 'Bone Corridor', { floorLevel: 0, depth: 16 });
+const chamber = g.addRoom('large_room', 'Burial Chamber', { floorLevel: 0, windows: 0 });
+const stDown  = g.addRoom('staircase', 'Deep Stairs', { floorLevel: 0 });
+const depths  = g.addRoom('room', 'The Depths', { floorLevel: -1, windows: 0 });
+const vault   = g.addRoom('large_room', 'Ancient Vault', { floorLevel: -1, windows: 0 });
+
+g.connect(entry.id, crypt1.id, 'south', 'north');
+g.connect(crypt1.id, hall.id, 'south', 'north');
+g.connect(hall.id, chamber.id, 'south', 'north');
+g.connect(chamber.id, stDown.id, 'east', 'west');
+g.connect(stDown.id, depths.id, 'south', 'north');
+g.connect(depths.id, vault.id, 'south', 'north');`
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// PROCEDURAL MATERIAL TEXTURES (Canvas 2D preview)
+// ═══════════════════════════════════════════════════════════════
+
+const MatTex = {
+  _cache: {},
+  get(name, sz = 64) {
+    if (this._cache[name]) return this._cache[name];
+    const c = document.createElement('canvas'); c.width = c.height = sz;
+    const x = c.getContext('2d');
+    const f = this._f[name]; if (f) f(x, sz);
+    this._cache[name] = c; return c;
+  },
+  _f: {
+    board_formed(x,s) {
+      x.fillStyle='#b8b0a5'; x.fillRect(0,0,s,s);
+      const bh=s/6;
+      for(let i=0;i<6;i++){const y0=i*bh;const sh=(Math.random()-.5)*10;
+      x.fillStyle=`rgb(${178+sh},${170+sh},${160+sh})`;x.fillRect(0,y0,s,bh-1);
+      for(let l=0;l<5;l++){const ly=y0+Math.random()*bh;x.strokeStyle=`rgba(90,80,70,${.06+Math.random()*.08})`;x.lineWidth=1;x.beginPath();x.moveTo(0,ly);for(let xx=0;xx<s;xx+=4)x.lineTo(xx,ly+Math.sin(xx*.06+i)*1.5);x.stroke();}
+      x.strokeStyle='rgba(70,60,50,0.25)';x.lineWidth=1;x.beginPath();x.moveTo(0,y0);x.lineTo(s,y0);x.stroke();}
+    },
+    polished_concrete(x,s) {
+      x.fillStyle='#e0ded9';x.fillRect(0,0,s,s);
+      for(let i=0;i<60;i++){const sh=200+Math.random()*30;x.fillStyle=`rgb(${sh},${sh-2},${sh-4})`;x.beginPath();x.arc(Math.random()*s,Math.random()*s,1+Math.random()*2,0,Math.PI*2);x.fill();}
+    },
+    glass(x,s) {
+      const g=x.createLinearGradient(0,0,s,s);g.addColorStop(0,'rgba(190,220,210,0.3)');g.addColorStop(.5,'rgba(210,235,225,0.15)');g.addColorStop(1,'rgba(180,215,200,0.25)');
+      x.fillStyle=g;x.fillRect(0,0,s,s);x.strokeStyle='rgba(140,180,165,0.3)';x.lineWidth=1;
+      x.beginPath();x.moveTo(s/2,0);x.lineTo(s/2,s);x.stroke();x.beginPath();x.moveTo(0,s/2);x.lineTo(s,s/2);x.stroke();
+    },
+    brushed_steel(x,s) {
+      x.fillStyle='#a0a4a8';x.fillRect(0,0,s,s);
+      for(let y=0;y<s;y++){x.strokeStyle=`rgba(${150+Math.random()*20},${152+Math.random()*20},${156+Math.random()*20},0.3)`;x.beginPath();x.moveTo(0,y);x.lineTo(s,y);x.stroke();}
+    },
+    wood_plank(x,s) {
+      x.fillStyle='#8b6842';x.fillRect(0,0,s,s);
+      for(let y=0;y<s;y++){const w=Math.sin(y/s*30+Math.sin(y/s*6)*3)*.5+.5;const r=Math.floor(80+(140-80)*w);const g=Math.floor(50+(100-50)*w);const b=Math.floor(28+(65-28)*w);x.strokeStyle=`rgba(${r},${g},${b},0.35)`;x.beginPath();x.moveTo(0,y);x.lineTo(s,y);x.stroke();}
+    },
+    wood_deck(x,s) {
+      x.fillStyle='#8a7560';x.fillRect(0,0,s,s);const pw=s/4;for(let i=0;i<4;i++){x.strokeStyle='rgba(60,50,40,0.2)';x.lineWidth=2;x.beginPath();x.moveTo(i*pw,0);x.lineTo(i*pw,s);x.stroke();}
+    },
+    terrazzo(x,s) {
+      x.fillStyle='#e6e1d7';x.fillRect(0,0,s,s);
+      const cols=['#b43c32','#3c3c3c','#c8c3b4','#8c9682','#645a55','#dcc8aa'];
+      for(let i=0;i<80;i++){x.fillStyle=cols[Math.floor(Math.random()*cols.length)];x.beginPath();const cx=Math.random()*s,cy=Math.random()*s;const sides=3+Math.floor(Math.random()*3);const cs=1.5+Math.random()*3;const ao=Math.random()*Math.PI*2;
+      for(let j=0;j<=sides;j++){const a=ao+(j/sides)*Math.PI*2;const r=cs*(.6+Math.random()*.4);j===0?x.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):x.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}x.closePath();x.fill();}
+    },
+    stone_paver(x,s) {
+      x.fillStyle='#b0ab9f';x.fillRect(0,0,s,s);const ps=s/3;for(let r=0;r<3;r++)for(let c=0;c<3;c++){const sh=170+Math.floor(Math.random()*20);x.fillStyle=`rgb(${sh+4},${sh+2},${sh})`;x.fillRect(c*ps+2,r*ps+2,ps-4,ps-4);}
+    },
+    water(x,s) {
+      const g=x.createLinearGradient(0,0,s,s);g.addColorStop(0,'#3a7080');g.addColorStop(.5,'#4a8898');g.addColorStop(1,'#3a7585');x.fillStyle=g;x.fillRect(0,0,s,s);
+      x.strokeStyle='rgba(255,255,255,0.1)';x.lineWidth=.5;for(let i=0;i<8;i++){const y=Math.random()*s;x.beginPath();for(let xx=0;xx<s;xx+=3)x.lineTo(xx,y+Math.sin(xx*.15+i)*2);x.stroke();}
+    }
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// FLOOR PLAN RENDERER
+// ═══════════════════════════════════════════════════════════════
+
+const FC = {'-1':'#8b6e8a','0':'#6b9e8a','1':'#8b9ec4','2':'#c4a06b','3':'#c47a6b'};
+function floorColor(l) { return FC[String(l)] || `hsl(${(l*70+180)%360},40%,55%)`; }
+
+class PlanRenderer {
+  constructor(canvas) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.graph = null; this.scale = 8; this.offsetX = 0; this.offsetY = 0;
+    this.hoveredRoom = null; this.selectedRoom = null;
+    this.visibleFloors = new Set(); this.matPatterns = {};
+    this._setupInput(); this._resize();
+    window.addEventListener('resize', () => this._resize());
+  }
+
+  _resize() {
+    const r = this.canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = r.width * dpr; this.canvas.height = r.height * dpr;
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.vw = r.width; this.vh = r.height; this.draw();
+  }
+
+  _setupInput() {
+    let drag = false, lx, ly;
+    this.canvas.addEventListener('mousedown', e => { drag = true; lx = e.clientX; ly = e.clientY; });
+    window.addEventListener('mousemove', e => {
+      if (drag) { this.offsetX += e.clientX - lx; this.offsetY += e.clientY - ly; lx = e.clientX; ly = e.clientY; this.draw(); }
+      else this._hover(e);
+    });
+    window.addEventListener('mouseup', () => { drag = false; });
+    this.canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const f = e.deltaY > 0 ? 0.9 : 1.1;
+      const r = this.canvas.getBoundingClientRect();
+      const mx = e.clientX - r.left, my = e.clientY - r.top;
+      this.offsetX = mx - (mx - this.offsetX) * f;
+      this.offsetY = my - (my - this.offsetY) * f;
+      this.scale *= f; this.draw();
+    }, { passive: false });
+    this.canvas.addEventListener('click', e => {
+      this.selectedRoom = this._roomAt(e); this.draw();
+      if (this.selectedRoom) {
+        document.querySelectorAll('.room-card').forEach(c => c.classList.remove('selected'));
+        const card = document.querySelector(`.room-card[data-id="${this.selectedRoom.id}"]`);
+        if (card) { card.classList.add('selected'); card.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+      }
+    });
+  }
+
+  _hover(e) {
+    const prev = this.hoveredRoom;
+    this.hoveredRoom = this._roomAt(e);
+    if (this.hoveredRoom !== prev) {
+      this.draw();
+      const tt = document.getElementById('tooltip');
+      if (this.hoveredRoom) {
+        const r = this.canvas.getBoundingClientRect();
+        tt.textContent = `${this.hoveredRoom.label}  [${this.hoveredRoom.type}]  F${this.hoveredRoom.floorLevel||0}`;
+        tt.style.left = (e.clientX - r.left + 12) + 'px';
+        tt.style.top = (e.clientY - r.top - 28) + 'px';
+        tt.classList.add('visible');
+      } else tt.classList.remove('visible');
+    }
+  }
+
+  _roomAt(e) {
+    if (!this.graph) return null;
+    const r = this.canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const cx = this.vw / 2 + this.offsetX, cy = this.vh / 2 + this.offsetY;
+    for (let i = this.graph.nodes.length - 1; i >= 0; i--) {
+      const n = this.graph.nodes[i];
+      if (!n.position || !this.visibleFloors.has(n.floorLevel||0)) continue;
+      const rx = cx + n.position.x * this.scale, ry = cy + n.position.z * this.scale;
+      const rw = n.width * this.scale, rh = n.depth * this.scale;
+      if (mx >= rx-rw/2 && mx <= rx+rw/2 && my >= ry-rh/2 && my <= ry+rh/2) return n;
+    }
+    return null;
+  }
+
+  loadGraph(graph) {
+    this.graph = graph; graph.layout();
+    this.visibleFloors = new Set(graph.getFloorLevels());
+    this._prepPat(); this.fitToView();
+  }
+
+  _prepPat() {
+    this.matPatterns = {};
+    if (!this.graph) return;
+    const mats = new Set();
+    this.graph.nodes.forEach(n => { if(n.floorMaterial) mats.add(n.floorMaterial); if(n.material) mats.add(n.material); });
+    mats.forEach(name => { try { this.matPatterns[name] = this.ctx.createPattern(MatTex.get(name, 64), 'repeat'); } catch(e){} });
+  }
+
+  fitToView() {
+    if (!this.graph || !this.graph.nodes.length) return;
+    let x0=Infinity,x1=-Infinity,z0=Infinity,z1=-Infinity;
+    this.graph.nodes.forEach(n => { if(!n.position)return; x0=Math.min(x0,n.position.x-n.width/2); x1=Math.max(x1,n.position.x+n.width/2); z0=Math.min(z0,n.position.z-n.depth/2); z1=Math.max(z1,n.position.z+n.depth/2); });
+    const m = 60;
+    this.scale = Math.min((this.vw-m*2)/(x1-x0),(this.vh-m*2)/(z1-z0));
+    this.scale = Math.max(2, Math.min(this.scale, 20));
+    this.offsetX = -(x0+x1)/2 * this.scale;
+    this.offsetY = -(z0+z1)/2 * this.scale;
+    this.draw();
+  }
+
+  draw() {
+    const c = this.ctx, w = this.vw, h = this.vh;
+    c.fillStyle = '#6b6560'; c.fillRect(0,0,w,h);
+    this._grid(c,w,h);
+    if (!this.graph) return;
+    const cx = w/2 + this.offsetX, cy = h/2 + this.offsetY;
+
+    // Edges
+    this.graph.edges.forEach(edge => {
+      const fr = this.graph.nodes.find(n=>n.id===edge.from);
+      const to = this.graph.nodes.find(n=>n.id===edge.to);
+      if (!fr||!to||!fr.position||!to.position) return;
+      if (!this.visibleFloors.has(fr.floorLevel||0) && !this.visibleFloors.has(to.floorLevel||0)) return;
+      const fx=cx+fr.position.x*this.scale, fy=cy+fr.position.z*this.scale;
+      const tx=cx+to.position.x*this.scale, ty=cy+to.position.z*this.scale;
+      c.save(); c.strokeStyle='rgba(212,168,83,0.45)'; c.lineWidth=1.5; c.setLineDash([4,4]);
+      c.beginPath(); c.moveTo(fx,fy); c.lineTo(tx,ty); c.stroke(); c.setLineDash([]);
+      const mx=(fx+tx)/2, my=(fy+ty)/2;
+      c.fillStyle='#d4a853'; c.save(); c.translate(mx,my); c.rotate(Math.PI/4);
+      c.fillRect(-2.5,-2.5,5,5); c.restore(); c.restore();
+    });
+
+    // Rooms by floor
+    this.graph.getFloorLevels().reverse().forEach(fl => {
+      if (!this.visibleFloors.has(fl)) return;
+      this.graph.nodes.forEach(n => { if ((n.floorLevel||0)===fl) this._room(c,n,cx,cy); });
+    });
+  }
+
+  _grid(c,w,h) {
+    const gs = this.scale * 2; if (gs < 4) return;
+    c.strokeStyle = 'rgba(255,255,255,0.04)'; c.lineWidth = 0.5;
+    const ox = (w/2+this.offsetX) % gs, oy = (h/2+this.offsetY) % gs;
+    for (let x=ox;x<w;x+=gs){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke();}
+    for (let y=oy;y<h;y+=gs){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();}
+  }
+
+  _room(c,node,cx,cy) {
+    const x=cx+node.position.x*this.scale, y=cy+node.position.z*this.scale;
+    const rw=node.width*this.scale, rh=node.depth*this.scale;
+    const rx=x-rw/2, ry=y-rh/2;
+    const fc = floorColor(node.floorLevel||0);
+    const hov = node===this.hoveredRoom, sel = node===this.selectedRoom;
+    const outdoor = node.openTop || node.terrain;
+
+    c.save();
+    c.shadowColor='rgba(0,0,0,0.2)'; c.shadowBlur=hov?10:5; c.shadowOffsetX=2; c.shadowOffsetY=2;
+
+    // Fill with material pattern or floor color
+    const mn = node.floorMaterial || node.material || 'polished_concrete';
+    const pat = this.matPatterns[mn];
+    if (pat && rw > 16) {
+      c.fillStyle = pat; c.save(); c.translate(rx,ry); c.fillRect(0,0,rw,rh); c.restore();
+      c.fillStyle = fc + '28'; c.fillRect(rx,ry,rw,rh);
+    } else {
+      c.fillStyle = fc + '40'; c.fillRect(rx,ry,rw,rh);
+    }
+    c.shadowColor = 'transparent';
+
+    // Border
+    c.strokeStyle = sel ? '#d4a853' : hov ? '#e8c878' : fc;
+    c.lineWidth = sel ? 2.5 : hov ? 2 : 1.2;
+    c.strokeRect(rx,ry,rw,rh);
+
+    // Outdoor dashed inner
+    if (outdoor) { c.setLineDash([3,3]); c.strokeStyle=fc+'60'; c.lineWidth=.8; c.strokeRect(rx+4,ry+4,rw-8,rh-8); c.setLineDash([]); }
+
+    // Window walls
+    const ww = node.windowWall;
+    if (ww && ww !== 'none') {
+      c.fillStyle = 'rgba(190,220,210,0.35)'; const gw = 3;
+      if (ww==='east'||ww==='both') c.fillRect(rx+rw-gw,ry,gw,rh);
+      if (ww==='west'||ww==='both') c.fillRect(rx,ry,gw,rh);
+    }
+
+    // Open sides
+    if (node.openSides && node.openSides.length) {
+      c.strokeStyle='rgba(255,255,255,0.3)'; c.lineWidth=2; c.setLineDash([2,2]);
+      node.openSides.forEach(side => {
+        c.beginPath();
+        if(side==='north'){c.moveTo(rx,ry);c.lineTo(rx+rw,ry);}
+        if(side==='south'){c.moveTo(rx,ry+rh);c.lineTo(rx+rw,ry+rh);}
+        if(side==='east'){c.moveTo(rx+rw,ry);c.lineTo(rx+rw,ry+rh);}
+        if(side==='west'){c.moveTo(rx,ry);c.lineTo(rx,ry+rh);}
+        c.stroke();
+      });
+      c.setLineDash([]);
+    }
+
+    // Skylight grid
+    if (node.skylight && rw > 30) {
+      c.strokeStyle='rgba(200,230,220,0.35)'; c.lineWidth=.6;
+      const sg=node.skylightGrid||[4,4]; const gw=rw/sg[0]; const gh=rh/sg[1];
+      for(let i=1;i<sg[0];i++){c.beginPath();c.moveTo(rx+i*gw,ry+3);c.lineTo(rx+i*gw,ry+rh-3);c.stroke();}
+      for(let j=1;j<sg[1];j++){c.beginPath();c.moveTo(rx+3,ry+j*gh);c.lineTo(rx+rw-3,ry+j*gh);c.stroke();}
+    }
+
+    // Water body
+    if (node.waterBody) {
+      const wb=node.waterBody;
+      const wbw=wb.width*this.scale, wbd=wb.depth*this.scale;
+      const wbx=x+(wb.offsetX||0)*this.scale-wbw/2, wby=y+(wb.offsetZ||0)*this.scale-wbd/2;
+      c.fillStyle='rgba(58,112,128,0.5)'; c.fillRect(wbx,wby,wbw,wbd);
+      c.strokeStyle='rgba(74,136,152,0.4)'; c.lineWidth=1; c.strokeRect(wbx,wby,wbw,wbd);
+    }
+
+    // Label
+    if (rw > 28 && rh > 14) {
+      const fs = Math.min(11, rw / node.label.length * 1.2);
+      c.font = `600 ${fs}px "Instrument Sans", sans-serif`;
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      const tw = c.measureText(node.label).width;
+      const pw = tw + 10, ph = 14;
+      c.fillStyle = 'rgba(42,38,34,0.7)';
+      c.beginPath(); c.roundRect(x-pw/2,y-ph/2,pw,ph,3); c.fill();
+      c.fillStyle = 'rgba(240,237,232,0.95)';
+      c.fillText(node.label, x, y + 0.5);
+    }
+
+    // Floor badge
+    if (rw > 18) {
+      c.fillStyle = fc; c.font = '500 8px "DM Mono", monospace'; c.textAlign = 'left';
+      c.fillText(`F${node.floorLevel||0}`, rx+3, ry+10);
+    }
+
+    c.restore();
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// APP INIT
+// ═══════════════════════════════════════════════════════════════
+
+let renderer;
+
+function loadPreset(name) {
+  const p = Presets[name]; if (!p) return;
+  const g = new RoomGraph(); p.build(g);
+  renderer.loadGraph(g);
+
+  document.getElementById('statRooms').textContent = g.nodes.length;
+  document.getElementById('statFloors').textContent = g.getFloorCount();
+  document.getElementById('statEdges').textContent = g.edges.length;
+  document.getElementById('levelTitle').textContent = p.name;
+  document.getElementById('levelDesc').textContent = p.desc;
+
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === name));
+  buildFloorLegend(g);
+  buildRoomList(g);
+  document.getElementById('codeBlock').innerHTML = highlight(p.source);
+}
+
+function buildPresetBar() {
+  const bar = document.getElementById('presetBar'); bar.innerHTML = '';
+  let lc = '';
+  Object.entries(Presets).forEach(([k,p]) => {
+    if (p.category !== lc && lc !== '') { const d=document.createElement('div'); d.className='preset-divider'; bar.appendChild(d); }
+    lc = p.category;
+    const b = document.createElement('button'); b.className='preset-btn'; b.dataset.preset=k; b.textContent=p.name;
+    b.onclick = () => loadPreset(k); bar.appendChild(b);
+  });
+}
+
+function buildFloorLegend(g) {
+  const el = document.getElementById('floorLegend'); el.innerHTML = '';
+  g.getFloorLevels().forEach(fl => {
+    const item = document.createElement('div'); item.className='floor-legend-item';
+    item.innerHTML = `<div class="floor-swatch" style="background:${floorColor(fl)}"></div> Floor ${fl}`;
+    item.onclick = () => {
+      if (renderer.visibleFloors.has(fl)) { renderer.visibleFloors.delete(fl); item.classList.add('dimmed'); }
+      else { renderer.visibleFloors.add(fl); item.classList.remove('dimmed'); }
+      renderer.draw();
+    };
+    el.appendChild(item);
+  });
+}
+
+function buildRoomList(g) {
+  const el = document.getElementById('roomList'); el.innerHTML = '';
+  g.nodes.forEach(n => {
+    const card = document.createElement('div'); card.className='room-card'; card.dataset.id=n.id;
+    card.innerHTML = `<div class="room-card-header"><div class="room-card-name">${n.label}</div><div class="room-card-type">${n.type}</div></div><div class="room-card-stats"><span>${n.width}w x ${n.depth}d x ${n.height}h</span><span>F${n.floorLevel||0}</span>${n.material?`<span>${n.material}</span>`:''}</div>`;
+    card.onclick = () => { renderer.selectedRoom=n; renderer.draw(); document.querySelectorAll('.room-card').forEach(c=>c.classList.remove('selected')); card.classList.add('selected'); };
+    el.appendChild(card);
+  });
+}
+
+function buildSwatches() {
+  const el = document.getElementById('swatchGrid'); el.innerHTML = '';
+  ['board_formed','polished_concrete','glass','brushed_steel','wood_plank','terrazzo','stone_paver','water'].forEach(name => {
+    const sw = document.createElement('div'); sw.className='swatch';
+    sw.appendChild(MatTex.get(name,64).cloneNode(true));
+    const lb = document.createElement('div'); lb.className='swatch-label'; lb.textContent=name.replace(/_/g,' '); sw.appendChild(lb);
+    el.appendChild(sw);
+  });
+}
+
+function highlight(src) {
+  return src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/(\/\/.*)/g,'<span class="cmt">$1</span>')
+    .replace(/\b(const|let|var|new|await|import|export|from|return|function|class|if|else)\b/g,'<span class="kw">$1</span>')
+    .replace(/'([^']*?)'/g,"'<span class=\"str\">$1</span>'")
+    .replace(/\b(\d+\.?\d*)\b/g,'<span class="num">$1</span>')
+    .replace(/\.(addRoom|connect|create|createFromGraph|loadLevel|layout)\b/g,'.<span class="fn">$1</span>');
+}
+
+// Tab switching
+document.querySelectorAll('.topbar-tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.topbar-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.guide-content').forEach(c=>c.classList.remove('active'));
+    const id = 'tab' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+    document.getElementById(id).classList.add('active');
+  };
+});
+
+document.getElementById('panelToggle').onclick = () => {
+  const p = document.getElementById('sidePanel'); p.classList.toggle('collapsed');
+  document.getElementById('panelToggle').textContent = p.classList.contains('collapsed') ? '\u25B8' : '\u25C2';
+  setTimeout(() => renderer._resize(), 350);
+};
+
+document.getElementById('zoomIn').onclick = () => { renderer.scale *= 1.3; renderer.draw(); };
+document.getElementById('zoomOut').onclick = () => { renderer.scale *= 0.7; renderer.draw(); };
+document.getElementById('zoomFit').onclick = () => renderer.fitToView();
+
+window.addEventListener('DOMContentLoaded', () => {
+  renderer = new PlanRenderer(document.getElementById('planCanvas'));
+  buildPresetBar(); buildSwatches(); loadPreset('la_hilltop');
+});
+</script>
+</body>
+</html>

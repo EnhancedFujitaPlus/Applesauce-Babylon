@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Applesauce - Gradient Core</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0a0a0a; font-family: monospace; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #00ff00; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">CORE: APPLESAUCE_v1.1<br>STATUS: ROLLING</div>
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.182.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- THE TERRAIN FUNCTION ---
+        function getTerrainHeight(x, z) {
+            const wave1 = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 3;
+            const wave2 = Math.sin(x * 0.05 + z * 0.05) * 2;
+            return wave1 + wave2;
+        }
+
+        // --- GRADIENT CALCULATION ---
+        function getSlopeData(x, z) {
+            const e = 0.01;
+            const dx = getTerrainHeight(x + e, z) - getTerrainHeight(x - e, z);
+            const dz = getTerrainHeight(x, z + e) - getTerrainHeight(x, z - e);
+            
+            return {
+                direction: Math.atan2(dz, dx),
+                angle: Math.sqrt(dx * dx + dz * dz) * 10
+            };
+        }
+
+        // --- BLOOD TRAIL SYSTEM ---
+        class BloodTrail {
+            constructor(maxPoints = 20) {
+                this.positions = [];
+                this.maxPoints = maxPoints;
+                
+                const geometry = new THREE.BufferGeometry();
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0xff0000,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                this.line = new THREE.Line(geometry, material);
+                scene.add(this.line);
+            }
+
+            addPoint(pos) {
+                this.positions.push(pos.clone());
+                if (this.positions.length > this.maxPoints) {
+                    this.positions.shift();
+                }
+                
+                // Update geometry
+                const points = [];
+                this.positions.forEach(p => points.push(p.x, p.y, p.z));
+                this.line.geometry.setAttribute(
+                    'position',
+                    new THREE.Float32BufferAttribute(points, 3)
+                );
+                this.line.geometry.attributes.position.needsUpdate = true;
+            }
+
+            update(currentPos, speed) {
+                // Only add points when moving fast enough
+                if (speed > 2) {
+                    this.addPoint(currentPos);
+                }
+                
+                // Fade based on age
+                const fadeRate = 0.98;
+                this.line.material.opacity *= fadeRate;
+            }
+        }
+
+        // --- GROUND STAIN SYSTEM ---
+        class BloodStains {
+            constructor() {
+                this.stains = [];
+                const geometry = new THREE.BufferGeometry();
+                const material = new THREE.PointsMaterial({
+                    color: 0x660000,
+                    size: 0.3,
+                    transparent: true,
+                    opacity: 0.9
+                });
+                
+                this.points = new THREE.Points(geometry, material);
+                scene.add(this.points);
+            }
+
+            addStain(pos, intensity = 1) {
+                // Add multiple points for splatter effect
+                const splatCount = Math.floor(intensity * 3);
+                for (let i = 0; i < splatCount; i++) {
+                    const offset = new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.5,
+                        0.05,
+                        (Math.random() - 0.5) * 0.5
+                    );
+                    this.stains.push(pos.clone().add(offset));
+                }
+                
+                // Update geometry
+                const positions = [];
+                this.stains.forEach(s => positions.push(s.x, s.y, s.z));
+                this.points.geometry.setAttribute(
+                    'position',
+                    new THREE.Float32BufferAttribute(positions, 3)
+                );
+                this.points.geometry.attributes.position.needsUpdate = true;
+            }
+        }
+
+        // --- BLOOD DRIPS ---
+        class BloodDrip {
+            constructor(startPos) {
+                this.pos = startPos.clone();
+                this.vel = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.5,
+                    -2,
+                    (Math.random() - 0.5) * 0.5
+                );
+                this.active = true;
+                
+                const geometry = new THREE.SphereGeometry(0.1, 4, 4);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0xff0000,
+                    wireframe: true 
+                });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.copy(this.pos);
+                scene.add(this.mesh);
+            }
+
+            update(dt, terrainFunc) {
+                if (!this.active) return;
+                
+                this.vel.y -= 30 * dt; // Gravity
+                this.pos.add(this.vel.clone().multiplyScalar(dt));
+                
+                const groundY = terrainFunc(this.pos.x, this.pos.z);
+                if (this.pos.y <= groundY) {
+                    this.active = false;
+                    scene.remove(this.mesh);
+                    return this.pos; // Return position for stain
+                }
+                
+                this.mesh.position.copy(this.pos);
+                return null;
+            }
+        }
+
+        // --- RAGDOLL WITH BLOOD TRAILS ---
+        class RagdollPart {
+            constructor(pos, velocity) {
+                this.pos = pos.clone();
+                this.oldPos = pos.clone().sub(velocity.multiplyScalar(0.016)); 
+                this.accel = new THREE.Vector3(0, -20, 0);
+                this.active = true;
+                this.trail = new BloodTrail(25);
+                this.lastDripTime = 0;
+                this.touchingGround = false;
+            }
+
+            update(dt, terrainFunc, bloodStains) {
+                if (!this.active) return;
+
+                let temp = this.pos.clone();
+                let vel = this.pos.clone().sub(this.oldPos).multiplyScalar(0.98);
+                
+                this.pos.add(vel).add(this.accel.clone().multiplyScalar(dt * dt));
+                this.oldPos = temp;
+
+                const speed = vel.length();
+                this.trail.update(this.pos, speed);
+
+                // Ground collision
+                const groundY = terrainFunc(this.pos.x, this.pos.z);
+                const wasInAir = !this.touchingGround;
+                this.touchingGround = this.pos.y <= groundY;
+                
+                if (this.touchingGround) {
+                    this.pos.y = groundY;
+                    this.oldPos.lerp(this.pos, 0.2);
+                    
+                    // Leave stains when dragging on ground
+                    if (speed > 1) {
+                        bloodStains.addStain(this.pos, speed / 5);
+                    }
+                    
+                    // Impact splatter
+                    if (wasInAir && speed > 5) {
+                        bloodStains.addStain(this.pos, speed / 3);
+                    }
+                }
+                
+                return speed;
+            }
+        }
+
+        // --- ENEMY SYSTEM ---
+        class Enemy {
+            constructor(x, z) {
+                this.pos = new THREE.Vector3(x, 0, z);
+                this.pos.y = getTerrainHeight(x, z) + 1;
+                
+                this.vel = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    0,
+                    (Math.random() - 0.5) * 2
+                );
+                
+                this.mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.5, 2, 1.5),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xff00ff,
+                        wireframe: true 
+                    })
+                );
+                this.mesh.position.copy(this.pos);
+                scene.add(this.mesh);
+                
+                this.alive = true;
+                this.radius = 1.5;
+            }
+
+            update(dt) {
+                if (!this.alive) return;
+                
+                // Wander AI
+                if (Math.random() < 0.02) {
+                    this.vel.x = (Math.random() - 0.5) * 4;
+                    this.vel.z = (Math.random() - 0.5) * 4;
+                }
+                
+                this.pos.x += this.vel.x * dt;
+                this.pos.z += this.vel.z * dt;
+                
+                // Keep on terrain
+                this.pos.y = getTerrainHeight(this.pos.x, this.pos.z) + 1;
+                
+                // Bounds check
+                const maxDist = 80;
+                if (Math.abs(this.pos.x) > maxDist || Math.abs(this.pos.z) > maxDist) {
+                    this.vel.x *= -1;
+                    this.vel.z *= -1;
+                }
+                
+                this.mesh.position.copy(this.pos);
+            }
+
+            checkCollision(playerPos, playerRadius) {
+                if (!this.alive) return false;
+                const dist = this.pos.distanceTo(playerPos);
+                return dist < (this.radius + playerRadius);
+            }
+
+            destroy() {
+                this.alive = false;
+                scene.remove(this.mesh);
+            }
+        }
+
+        // THE EXPLOSION TRIGGER
+        function explodeSkater(skaterPos, skaterVel) {
+            const parts = [];
+            const numParts = 6;
+
+            for (let i = 0; i < numParts; i++) {
+                const chaos = new THREE.Vector3(
+                    (Math.random() - 0.5) * 8,
+                    Math.random() * 8,
+                    (Math.random() - 0.5) * 8
+                );
+                
+                const partVel = skaterVel.clone().add(chaos);
+                parts.push(new RagdollPart(skaterPos, partVel));
+            }
+            return parts;
+        }
+
+        // --- VISUALS ---
+        const geo = new THREE.PlaneGeometry(200, 200, 100, 100);
+        geo.rotateX(-Math.PI / 2);
+        const vertices = geo.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            vertices[i + 1] = getTerrainHeight(vertices[i], vertices[i + 2]);
+        }
+        const terrain = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x333333, wireframe: true }));
+        scene.add(terrain);
+
+        const skater = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 0.2, 2),
+            new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+        );
+        scene.add(skater);
+
+        // --- PHYSICS STATE ---
+        const startY = getTerrainHeight(0, 0) + 2; // Spawn just above ground
+        let pos = new THREE.Vector3(0, startY, 0);
+        let vel = new THREE.Vector3(0, 0, 0);
+        const input = { x: 0, z: 0 };
+        const accel = 30, friction = 0.8, gravity = 20, maxSpeed = 25, slopeInfluence = 40;
+
+        // --- GORE STATE ---
+        let isDead = false;
+        let goreParts = [];
+        let goreMeshes = [];
+        let bloodStains = new BloodStains();
+        let bloodDrips = [];
+
+        // --- ENEMY STATE ---
+        let enemies = [];
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2;
+            const dist = 30 + Math.random() * 20;
+            enemies.push(new Enemy(
+                Math.cos(angle) * dist,
+                Math.sin(angle) * dist
+            ));
+        }
+
+        // --- CONTROLS ---
+        window.onkeydown = (e) => {
+            if(e.key === 'w') input.z = -1; if(e.key === 's') input.z = 1;
+            if(e.key === 'a') input.x = -1; if(e.key === 'd') input.x = 1;
+            if(e.key === ' ' && isDead) location.reload(); // Respawn
+        };
+        window.onkeyup = (e) => {
+            if(['w','s'].includes(e.key)) input.z = 0;
+            if(['a','d'].includes(e.key)) input.x = 0;
+        };
+
+        function createGoreMeshes(parts) {
+            const meshes = [];
+            const partTypes = [
+                { size: [0.8, 0.8, 0.8], color: 0xff0000 },  // Head
+                { size: [1.2, 1.5, 0.8], color: 0xcc0000 },  // Torso
+                { size: [0.4, 1.2, 0.4], color: 0x990000 },  // Arm 1
+                { size: [0.4, 1.2, 0.4], color: 0x990000 },  // Arm 2
+                { size: [0.5, 1.4, 0.5], color: 0xaa0000 },  // Leg 1
+                { size: [0.5, 1.4, 0.5], color: 0xaa0000 }   // Leg 2
+            ];
+
+            parts.forEach((part, i) => {
+                const type = partTypes[i];
+                const mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(...type.size),
+                    new THREE.MeshBasicMaterial({ 
+                        color: type.color, 
+                        wireframe: true 
+                    })
+                );
+                scene.add(mesh);
+                meshes.push(mesh);
+            });
+            
+            return meshes;
+        }
+
+        const ui = document.getElementById('ui');
+        let killCount = 0;
+        let totalBloodSpilled = 0;
+
+        // --- LOOP ---
+        let last = performance.now();
+        let dripTimer = 0;
+        
+        function loop() {
+            requestAnimationFrame(loop);
+            const dt = Math.min((performance.now() - last) / 1000, 0.1);
+            last = performance.now();
+
+            if (!isDead) {
+                // 1. Basic Movement
+                vel.x += input.x * accel * dt;
+                vel.z += input.z * accel * dt;
+
+                // 2. Friction & Gravity
+                vel.x *= (1 - friction * dt);
+                vel.z *= (1 - friction * dt);
+                vel.y -= gravity * dt;
+
+                // 3. Speed Limit
+                const speed = vel.length();
+                if (speed > maxSpeed) {
+                    vel.x = (vel.x / speed) * maxSpeed;
+                    vel.z = (vel.z / speed) * maxSpeed;
+                }
+
+                // 4. Position Update
+                pos.x += vel.x * dt;
+                pos.y += vel.y * dt;
+                pos.z += vel.z * dt;
+
+                // 5. Terrain Following
+                const groundY = getTerrainHeight(pos.x, pos.z);
+                
+                // HIGH SPEED COLLISION CHECK - increased threshold to prevent instant death
+                if (pos.y <= groundY && vel.y < -20) { 
+                    isDead = true;
+                    goreParts = explodeSkater(pos, vel);
+                    goreMeshes = createGoreMeshes(goreParts);
+                    skater.visible = false;
+                    
+                    // Impact effect
+                    renderer.domElement.style.filter = 'hue-rotate(120deg) saturate(3)';
+                    setTimeout(() => {
+                        renderer.domElement.style.filter = '';
+                    }, 100);
+                    
+                    ui.innerHTML = `STATUS: DECEASED<br>KILLS: ${killCount}<br>PRESS SPACE TO RESPAWN`;
+                }
+                
+                if (pos.y <= groundY) {
+                    pos.y = groundY;
+                    vel.y = 0;
+
+                    // 6. Slope Influence
+                    const slope = getSlopeData(pos.x, pos.z);
+                    vel.x -= Math.cos(slope.direction) * slope.angle * slopeInfluence * dt;
+                    vel.z -= Math.sin(slope.direction) * slope.angle * slopeInfluence * dt;
+                }
+
+                // Enemy collision
+                enemies.forEach(enemy => {
+                    if (enemy.checkCollision(pos, 1.5)) {
+                        enemy.destroy();
+                        killCount++;
+                        // Small bump
+                        vel.x += (pos.x - enemy.pos.x) * 0.5;
+                        vel.z += (pos.z - enemy.pos.z) * 0.5;
+                    }
+                });
+
+                // Update visuals
+                skater.position.copy(pos);
+                skater.rotation.y = Math.atan2(-vel.x, -vel.z);
+                
+                camera.position.lerp(new THREE.Vector3(pos.x, pos.y + 8, pos.z + 15), 0.1);
+                camera.lookAt(pos);
+                
+                ui.innerHTML = `CORE: APPLESAUCE_v1.1<br>STATUS: ROLLING<br>KILLS: ${killCount}`;
+                
+            } else {
+                // GORE MODE
+                goreParts.forEach((part, i) => {
+                    const speed = part.update(dt, getTerrainHeight, bloodStains);
+                    goreMeshes[i].position.copy(part.pos);
+                    
+                    // Tumble
+                    goreMeshes[i].rotation.x += speed * dt;
+                    goreMeshes[i].rotation.z += speed * dt;
+                    
+                    // Spawn drips from airborne parts
+                    dripTimer += dt;
+                    if (!part.touchingGround && dripTimer > 0.1 && Math.random() < 0.3) {
+                        bloodDrips.push(new BloodDrip(part.pos));
+                        dripTimer = 0;
+                    }
+                });
+                
+                // Update drips
+                bloodDrips = bloodDrips.filter(drip => {
+                    const stainPos = drip.update(dt, getTerrainHeight);
+                    if (stainPos) {
+                        bloodStains.addStain(stainPos, 0.5);
+                        return false;
+                    }
+                    return drip.active;
+                });
+                
+                // Camera follows carnage
+                const centerOfMass = new THREE.Vector3();
+                goreParts.forEach(part => centerOfMass.add(part.pos));
+                centerOfMass.divideScalar(goreParts.length);
+                
+                camera.position.lerp(
+                    new THREE.Vector3(centerOfMass.x, centerOfMass.y + 12, centerOfMass.z + 20), 
+                    0.05
+                );
+                camera.lookAt(centerOfMass);
+            }
+
+            // Update enemies
+            enemies.forEach(enemy => enemy.update(dt));
+
+            renderer.render(scene, camera);
+        }
+        loop();
+    </script>
+</body>
+</html>

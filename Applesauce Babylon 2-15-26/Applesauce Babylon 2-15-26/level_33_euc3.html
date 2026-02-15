@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level 33: Endless Department</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #00FFFF;
+            overflow: hidden;
+        }
+        
+        #hud {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 18px;
+            z-index: 100;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+        
+        #hud div {
+            margin-bottom: 5px;
+        }
+        
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00FFFF;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 300px;
+            z-index: 100;
+        }
+        
+        #controls h2 {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #00FFFF;
+            padding-bottom: 10px;
+        }
+        
+        #controls button {
+            width: 100%;
+            margin: 5px 0;
+            padding: 10px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid #00FFFF;
+            color: #00FFFF;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        #controls button:hover {
+            background: #00FFFF;
+            color: #000;
+        }
+        
+        #controls .section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #00AAAA;
+        }
+        
+        #controls .section h3 {
+            font-size: 14px;
+            color: #00AAAA;
+            margin-bottom: 10px;
+        }
+        
+        .keyboard-hint {
+            font-size: 12px;
+            color: #00AAAA;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #00AAAA;
+        }
+        
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .volume-control input {
+            flex: 1;
+        }
+        
+        .demo-notice {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 100, 0, 0.9);
+            border: 2px solid #FF6400;
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 100;
+            max-width: 500px;
+        }
+        
+        .demo-notice h3 {
+            margin-bottom: 5px;
+            color: #FFF;
+        }
+        
+        .demo-notice p {
+            color: #FFE;
+            font-size: 12px;
+        }
+        
+        #noneuclid-info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(128, 0, 128, 0.8);
+            border: 2px solid #AA00AA;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 300px;
+            z-index: 100;
+            font-size: 12px;
+        }
+        
+        #noneuclid-info h3 {
+            color: #FF00FF;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- HUD -->
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="level-name">LEVEL 58: ENDLESS DEPARTMENT</div>
+        <div id="position" style="color: #AA00AA; margin-top: 10px;">POS: 0, 0, 0</div>
+    </div>
+    
+    <!-- Controls Panel -->
+    <div id="controls">
+        <h2>🎵 MUSIC & CONTROLS</h2>
+        
+        <div class="section">
+            <h3>Playback</h3>
+            <button onclick="togglePlayback()">▶️ Play / ⏸️ Pause</button>
+            <button onclick="skipTrack()">⏭️ Next Track</button>
+            <button onclick="stopMusic()">⏹️ Stop</button>
+        </div>
+        
+        <div class="section">
+            <h3>Context Switch</h3>
+            <button onclick="switchToMenu()">📋 Menu Music</button>
+            <button onclick="switchToLevel()">🛹 Level Music</button>
+            <button onclick="switchToBoss()">💀 Boss Music</button>
+        </div>
+        
+        <div class="section">
+            <h3>Volume</h3>
+            <div class="volume-control">
+                <span>🔊</span>
+                <input type="range" id="volume-slider" min="0" max="100" value="70" 
+                       oninput="changeVolume(this.value)">
+                <span id="volume-display">70%</span>
+            </div>
+        </div>
+        
+        <div class="keyboard-hint">
+            <strong>Keyboard Controls:</strong><br>
+            WASD - Move<br>
+            Mouse - Look<br>
+            M - Radio Menu<br>
+            N - Next Track<br>
+            ESC - Close Menu
+        </div>
+    </div>
+    
+    <!-- NonEuclid Info -->
+    <div id="noneuclid-info">
+        <h3>🌀 NON-EUCLIDEAN SPACE</h3>
+        <p>The aisles loop endlessly. Walk far enough down any aisle and you'll return to where you started.</p>
+        <p style="margin-top: 10px; color: #FF00FF;">Current loops: <span id="loop-count">0</span></p>
+    </div>
+    
+    <!-- Demo Notice -->
+    <div class="demo-notice">
+        <h3>⚠️ DEMO MODE</h3>
+        <p>Non-Euclidean geometry active. Department store aisles loop infinitely.</p>
+    </div>
+    
+    <!-- Three.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "engine/three.module.js"
+        }
+    }
+    </script>
+    
+    <!-- Main Game Script -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { ApplesauceCore } from './engine/applesauce-core-33.js';
+        import { ApplesauceMusic } from './engine/music/applesauce-music.js';
+        import { ApplesauceNonEuclid } from './engine/applesauce-noneuclid.js';
+        
+        // ================================
+        // INITIALIZE GAME
+        // ================================
+        const game = new ApplesauceCore({
+            goreEnabled: false,
+            dialogueEnabled: false,
+            enemiesEnabled: false
+        });
+        
+        // ================================
+        // INITIALIZE MUSIC SYSTEM
+        // ================================
+        game.modules.music = new ApplesauceMusic(game, {
+            volume: 0.7,
+            fadeTime: 1500,
+            autoplay: true,
+            showNowPlaying: true,
+            enableRadioMenu: true
+        });
+        
+        // ================================
+        // INITIALIZE NON-EUCLID SYSTEM
+        // ================================
+        game.modules.noneuclid = new ApplesauceNonEuclid(game, {});
+        
+        // Track loop count
+        let loopCount = 0;
+        
+        // ================================
+        // LOAD DEMO PLAYLISTS
+        // ================================
+        
+        // Menu music
+        game.modules.music.loadPlaylist('menu', [
+            {
+                title: "Department Entrance",
+                artist: "South of South Records",
+                file: "../music/boss/boss1.ogg"
+            },
+            {
+                title: "Infinite Aisles",
+                artist: "The Grinders",
+                file: "../music/boss/boss1.ogg"
+            }
+        ]);
+        
+        // Level music
+        game.modules.music.loadPlaylist('level', [
+            {
+                title: "Fluorescent Dreams",
+                artist: "Street Prophet",
+                file: "../music/boss/boss1.ogg"
+            },
+            {
+                title: "Checkout Lane Infinity",
+                artist: "Velocity Crew",
+                file: "../music/boss/boss1.ogg"
+            },
+            {
+                title: "Cart Wheels Echo",
+                artist: "South of South Records",
+                file: "../music/boss/boss1.ogg"
+            }
+        ]);
+        
+        // Boss music
+        game.modules.music.loadPlaylist('boss', [
+            {
+                title: "Manager's Wrath",
+                artist: "The Grinders",
+                file: "../music/boss/boss1.ogg"
+            },
+            {
+                title: "Final Clearance",
+                artist: "Street Prophet",
+                file: "../music/boss/boss1.ogg"
+            }
+        ]);
+        
+        // ================================
+        // DEPARTMENT STORE LEVEL DATA
+        // ================================
+        
+        const LEVEL_58 = {
+            meta: {
+                number: 58,
+                name: "ENDLESS DEPARTMENT OF SOUND"
+            },
+            scene: {
+                background: 0x0c0c10,
+                fog: { color: 0x0c0c10, near: 80, far: 350 }
+            },
+            terrain: {
+                type: 'indoor-flat'
+            },
+            // Store dimensions
+            storeWidth: 60,
+            aisleLength: 200,
+            numAisles: 5,
+            shelfHeight: 12,
+            shelfWidth: 6,
+            shelfDepth: 2,
+            aisleSpacing: 12,
+            shelfSpacing: 8,
+            // Player start position
+            playerStart: { x: 0, y: 2, z: -90 }
+        };
+        
+        // ================================
+        // SHARED MATERIALS (Reuse to avoid texture limit)
+        // ================================
+        
+        const SHARED_MATERIALS = {
+            shelf: new THREE.MeshLambertMaterial({
+                color: 0x222222,
+                emissive: 0x0a0a0a
+            }),
+            shelfDamaged: new THREE.MeshLambertMaterial({
+                color: 0x181818,
+                emissive: 0x050505
+            }),
+            floor: new THREE.MeshLambertMaterial({
+                color: 0x1a1a1a
+            }),
+            wall: new THREE.MeshLambertMaterial({
+                color: 0x1a1a1a
+            }),
+            light: new THREE.MeshBasicMaterial({
+                color: 0xffffee
+            }),
+            products: [
+                new THREE.MeshLambertMaterial({ color: 0xff4444 }),
+                new THREE.MeshLambertMaterial({ color: 0x44ff44 }),
+                new THREE.MeshLambertMaterial({ color: 0x4444ff }),
+                new THREE.MeshLambertMaterial({ color: 0xffff44 }),
+                new THREE.MeshLambertMaterial({ color: 0xff44ff }),
+                new THREE.MeshLambertMaterial({ color: 0x44ffff })
+            ]
+        };
+        
+        // ================================
+        // SHELF CREATION FUNCTIONS
+        // ================================
+        
+        function createShelf(x, z, variation = true) {
+            const geometry = new THREE.BoxGeometry(
+                LEVEL_58.shelfWidth,
+                LEVEL_58.shelfHeight,
+                LEVEL_58.shelfDepth
+            );
+            
+            // Use shared material
+            const isDamaged = variation && Math.random() < 0.1;
+            const material = isDamaged ? SHARED_MATERIALS.shelfDamaged : SHARED_MATERIALS.shelf;
+            
+            const shelf = new THREE.Mesh(geometry, material);
+            shelf.position.set(x, LEVEL_58.shelfHeight / 2, z);
+            shelf.castShadow = false; // Disable shadows to reduce overhead
+            shelf.receiveShadow = false;
+            
+            // Add variation if requested
+            if (variation) {
+                const wobble = (Math.random() - 0.5) * 0.05;
+                shelf.rotation.y = wobble;
+                shelf.scale.y = 1 + (Math.random() - 0.5) * 0.1;
+                
+                // Damaged shelves are shorter
+                if (isDamaged) {
+                    shelf.scale.y *= 0.6;
+                    shelf.position.y *= 0.6;
+                }
+            }
+            
+            return shelf;
+        }
+        
+        function createShelfProducts(shelf) {
+            // Add some boxes/products on shelves
+            const productGroup = new THREE.Group();
+            const numProducts = Math.floor(Math.random() * 3) + 1;
+            
+            for (let i = 0; i < numProducts; i++) {
+                const boxGeo = new THREE.BoxGeometry(0.8, 1.2, 0.6);
+                
+                // Use one of the shared product materials
+                const matIndex = Math.floor(Math.random() * SHARED_MATERIALS.products.length);
+                const box = new THREE.Mesh(boxGeo, SHARED_MATERIALS.products[matIndex]);
+                
+                box.position.set(
+                    (Math.random() - 0.5) * 2,
+                    LEVEL_58.shelfHeight * 0.3 + i * 1.5,
+                    (Math.random() - 0.5) * 0.5
+                );
+                
+                box.rotation.y = Math.random() * Math.PI;
+                box.castShadow = false;
+                box.receiveShadow = false;
+                productGroup.add(box);
+            }
+            
+            productGroup.position.copy(shelf.position);
+            return productGroup;
+        }
+        
+        function buildDepartmentStore() {
+            const storeGroup = new THREE.Group();
+            
+            // Create floor
+            const floorGeo = new THREE.PlaneGeometry(LEVEL_58.storeWidth, LEVEL_58.aisleLength * 2);
+            const floor = new THREE.Mesh(floorGeo, SHARED_MATERIALS.floor);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = false;
+            storeGroup.add(floor);
+            
+            // Create aisles with shelves
+            const halfAisles = Math.floor(LEVEL_58.numAisles / 2);
+            
+            for (let aisleIndex = -halfAisles; aisleIndex <= halfAisles; aisleIndex++) {
+                if (aisleIndex === 0) continue; // Skip center aisle for movement
+                
+                const xPos = aisleIndex * LEVEL_58.aisleSpacing;
+                
+                // Create shelves along the aisle
+                for (let z = -LEVEL_58.aisleLength; z <= LEVEL_58.aisleLength; z += LEVEL_58.shelfSpacing) {
+                    const shelf = createShelf(xPos, z, true);
+                    storeGroup.add(shelf);
+                    
+                    // Add products occasionally
+                    if (Math.random() < 0.4) {
+                        const products = createShelfProducts(shelf);
+                        storeGroup.add(products);
+                    }
+                }
+            }
+            
+            // Add ceiling lights (fewer to reduce overhead)
+            for (let x = -LEVEL_58.storeWidth / 2; x <= LEVEL_58.storeWidth / 2; x += 30) {
+                for (let z = -LEVEL_58.aisleLength; z <= LEVEL_58.aisleLength; z += 40) {
+                    const light = new THREE.PointLight(0xffffaa, 0.6, 50);
+                    light.position.set(x, 15, z);
+                    light.castShadow = false; // Disable shadows
+                    storeGroup.add(light);
+                    
+                    // Visual light fixture
+                    const fixGeo = new THREE.BoxGeometry(2, 0.3, 2);
+                    const fixture = new THREE.Mesh(fixGeo, SHARED_MATERIALS.light);
+                    fixture.position.copy(light.position);
+                    fixture.position.y -= 0.5;
+                    storeGroup.add(fixture);
+                }
+            }
+            
+            // Add walls
+            const wallHeight = 20;
+            
+            // Left wall
+            const leftWall = new THREE.Mesh(
+                new THREE.PlaneGeometry(LEVEL_58.aisleLength * 2, wallHeight),
+                SHARED_MATERIALS.wall
+            );
+            leftWall.position.set(-LEVEL_58.storeWidth / 2, wallHeight / 2, 0);
+            leftWall.rotation.y = Math.PI / 2;
+            storeGroup.add(leftWall);
+            
+            // Right wall
+            const rightWall = new THREE.Mesh(
+                new THREE.PlaneGeometry(LEVEL_58.aisleLength * 2, wallHeight),
+                SHARED_MATERIALS.wall
+            );
+            rightWall.position.set(LEVEL_58.storeWidth / 2, wallHeight / 2, 0);
+            rightWall.rotation.y = -Math.PI / 2;
+            storeGroup.add(rightWall);
+            
+            return storeGroup;
+        }
+        
+        // ================================
+        // SETUP NON-EUCLIDEAN TRIGGERS
+        // ================================
+        
+        let isPlayerInitialized = false;
+        
+        function setupNonEuclideanSpace() {
+            const loopDistance = LEVEL_58.aisleLength;
+            const loopOffset = LEVEL_58.aisleLength * 2;
+            
+            // Forward loop trigger (when player goes too far forward)
+            game.modules.noneuclid.addTrigger({
+                id: 'loop-forward',
+                type: 'position',
+                condition: (engine) => {
+                    // Don't trigger until player is initialized
+                    if (!isPlayerInitialized) return false;
+                    return engine.player && engine.player.position.z > loopDistance;
+                },
+                action: (engine) => {
+                    console.log('🌀 Looped forward');
+                    engine.player.position.z -= loopOffset;
+                    loopCount++;
+                    document.getElementById('loop-count').textContent = loopCount;
+                },
+                once: false
+            });
+            
+            // Backward loop trigger (when player goes too far backward)
+            game.modules.noneuclid.addTrigger({
+                id: 'loop-backward',
+                type: 'position',
+                condition: (engine) => {
+                    // Don't trigger until player is initialized
+                    if (!isPlayerInitialized) return false;
+                    return engine.player && engine.player.position.z < -loopDistance;
+                },
+                action: (engine) => {
+                    console.log('🌀 Looped backward');
+                    engine.player.position.z += loopOffset;
+                    loopCount++;
+                    document.getElementById('loop-count').textContent = loopCount;
+                },
+                once: false
+            });
+            
+            // Subtle camera drift for disorientation
+            game.modules.noneuclid.addTrigger({
+                id: 'camera-drift',
+                type: 'time',
+                condition: () => isPlayerInitialized,
+                action: (engine) => {
+                    if (engine.modules.noneuclid) {
+                        engine.modules.noneuclid.subtleCameraDrift(Date.now() / 1000);
+                    }
+                },
+                once: false
+            });
+        }
+        
+        // ================================
+        // UPDATE LOOP EXTENSION
+        // ================================
+        
+        const originalUpdate = game.update.bind(game);
+        game.update = function(deltaTime) {
+            originalUpdate(deltaTime);
+            
+            // Update NonEuclid module
+            if (game.modules.noneuclid) {
+                game.modules.noneuclid.update();
+            }
+            
+            // Update position display
+            if (game.player) {
+                const pos = game.player.position;
+                document.getElementById('position').textContent = 
+                    `POS: ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+                
+                // Debug: Check if player is falling through floor
+                if (pos.y < -10) {
+                    console.warn('⚠️ Player fell through floor! Resetting position...');
+                    pos.set(LEVEL_58.playerStart.x, LEVEL_58.playerStart.y, LEVEL_58.playerStart.z);
+                }
+            }
+        };
+        
+        // ================================
+        // CONTROL FUNCTIONS
+        // ================================
+        window.togglePlayback = function() {
+            if (game.modules.music.isPlaying) {
+                game.modules.music.pause();
+            } else {
+                game.modules.music.resume();
+            }
+        };
+        
+        window.skipTrack = function() {
+            game.modules.music.playNext();
+        };
+        
+        window.stopMusic = function() {
+            game.modules.music.stop();
+        };
+        
+        window.switchToMenu = function() {
+            game.modules.music.switchContext('menu');
+        };
+        
+        window.switchToLevel = function() {
+            game.modules.music.switchContext('level');
+        };
+        
+        window.switchToBoss = function() {
+            game.modules.music.switchContext('boss');
+        };
+        
+        window.changeVolume = function(value) {
+            const volume = value / 100;
+            game.modules.music.setVolume(volume);
+            document.getElementById('volume-display').textContent = value + '%';
+        };
+        
+        // ================================
+        // START DEMO
+        // ================================
+        async function startDemo() {
+            console.log('🛹 Building department store...');
+            
+            // Build the store
+            const store = buildDepartmentStore();
+            game.scene.add(store);
+            
+            // Add simple ambient lighting (no shadows)
+            const ambientLight = new THREE.AmbientLight(0x606060, 0.5);
+            game.scene.add(ambientLight);
+            
+            // Add hemisphere light for overall illumination
+            const hemiLight = new THREE.HemisphereLight(0x808080, 0x303030, 0.6);
+            game.scene.add(hemiLight);
+            
+            // Set fog for atmosphere
+            game.scene.fog = new THREE.Fog(LEVEL_58.scene.fog.color, LEVEL_58.scene.fog.near, LEVEL_58.scene.fog.far);
+            game.scene.background = new THREE.Color(LEVEL_58.scene.background);
+            
+            // Start game loop first to ensure player object exists
+            game.start();
+            
+            // Wait a frame for player to be created
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            // NOW set player position after player object exists
+            if (game.player) {
+                game.player.position.set(
+                    LEVEL_58.playerStart.x,
+                    LEVEL_58.playerStart.y,
+                    LEVEL_58.playerStart.z
+                );
+                
+                console.log(`✅ Player spawned at: ${game.player.position.x}, ${game.player.position.y}, ${game.player.position.z}`);
+                
+                // Mark player as initialized
+                isPlayerInitialized = true;
+            } else {
+                console.error('❌ Player object not found!');
+            }
+            
+            // Setup non-euclidean triggers AFTER player is positioned
+            setupNonEuclideanSpace();
+            
+            // Start with level music (eerie department store vibes)
+            game.modules.music.switchContext('level');
+            
+            console.log('🌀 Non-Euclidean Department Store Ready!');
+            console.log('Walk down any aisle far enough and you\'ll loop back...');
+            console.log('Press M to open Radio Menu');
+            console.log('Press N to skip tracks');
+        }
+        
+        // Wait for user interaction (required for audio autoplay)
+        document.addEventListener('click', () => {
+            if (!game.isRunning) {
+                startDemo();
+            }
+        }, { once: true });
+        
+        // Show initial message
+        console.log('🌀 APPLESAUCE Level 58: Endless Department');
+        console.log('Click anywhere to start...');
+        
+    </script>
+    
+    <!-- Click to start overlay -->
+    <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                text-align: center; font-size: 24px; z-index: 200; 
+                background: rgba(0,0,0,0.9); padding: 40px; border: 3px solid #00FFFF; 
+                border-radius: 12px;" id="start-overlay">
+        <h1 style="margin-bottom: 20px; color: #00FFFF;">🛹 LEVEL 58</h1>
+        <h2 style="margin-bottom: 30px; color: #FF00FF;">ENDLESS DEPARTMENT OF SOUND</h2>
+        <p style="margin-bottom: 30px; color: #00AAAA;">Click anywhere to enter</p>
+        <p style="font-size: 14px; color: #888;">⚠️ Non-Euclidean geometry active</p>
+        <p style="font-size: 12px; color: #666; margin-top: 20px;">The aisles go on forever...</p>
+    </div>
+    
+    <script>
+        // Remove start overlay on click
+        document.addEventListener('click', () => {
+            const overlay = document.getElementById('start-overlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }, { once: true });
+    </script>
+</body>
+</html>

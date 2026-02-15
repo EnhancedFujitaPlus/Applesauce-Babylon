@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Verlet Flesh Test Arena</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: radial-gradient(#100000, #000);
+  }
+  #hud {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    font-family: monospace;
+    color: #ff4444;
+    z-index: 10;
+    line-height: 1.4em;
+  }
+</style>
+</head>
+<body>
+<div id="hud">
+  1: Slash<br>
+  2: Blunt<br>
+  3: Pierce<br>
+  R: Reset
+</div>
+
+<script type="module">
+import * as THREE from '../three.module.js';
+
+/* =========================
+   BASIC SCENE SETUP
+========================= */
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x050000, 4, 12);
+
+const camera = new THREE.PerspectiveCamera(
+  60, innerWidth / innerHeight, 0.1, 50
+);
+camera.position.set(0, 2.5, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x440000, 0.8));
+const keyLight = new THREE.DirectionalLight(0xffdddd, 1.2);
+keyLight.position.set(3, 6, 2);
+scene.add(keyLight);
+
+/* =========================
+   GROUND
+========================= */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshPhongMaterial({ color: 0x080000 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -1;
+scene.add(ground);
+
+/* =========================
+   VERLET DATA STRUCTURES
+========================= */
+let points = [];
+let constraints = [];
+let blood = [];
+
+function createPoint(x, y, pinned = false) {
+  return {
+    pos: new THREE.Vector3(x, y, 0),
+    prev: new THREE.Vector3(x, y, 0),
+    pinned
+  };
+}
+
+function createConstraint(a, b, tear = 1.5, stiff = 0.9) {
+  return {
+    a, b,
+    rest: a.pos.distanceTo(b.pos),
+    tear,
+    stiff,
+    torn: false
+  };
+}
+
+/* =========================
+   BUILD FLESH SLAB
+========================= */
+function buildFlesh() {
+  points = [];
+  constraints = [];
+  blood = [];
+
+  const w = 7;
+  const h = 10;
+  const s = 0.28;
+  const grid = [];
+
+  for (let y = 0; y < h; y++) {
+    grid[y] = [];
+    for (let x = 0; x < w; x++) {
+      const p = createPoint(
+        (x - w / 2) * s,
+        3 - y * s,
+        y === 0
+      );
+      points.push(p);
+      grid[y][x] = p;
+
+      if (x > 0)
+        constraints.push(createConstraint(p, grid[y][x - 1], 1.4));
+      if (y > 0)
+        constraints.push(createConstraint(p, grid[y - 1][x], 1.7));
+    }
+  }
+}
+buildFlesh();
+
+/* =========================
+   BLOOD PARTICLES
+========================= */
+function spawnBlood(pos) {
+  for (let i = 0; i < 16; i++) {
+    blood.push({
+      pos: pos.clone(),
+      vel: new THREE.Vector3(
+        (Math.random() - 0.5) * 0.12,
+        Math.random() * 0.25,
+        (Math.random() - 0.5) * 0.12
+      ),
+      life: 90
+    });
+  }
+}
+
+function updateBlood() {
+  for (let i = blood.length - 1; i >= 0; i--) {
+    const b = blood[i];
+    b.vel.y -= 0.012;
+    b.pos.add(b.vel);
+    b.life--;
+    if (b.life <= 0) blood.splice(i, 1);
+  }
+}
+
+/* =========================
+   VERLET SOLVER
+========================= */
+function updatePoints() {
+  for (const p of points) {
+    if (p.pinned) continue;
+    const vel = p.pos.clone().sub(p.prev);
+    p.prev.copy(p.pos);
+    p.pos.add(vel);
+    p.pos.y -= 0.02;
+  }
+}
+
+function solveConstraints() {
+  for (const c of constraints) {
+    if (c.torn) continue;
+
+    const delta = c.b.pos.clone().sub(c.a.pos);
+    const dist = delta.length();
+
+    if (dist > c.rest * c.tear) {
+      c.torn = true;
+      spawnBlood(
+        c.a.pos.clone().add(c.b.pos).multiplyScalar(0.5)
+      );
+      continue;
+    }
+
+    const diff = (dist - c.rest) / dist;
+    const corr = delta.multiplyScalar(0.5 * c.stiff * diff);
+
+    if (!c.a.pinned) c.a.pos.add(corr);
+    if (!c.b.pinned) c.b.pos.sub(corr);
+  }
+}
+
+/* =========================
+   WEAPON INTERACTIONS
+========================= */
+function slash() {
+  for (const p of points) {
+    if (Math.abs(p.pos.y - 1.8) < 0.25) {
+      p.pos.x += (Math.random() - 0.5) * 1.1;
+    }
+  }
+}
+
+function blunt() {
+  for (const p of points) {
+    if (p.pos.y < 2) {
+      p.pos.y -= 0.6;
+    }
+  }
+}
+
+function pierce() {
+  for (const p of points) {
+    if (Math.abs(p.pos.x) < 0.15) {
+      p.pos.y -= 0.8;
+    }
+  }
+}
+
+/* =========================
+   INPUT
+========================= */
+window.addEventListener('keydown', e => {
+  if (e.key === '1') slash();
+  if (e.key === '2') blunt();
+  if (e.key === '3') pierce();
+  if (e.key.toLowerCase() === 'r') buildFlesh();
+});
+
+/* =========================
+   RENDERING
+========================= */
+const fleshGeo = new THREE.BufferGeometry();
+const fleshMat = new THREE.LineBasicMaterial({ color: 0xaa0000 });
+
+const bloodGeo = new THREE.BufferGeometry();
+const bloodMat = new THREE.PointsMaterial({
+  color: 0xff0000,
+  size: 0.06
+});
+
+let fleshMesh = new THREE.LineSegments(fleshGeo, fleshMat);
+let bloodMesh = new THREE.Points(bloodGeo, bloodMat);
+scene.add(fleshMesh);
+scene.add(bloodMesh);
+
+function renderFlesh() {
+  const verts = [];
+  for (const c of constraints) {
+    if (c.torn) continue;
+    verts.push(
+      c.a.pos.x, c.a.pos.y, c.a.pos.z,
+      c.b.pos.x, c.b.pos.y, c.b.pos.z
+    );
+  }
+  fleshGeo.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(verts, 3)
+  );
+}
+
+function renderBlood() {
+  const verts = [];
+  for (const b of blood) {
+    verts.push(b.pos.x, b.pos.y, b.pos.z);
+  }
+  bloodGeo.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(verts, 3)
+  );
+}
+
+/* =========================
+   LOOP
+========================= */
+function animate() {
+  requestAnimationFrame(animate);
+
+  updatePoints();
+  for (let i = 0; i < 3; i++) solveConstraints();
+  updateBlood();
+
+  renderFlesh();
+  renderBlood();
+
+  renderer.render(scene, camera);
+}
+animate();
+
+</script>
+</body>
+</html>

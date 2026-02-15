@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE — Castle Dungeon Level</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            overflow: hidden;
+            background: #0a0a0c;
+            font-family: 'Courier New', monospace;
+            color: #c8b89a;
+        }
+        
+        #renderCanvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+        }
+        
+        /* ── HUD Overlay ── */
+        #hud {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 16px 24px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #hud-left, #hud-right {
+            background: rgba(5, 5, 8, 0.75);
+            border: 1px solid rgba(200, 184, 154, 0.15);
+            padding: 12px 18px;
+            border-radius: 2px;
+        }
+        
+        #hud h1 {
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #e8d8b8;
+            margin-bottom: 4px;
+        }
+        
+        #hud .sub {
+            font-size: 10px;
+            color: #8a7a6a;
+            letter-spacing: 1px;
+        }
+        
+        #hud-right {
+            text-align: right;
+            font-size: 11px;
+            line-height: 1.8;
+        }
+        
+        .key {
+            display: inline-block;
+            background: rgba(200, 184, 154, 0.12);
+            border: 1px solid rgba(200, 184, 154, 0.25);
+            padding: 1px 6px;
+            border-radius: 2px;
+            font-size: 10px;
+            margin: 0 2px;
+        }
+        
+        /* ── Loading Screen ── */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0c;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.8s ease;
+        }
+        
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        #loading h1 {
+            font-size: 18px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+            color: #e8d8b8;
+        }
+        
+        #loading .bar-track {
+            width: 300px;
+            height: 3px;
+            background: rgba(200, 184, 154, 0.15);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        #loading .bar-fill {
+            height: 100%;
+            background: #c8a868;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        #loading .status {
+            margin-top: 12px;
+            font-size: 10px;
+            color: #6a5a4a;
+            letter-spacing: 2px;
+        }
+        
+        /* ── Level Config Panel ── */
+        #config-panel {
+            position: fixed;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(5, 5, 8, 0.85);
+            border: 1px solid rgba(200, 184, 154, 0.15);
+            padding: 12px 20px;
+            border-radius: 2px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            z-index: 10;
+            font-size: 11px;
+        }
+        
+        #config-panel label {
+            color: #8a7a6a;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 9px;
+        }
+        
+        #config-panel select, #config-panel input[type="range"] {
+            background: rgba(200, 184, 154, 0.1);
+            border: 1px solid rgba(200, 184, 154, 0.2);
+            color: #c8b89a;
+            padding: 4px 8px;
+            font-family: inherit;
+            font-size: 11px;
+            border-radius: 2px;
+        }
+        
+        #config-panel button {
+            background: rgba(200, 168, 104, 0.2);
+            border: 1px solid rgba(200, 168, 104, 0.4);
+            color: #e8d8b8;
+            padding: 6px 16px;
+            font-family: inherit;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.2s;
+        }
+        
+        #config-panel button:hover {
+            background: rgba(200, 168, 104, 0.35);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <!-- Loading Screen -->
+    <div id="loading">
+        <h1>Castle Dungeon</h1>
+        <div class="bar-track"><div class="bar-fill" id="loadBar"></div></div>
+        <div class="status" id="loadStatus">Initializing engine...</div>
+    </div>
+    
+    <!-- HUD -->
+    <div id="hud">
+        <div id="hud-left">
+            <h1>⚔ Castle Dungeon</h1>
+            <div class="sub">APPLESAUCE Engine — Level Module Pattern</div>
+        </div>
+        <div id="hud-right">
+            <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> Move<br>
+            <span class="key">Space</span> Jump &nbsp;|&nbsp; <span class="key">Mouse</span> Look
+        </div>
+    </div>
+    
+    <!-- Level Config -->
+    <div id="config-panel">
+        <div>
+            <label>Rooms</label><br>
+            <input type="range" id="cfgRooms" min="1" max="8" value="3" style="width:80px">
+            <span id="cfgRoomsVal">3</span>
+        </div>
+        <div>
+            <label>Room Size</label><br>
+            <select id="cfgSize">
+                <option value="small">Small (10×8)</option>
+                <option value="medium" selected>Medium (16×12)</option>
+                <option value="large">Large (24×18)</option>
+            </select>
+        </div>
+        <div>
+            <label>Light Shafts</label><br>
+            <select id="cfgShafts">
+                <option value="on" selected>Enabled</option>
+                <option value="off">Disabled</option>
+            </select>
+        </div>
+        <button onclick="rebuildDungeon()">Rebuild</button>
+    </div>
+    
+    <!-- Babylon.js CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <script>
+    // ═══════════════════════════════════════════════════════
+    // LOADING HELPERS
+    // ═══════════════════════════════════════════════════════
+    
+    function setLoad(pct, msg) {
+        document.getElementById('loadBar').style.width = pct + '%';
+        document.getElementById('loadStatus').textContent = msg;
+    }
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // PROCEDURAL TEXTURE GENERATORS (inlined for demo)
+    // ═══════════════════════════════════════════════════════
+    
+    const ProceduralTextures = {
+    
+        stoneWall(scene, size = 512) {
+            const tex = new BABYLON.DynamicTexture("stoneTex", size, scene, true);
+            const ctx = tex.getContext();
+    
+            ctx.fillStyle = '#3a3632';
+            ctx.fillRect(0, 0, size, size);
+    
+            const blockRows = 8;
+            const blockCols = 4;
+            const bw = size / blockCols;
+            const bh = size / blockRows;
+            const mortarWidth = 3;
+    
+            for (let row = 0; row < blockRows; row++) {
+                const offset = (row % 2) * (bw * 0.5);
+                for (let col = -1; col <= blockCols; col++) {
+                    const x = col * bw + offset + (Math.random() - 0.5) * 4;
+                    const y = row * bh + (Math.random() - 0.5) * 3;
+                    const w = bw - mortarWidth + (Math.random() - 0.5) * 6;
+                    const h = bh - mortarWidth + (Math.random() - 0.5) * 4;
+    
+                    const shade = 0.22 + Math.random() * 0.15;
+                    const warm = Math.random() * 0.03;
+                    ctx.fillStyle = `rgb(${Math.floor((shade + warm) * 255)}, ${Math.floor(shade * 255)}, ${Math.floor((shade - 0.02) * 255)})`;
+                    ctx.fillRect(x + mortarWidth, y + mortarWidth, w, h);
+    
+                    // Surface noise
+                    for (let i = 0; i < 25; i++) {
+                        const sx = x + mortarWidth + Math.random() * w;
+                        const sy = y + mortarWidth + Math.random() * h;
+                        const brightness = Math.random() * 0.07;
+                        ctx.fillStyle = `rgba(${Math.random() > 0.5 ? 255 : 0}, ${Math.random() > 0.5 ? 255 : 0}, ${Math.random() > 0.5 ? 255 : 0}, ${brightness})`;
+                        ctx.fillRect(sx, sy, 1 + Math.random() * 3, 1 + Math.random() * 3);
+                    }
+                }
+            }
+    
+            // Mortar lines
+            ctx.strokeStyle = '#1a1816';
+            ctx.lineWidth = mortarWidth;
+            for (let row = 1; row < blockRows; row++) {
+                ctx.beginPath();
+                ctx.moveTo(0, row * bh + (Math.random() - 0.5) * 2);
+                ctx.lineTo(size, row * bh + (Math.random() - 0.5) * 2);
+                ctx.stroke();
+            }
+    
+            tex.update();
+            return tex;
+        },
+    
+        stoneFloor(scene, size = 512) {
+            const tex = new BABYLON.DynamicTexture("floorTex", size, scene, true);
+            const ctx = tex.getContext();
+    
+            ctx.fillStyle = '#2d2a28';
+            ctx.fillRect(0, 0, size, size);
+    
+            const slabSize = size / 4;
+            const gap = 4;
+    
+            for (let row = 0; row < 4; row++) {
+                const offset = (row % 2) * (slabSize * 0.5);
+                for (let col = -1; col <= 4; col++) {
+                    const x = col * slabSize + offset;
+                    const y = row * slabSize;
+    
+                    const shade = 0.18 + Math.random() * 0.1;
+                    ctx.fillStyle = `rgb(${Math.floor(shade * 255)}, ${Math.floor((shade - 0.01) * 255)}, ${Math.floor((shade - 0.02) * 255)})`;
+                    ctx.fillRect(x + gap, y + gap, slabSize - gap * 2, slabSize - gap * 2);
+    
+                    for (let i = 0; i < 12; i++) {
+                        ctx.fillStyle = `rgba(0, 0, 0, ${Math.random() * 0.1})`;
+                        const wx = x + gap + Math.random() * (slabSize - gap * 2);
+                        const wy = y + gap + Math.random() * (slabSize - gap * 2);
+                        ctx.fillRect(wx, wy, Math.random() * 8, Math.random() * 8);
+                    }
+                }
+            }
+    
+            ctx.strokeStyle = '#100e0d';
+            ctx.lineWidth = gap;
+            for (let i = 1; i < 4; i++) {
+                ctx.beginPath(); ctx.moveTo(0, i * slabSize); ctx.lineTo(size, i * slabSize); ctx.stroke();
+            }
+    
+            tex.update();
+            return tex;
+        },
+    
+        ceiling(scene, size = 512) {
+            const tex = new BABYLON.DynamicTexture("ceilTex", size, scene, true);
+            const ctx = tex.getContext();
+    
+            ctx.fillStyle = '#1a1917';
+            ctx.fillRect(0, 0, size, size);
+    
+            for (let i = 0; i < 150; i++) {
+                const x = Math.random() * size;
+                const y = Math.random() * size;
+                const s = 2 + Math.random() * 10;
+                const shade = Math.random() * 0.05;
+                ctx.fillStyle = `rgba(${100 + Math.random() * 80}, ${80 + Math.random() * 60}, ${60 + Math.random() * 50}, ${shade})`;
+                ctx.fillRect(x, y, s, s);
+            }
+    
+            // Moisture stains
+            for (let i = 0; i < 6; i++) {
+                const cx = Math.random() * size;
+                const cy = Math.random() * size;
+                const r = 20 + Math.random() * 50;
+                const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+                gradient.addColorStop(0, 'rgba(30, 50, 35, 0.12)');
+                gradient.addColorStop(1, 'rgba(30, 50, 35, 0)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+            }
+    
+            tex.update();
+            return tex;
+        },
+    
+        wood(scene, size = 256) {
+            const tex = new BABYLON.DynamicTexture("woodTex", size, scene, true);
+            const ctx = tex.getContext();
+    
+            ctx.fillStyle = '#4a3525';
+            ctx.fillRect(0, 0, size, size);
+    
+            for (let i = 0; i < 35; i++) {
+                const y = Math.random() * size;
+                ctx.strokeStyle = `rgba(${60 + Math.random() * 30}, ${40 + Math.random() * 20}, ${20 + Math.random() * 15}, ${0.15 + Math.random() * 0.25})`;
+                ctx.lineWidth = 1 + Math.random() * 2;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                for (let x = 0; x < size; x += 10) {
+                    ctx.lineTo(x, y + Math.sin(x * 0.02 + i) * 3);
+                }
+                ctx.stroke();
+            }
+    
+            tex.update();
+            return tex;
+        }
+    };
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // DUNGEON BUILDER (inlined for demo)
+    // ═══════════════════════════════════════════════════════
+    
+    class DungeonBuilder {
+        constructor(scene, havokPlugin, shadowGenerator) {
+            this.scene = scene;
+            this.havokPlugin = havokPlugin;
+            this.shadowGenerator = shadowGenerator;
+            this.meshes = [];
+            this.lights = [];
+            this.torchAnims = [];
+            this.windows = [];
+    
+            this.textures = {
+                wall: ProceduralTextures.stoneWall(scene),
+                floor: ProceduralTextures.stoneFloor(scene),
+                ceiling: ProceduralTextures.ceiling(scene),
+                wood: ProceduralTextures.wood(scene)
+            };
+    
+            this.materials = this._createMaterials();
+        }
+    
+        _createMaterials() {
+            const s = this.scene;
+    
+            const wallMat = new BABYLON.StandardMaterial("dungeonWall", s);
+            wallMat.diffuseTexture = this.textures.wall;
+            wallMat.diffuseTexture.uScale = 2;
+            wallMat.diffuseTexture.vScale = 2;
+            wallMat.specularColor = new BABYLON.Color3(0.05, 0.05, 0.05);
+    
+            const floorMat = new BABYLON.StandardMaterial("dungeonFloor", s);
+            floorMat.diffuseTexture = this.textures.floor;
+            floorMat.diffuseTexture.uScale = 3;
+            floorMat.diffuseTexture.vScale = 3;
+            floorMat.specularColor = new BABYLON.Color3(0.08, 0.08, 0.08);
+    
+            const ceilMat = new BABYLON.StandardMaterial("dungeonCeil", s);
+            ceilMat.diffuseTexture = this.textures.ceiling;
+            ceilMat.diffuseTexture.uScale = 2;
+            ceilMat.diffuseTexture.vScale = 2;
+            ceilMat.specularColor = new BABYLON.Color3(0.02, 0.02, 0.02);
+    
+            const woodMat = new BABYLON.StandardMaterial("dungeonWood", s);
+            woodMat.diffuseTexture = this.textures.wood;
+            woodMat.specularColor = new BABYLON.Color3(0.1, 0.08, 0.06);
+    
+            return { wall: wallMat, floor: floorMat, ceiling: ceilMat, wood: woodMat };
+        }
+    
+        // ── Room Construction ──
+    
+        buildRoom(config) {
+            const { width, depth, height, position } = config;
+            const pos = position || { x: 0, y: 0, z: 0 };
+            const wallThickness = 0.8;
+            const roomMeshes = [];
+    
+            // Floor
+            const floor = BABYLON.MeshBuilder.CreateBox("floor_" + Math.random(), {
+                width: width, height: wallThickness, depth: depth
+            }, this.scene);
+            floor.position = new BABYLON.Vector3(pos.x, pos.y - wallThickness / 2, pos.z);
+            floor.material = this.materials.floor;
+            floor.receiveShadow = true;
+            this._addPhysics(floor, 0);
+            roomMeshes.push(floor);
+    
+            // Ceiling
+            const ceil = BABYLON.MeshBuilder.CreateBox("ceil_" + Math.random(), {
+                width: width, height: wallThickness, depth: depth
+            }, this.scene);
+            ceil.position = new BABYLON.Vector3(pos.x, pos.y + height + wallThickness / 2, pos.z);
+            ceil.material = this.materials.ceiling;
+            ceil.receiveShadow = true;
+            this._addPhysics(ceil, 0);
+            roomMeshes.push(ceil);
+    
+            // Wall definitions
+            const walls = [
+                { name: 'north', w: width, h: height, d: wallThickness,
+                  px: pos.x, py: pos.y + height / 2, pz: pos.z - depth / 2 - wallThickness / 2,
+                  normalDir: new BABYLON.Vector3(0, 0, 1) },
+                { name: 'south', w: width, h: height, d: wallThickness,
+                  px: pos.x, py: pos.y + height / 2, pz: pos.z + depth / 2 + wallThickness / 2,
+                  normalDir: new BABYLON.Vector3(0, 0, -1) },
+                { name: 'east',  w: wallThickness, h: height, d: depth,
+                  px: pos.x + width / 2 + wallThickness / 2, py: pos.y + height / 2, pz: pos.z,
+                  normalDir: new BABYLON.Vector3(-1, 0, 0) },
+                { name: 'west',  w: wallThickness, h: height, d: depth,
+                  px: pos.x - width / 2 - wallThickness / 2, py: pos.y + height / 2, pz: pos.z,
+                  normalDir: new BABYLON.Vector3(1, 0, 0) }
+            ];
+    
+            walls.forEach(wallDef => {
+                const wallOpenings = (config.openings || []).filter(o => o.wall === wallDef.name);
+                const wallWindows = (config.windows || []).filter(w => w.wall === wallDef.name);
+    
+                if (wallOpenings.length === 0 && wallWindows.length === 0) {
+                    const wall = BABYLON.MeshBuilder.CreateBox(`wall_${wallDef.name}_${Math.random()}`, {
+                        width: wallDef.w, height: wallDef.h, depth: wallDef.d
+                    }, this.scene);
+                    wall.position = new BABYLON.Vector3(wallDef.px, wallDef.py, wallDef.pz);
+                    wall.material = this.materials.wall;
+                    wall.receiveShadow = true;
+                    wall.castShadow = true;
+                    if (this.shadowGenerator) this.shadowGenerator.addShadowCaster(wall);
+                    this._addPhysics(wall, 0);
+                    roomMeshes.push(wall);
+                } else {
+                    this._buildWallWithOpenings(wallDef, wallOpenings, wallWindows, pos, height, roomMeshes);
+                }
+    
+                // Torches
+                const wallTorches = (config.torches || []).filter(t => t.wall === wallDef.name);
+                wallTorches.forEach(tc => {
+                    this._placeTorch(wallDef, tc, pos, width, depth, height);
+                });
+            });
+    
+            this.meshes.push(...roomMeshes);
+            return roomMeshes;
+        }
+    
+        _buildWallWithOpenings(wallDef, openings, windows, roomPos, roomHeight, meshList) {
+            const allHoles = [
+                ...openings.map(o => ({ ...o, isWindow: false })),
+                ...windows.map(w => ({ ...w, isWindow: true }))
+            ];
+    
+            const isXWall = wallDef.name === 'north' || wallDef.name === 'south';
+            const wallLength = isXWall ? wallDef.w : wallDef.d;
+    
+            allHoles.sort((a, b) => (a.position || 0.5) - (b.position || 0.5));
+    
+            allHoles.forEach((hole, hi) => {
+                const holeWidth = hole.width || 2;
+                const holeHeight = hole.height || (hole.isWindow ? 1.5 : roomHeight * 0.8);
+                const holeBottom = hole.isWindow ? (roomHeight * 0.4) : 0;
+                const holePosAlongWall = (hole.position || 0.5) * wallLength - wallLength / 2;
+    
+                const segments = [];
+    
+                // Left
+                const leftWidth = (wallLength / 2 + holePosAlongWall - holeWidth / 2);
+                if (leftWidth > 0.1) {
+                    segments.push({
+                        w: isXWall ? leftWidth : wallDef.w,
+                        h: wallDef.h,
+                        d: isXWall ? wallDef.d : leftWidth,
+                        offsetMain: -wallLength / 2 + leftWidth / 2,
+                        offsetY: 0
+                    });
+                }
+    
+                // Right
+                const rightStart = holePosAlongWall + holeWidth / 2;
+                const rightWidth = wallLength / 2 - rightStart;
+                if (rightWidth > 0.1) {
+                    segments.push({
+                        w: isXWall ? rightWidth : wallDef.w,
+                        h: wallDef.h,
+                        d: isXWall ? wallDef.d : rightWidth,
+                        offsetMain: rightStart + rightWidth / 2,
+                        offsetY: 0
+                    });
+                }
+    
+                // Above
+                const aboveHeight = roomHeight - (holeBottom + holeHeight);
+                if (aboveHeight > 0.1) {
+                    segments.push({
+                        w: isXWall ? holeWidth : wallDef.w,
+                        h: aboveHeight,
+                        d: isXWall ? wallDef.d : holeWidth,
+                        offsetMain: holePosAlongWall,
+                        offsetY: (holeBottom + holeHeight + aboveHeight / 2) - roomHeight / 2
+                    });
+                }
+    
+                // Below (sill for windows)
+                if (holeBottom > 0.1) {
+                    segments.push({
+                        w: isXWall ? holeWidth : wallDef.w,
+                        h: holeBottom,
+                        d: isXWall ? wallDef.d : holeWidth,
+                        offsetMain: holePosAlongWall,
+                        offsetY: (holeBottom / 2) - roomHeight / 2
+                    });
+                }
+    
+                segments.forEach((seg, i) => {
+                    const mesh = BABYLON.MeshBuilder.CreateBox(`wall_${wallDef.name}_seg${hi}_${i}_${Math.random()}`, {
+                        width: seg.w, height: seg.h, depth: seg.d
+                    }, this.scene);
+    
+                    let px = wallDef.px;
+                    let pz = wallDef.pz;
+                    if (isXWall) px += seg.offsetMain;
+                    else pz += seg.offsetMain;
+    
+                    mesh.position = new BABYLON.Vector3(px, wallDef.py + seg.offsetY, pz);
+                    mesh.material = this.materials.wall;
+                    mesh.receiveShadow = true;
+                    mesh.castShadow = true;
+                    if (this.shadowGenerator) this.shadowGenerator.addShadowCaster(mesh);
+                    this._addPhysics(mesh, 0);
+                    meshList.push(mesh);
+                });
+    
+                // Track windows for light shafts
+                if (hole.isWindow) {
+                    const windowCenter = new BABYLON.Vector3(
+                        wallDef.px + (isXWall ? holePosAlongWall : 0),
+                        wallDef.py + holeBottom + holeHeight / 2 - roomHeight / 2,
+                        wallDef.pz + (isXWall ? 0 : holePosAlongWall)
+                    );
+                    this.windows.push({
+                        position: windowCenter,
+                        normal: wallDef.normalDir,
+                        width: holeWidth,
+                        height: holeHeight
+                    });
+                }
+            });
+        }
+    
+        // ── Corridor ──
+    
+        buildCorridor(config) {
+            const { start, end, width, height } = config;
+            const corridorWidth = width || 4;
+            const corridorHeight = height || 4;
+            const wallThickness = 0.8;
+    
+            const dx = end.x - start.x;
+            const dz = end.z - start.z;
+            const length = Math.sqrt(dx * dx + dz * dz);
+            const angle = Math.atan2(dx, dz);
+            const centerX = (start.x + end.x) / 2;
+            const centerZ = (start.z + end.z) / 2;
+            const baseY = start.y || 0;
+    
+            const floor = BABYLON.MeshBuilder.CreateBox("corr_floor_" + Math.random(), {
+                width: corridorWidth, height: wallThickness, depth: length
+            }, this.scene);
+            floor.position = new BABYLON.Vector3(centerX, baseY - wallThickness / 2, centerZ);
+            floor.rotation.y = angle;
+            floor.material = this.materials.floor;
+            floor.receiveShadow = true;
+            this._addPhysics(floor, 0);
+            this.meshes.push(floor);
+    
+            const ceil = BABYLON.MeshBuilder.CreateBox("corr_ceil_" + Math.random(), {
+                width: corridorWidth, height: wallThickness, depth: length
+            }, this.scene);
+            ceil.position = new BABYLON.Vector3(centerX, baseY + corridorHeight + wallThickness / 2, centerZ);
+            ceil.rotation.y = angle;
+            ceil.material = this.materials.ceiling;
+            this._addPhysics(ceil, 0);
+            this.meshes.push(ceil);
+    
+            // Side walls
+            const perpX = Math.cos(angle) * (corridorWidth / 2 + wallThickness / 2);
+            const perpZ = -Math.sin(angle) * (corridorWidth / 2 + wallThickness / 2);
+    
+            [1, -1].forEach(side => {
+                const wall = BABYLON.MeshBuilder.CreateBox("corr_wall_" + Math.random(), {
+                    width: wallThickness, height: corridorHeight, depth: length
+                }, this.scene);
+                wall.position = new BABYLON.Vector3(
+                    centerX + perpX * side,
+                    baseY + corridorHeight / 2,
+                    centerZ + perpZ * side
+                );
+                wall.rotation.y = angle;
+                wall.material = this.materials.wall;
+                wall.receiveShadow = true;
+                wall.castShadow = true;
+                if (this.shadowGenerator) this.shadowGenerator.addShadowCaster(wall);
+                this._addPhysics(wall, 0);
+                this.meshes.push(wall);
+            });
+        }
+    
+        // ── Torch ──
+    
+        _placeTorch(wallDef, torchConfig, roomPos, roomWidth, roomDepth, roomHeight) {
+            const isXWall = wallDef.name === 'north' || wallDef.name === 'south';
+            const wallLength = isXWall ? roomWidth : roomDepth;
+            const posAlongWall = (torchConfig.position || 0.5) * wallLength - wallLength / 2;
+            const torchHeight = torchConfig.height || (roomHeight * 0.65);
+    
+            let tx = wallDef.px;
+            let tz = wallDef.pz;
+            const inset = 0.4;
+    
+            if (isXWall) {
+                tx += posAlongWall;
+                tz += wallDef.normalDir.z * inset;
+            } else {
+                tz += posAlongWall;
+                tx += wallDef.normalDir.x * inset;
+            }
+            const ty = roomPos.y + torchHeight;
+    
+            // Bracket
+            const bracket = BABYLON.MeshBuilder.CreateCylinder("torch_b_" + Math.random(), {
+                height: 0.5, diameter: 0.08, tessellation: 6
+            }, this.scene);
+            bracket.position = new BABYLON.Vector3(tx, ty - 0.2, tz);
+            bracket.material = this.materials.wood;
+            this.meshes.push(bracket);
+    
+            // Light
+            const light = new BABYLON.PointLight(
+                `torchLight_${Math.random()}`,
+                new BABYLON.Vector3(tx, ty + 0.3, tz),
+                this.scene
+            );
+            light.diffuse = new BABYLON.Color3(1.0, 0.65, 0.3);
+            light.specular = new BABYLON.Color3(0.4, 0.25, 0.08);
+            light.intensity = 0.9;
+            light.range = 16;
+            light._baseIntensity = 0.9;
+            light._flickerOffset = Math.random() * 1000;
+    
+            this.lights.push(light);
+            this.torchAnims.push(light);
+    
+            // Flame glow
+            const flame = BABYLON.MeshBuilder.CreateSphere("flame_" + Math.random(), {
+                diameter: 0.14, segments: 6
+            }, this.scene);
+            flame.position = new BABYLON.Vector3(tx, ty + 0.2, tz);
+            const flameMat = new BABYLON.StandardMaterial("flameMat_" + Math.random(), this.scene);
+            flameMat.emissiveColor = new BABYLON.Color3(1.0, 0.55, 0.12);
+            flameMat.disableLighting = true;
+            flame.material = flameMat;
+            this.meshes.push(flame);
+        }
+    
+        placeTorchAt(x, y, z) {
+            const light = new BABYLON.PointLight(
+                `torch_${Math.random()}`,
+                new BABYLON.Vector3(x, y + 0.3, z),
+                this.scene
+            );
+            light.diffuse = new BABYLON.Color3(1.0, 0.65, 0.3);
+            light.specular = new BABYLON.Color3(0.4, 0.25, 0.08);
+            light.intensity = 0.7;
+            light.range = 12;
+            light._baseIntensity = 0.7;
+            light._flickerOffset = Math.random() * 1000;
+    
+            this.lights.push(light);
+            this.torchAnims.push(light);
+    
+            const flame = BABYLON.MeshBuilder.CreateSphere("flame_s_" + Math.random(), {
+                diameter: 0.1, segments: 6
+            }, this.scene);
+            flame.position = new BABYLON.Vector3(x, y + 0.22, z);
+            const flameMat = new BABYLON.StandardMaterial("flameMat_s_" + Math.random(), this.scene);
+            flameMat.emissiveColor = new BABYLON.Color3(1.0, 0.55, 0.12);
+            flameMat.disableLighting = true;
+            flame.material = flameMat;
+            this.meshes.push(flame);
+        }
+    
+        // ── Light Shafts ──
+    
+        createLightShafts(camera) {
+            this.windows.forEach((win, i) => {
+                // Bright emissive plane at window
+                const lightPlane = BABYLON.MeshBuilder.CreatePlane(`lightSrc_${i}`, {
+                    width: win.width * 0.7,
+                    height: win.height * 0.7
+                }, this.scene);
+                lightPlane.position = win.position.clone();
+    
+                if (Math.abs(win.normal.z) > 0.5) {
+                    lightPlane.rotation.y = win.normal.z > 0 ? 0 : Math.PI;
+                } else {
+                    lightPlane.rotation.y = win.normal.x > 0 ? Math.PI / 2 : -Math.PI / 2;
+                }
+    
+                const lpMat = new BABYLON.StandardMaterial(`lpMat_${i}`, this.scene);
+                lpMat.emissiveColor = new BABYLON.Color3(1.0, 0.95, 0.82);
+                lpMat.disableLighting = true;
+                lpMat.alpha = 0.5;
+                lightPlane.material = lpMat;
+                this.meshes.push(lightPlane);
+    
+                // God rays (VolumetricLightScatteringPostProcess)
+                try {
+                    const godrays = new BABYLON.VolumetricLightScatteringPostProcess(
+                        `godrays_${i}`, 1.0, camera, lightPlane,
+                        50, BABYLON.Texture.BILINEAR_SAMPLINGMODE,
+                        this.scene.getEngine(), false
+                    );
+                    godrays.exposure = 0.22;
+                    godrays.decay = 0.97;
+                    godrays.weight = 0.5;
+                    godrays.density = 0.75;
+                    console.log(`   ☀️ God rays on window ${i}`);
+                } catch (e) {
+                    console.warn(`   ⚠️ God rays fallback for window ${i}`);
+                }
+    
+                // Spotlight for actual illumination through window
+                const spotDir = win.normal.scale(1);
+                const spotlight = new BABYLON.SpotLight(
+                    `windowSpot_${i}`,
+                    win.position.add(win.normal.scale(-1.5)),
+                    spotDir,
+                    Math.PI / 3.5, 3, this.scene
+                );
+                spotlight.diffuse = new BABYLON.Color3(1.0, 0.95, 0.85);
+                spotlight.intensity = 1.5;
+                spotlight.range = 22;
+                this.lights.push(spotlight);
+            });
+        }
+    
+        // ── Atmosphere ──
+    
+        setupAtmosphere(scene) {
+            scene.clearColor = new BABYLON.Color4(0.02, 0.02, 0.03, 1.0);
+            scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+            scene.fogDensity = 0.012;
+            scene.fogColor = new BABYLON.Color3(0.05, 0.04, 0.06);
+    
+            const ambient = scene.getLightByName("ambient");
+            if (ambient) {
+                ambient.intensity = 0.06;
+                ambient.diffuse = new BABYLON.Color3(0.12, 0.1, 0.18);
+                ambient.groundColor = new BABYLON.Color3(0.04, 0.03, 0.05);
+            }
+    
+            const sun = scene.getLightByName("sun");
+            if (sun) sun.intensity = 0.03;
+        }
+    
+        // ── Update ──
+    
+        update(time) {
+            this.torchAnims.forEach(light => {
+                const t = time * 0.001 + light._flickerOffset;
+                const flicker = 1.0
+                    + Math.sin(t * 8.3) * 0.08
+                    + Math.sin(t * 13.7) * 0.05
+                    + Math.sin(t * 23.1) * 0.03
+                    + (Math.random() - 0.5) * 0.04;
+                light.intensity = light._baseIntensity * flicker;
+            });
+        }
+    
+        _addPhysics(mesh, mass) {
+            if (!this.havokPlugin) return;
+            try {
+                new BABYLON.PhysicsAggregate(mesh, BABYLON.PhysicsShapeType.BOX, {
+                    mass: mass, friction: 0.8
+                }, this.scene);
+            } catch (e) { /* non-fatal */ }
+        }
+    
+        dispose() {
+            this.meshes.forEach(m => { try { if (m && !m.isDisposed()) m.dispose(); } catch(e){} });
+            this.lights.forEach(l => { try { l.dispose(); } catch(e){} });
+            this.meshes = [];
+            this.lights = [];
+            this.torchAnims = [];
+            this.windows = [];
+        }
+    }
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // ENGINE BOOTSTRAP (simplified inline core for demo)
+    // ═══════════════════════════════════════════════════════
+    
+    let engine, scene, camera, havokPlugin, shadowGenerator;
+    let dungeonBuilder = null;
+    let startTime = 0;
+    let player = null;
+    let playerAggregate = null;
+    let keys = {};
+    
+    async function boot() {
+        setLoad(5, 'Creating Babylon.js engine...');
+    
+        const canvas = document.getElementById('renderCanvas');
+        engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+        scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0.02, 0.02, 0.03, 1.0);
+    
+        setLoad(15, 'Loading Havok physics...');
+    
+        // Physics
+        try {
+            const havokInstance = await HavokPhysics();
+            havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+            scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), havokPlugin);
+            setLoad(35, 'Physics loaded');
+        } catch (e) {
+            console.warn('Havok not available — running without physics');
+            setLoad(35, 'Physics skipped');
+        }
+    
+        // Ambient light
+        const ambient = new BABYLON.HemisphericLight("ambient", new BABYLON.Vector3(0, 1, 0), scene);
+        ambient.intensity = 0.6;
+        ambient.groundColor = new BABYLON.Color3(0.2, 0.2, 0.3);
+    
+        // Sun (will be dimmed by dungeon atmosphere)
+        const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-1, -2, -1), scene);
+        sun.position = new BABYLON.Vector3(50, 100, 50);
+        sun.intensity = 0.8;
+    
+        shadowGenerator = new BABYLON.ShadowGenerator(1024, sun);
+        shadowGenerator.useBlurExponentialShadowMap = true;
+        shadowGenerator.blurScale = 2;
+        shadowGenerator.setDarkness(0.5);
+    
+        setLoad(45, 'Creating player...');
+    
+        // Player (simple box)
+        const playerBox = BABYLON.MeshBuilder.CreateBox("player", {
+            width: 0.8, height: 1.8, depth: 0.8
+        }, scene);
+        playerBox.position = new BABYLON.Vector3(0, 2, 0);
+        const playerMat = new BABYLON.StandardMaterial("playerMat", scene);
+        playerMat.diffuseColor = new BABYLON.Color3(0.6, 0.2, 0.2);
+        playerMat.alpha = 0.4; // Semi-transparent so you can see in first person
+        playerBox.material = playerMat;
+    
+        if (havokPlugin) {
+            playerAggregate = new BABYLON.PhysicsAggregate(
+                playerBox, BABYLON.PhysicsShapeType.BOX,
+                { mass: 70, restitution: 0.05, friction: 0.5 },
+                scene
+            );
+        }
+        player = playerBox;
+    
+        // Camera — follows player
+        camera = new BABYLON.ArcRotateCamera(
+            "cam", BABYLON.Tools.ToRadians(-90), BABYLON.Tools.ToRadians(75),
+            8, playerBox.position, scene
+        );
+        camera.lockedTarget = playerBox;
+        camera.attachControl(canvas, true);
+        camera.wheelPrecision = 80;
+        camera.lowerRadiusLimit = 1;
+        camera.upperRadiusLimit = 12;
+        camera.panningSensibility = 0;
+        camera.lowerBetaLimit = BABYLON.Tools.ToRadians(25);
+        camera.upperBetaLimit = BABYLON.Tools.ToRadians(85);
+    
+        setLoad(55, 'Building dungeon...');
+    
+        // Input
+        scene.onKeyboardObservable.add((kbInfo) => {
+            const key = kbInfo.event.key.toLowerCase();
+            if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+                keys[key] = true;
+            } else {
+                keys[key] = false;
+            }
+        });
+    
+        // Build the dungeon
+        await buildDungeon({ rooms: 3, size: 'medium', lightShafts: true });
+    
+        setLoad(95, 'Starting render loop...');
+    
+        // Render loop
+        engine.runRenderLoop(() => {
+            updatePlayer();
+            if (dungeonBuilder) {
+                dungeonBuilder.update(performance.now() - startTime);
+            }
+            scene.render();
+        });
+    
+        window.addEventListener('resize', () => engine.resize());
+    
+        // Hide loading
+        setLoad(100, 'Ready');
+        setTimeout(() => {
+            document.getElementById('loading').classList.add('hidden');
+        }, 400);
+    }
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // DUNGEON BUILDER (called from UI and boot)
+    // ═══════════════════════════════════════════════════════
+    
+    async function buildDungeon(opts) {
+        // Clean up previous dungeon
+        if (dungeonBuilder) {
+            dungeonBuilder.dispose();
+            dungeonBuilder = null;
+        }
+    
+        const sizeMap = {
+            small:  { w: 10, d: 8 },
+            medium: { w: 16, d: 12 },
+            large:  { w: 24, d: 18 }
+        };
+        const sz = sizeMap[opts.size] || sizeMap.medium;
+        const roomHeight = 6;
+        const corridorLength = 10;
+        const corridorWidth = 4;
+    
+        dungeonBuilder = new DungeonBuilder(scene, havokPlugin, shadowGenerator);
+        dungeonBuilder.setupAtmosphere(scene);
+        startTime = performance.now();
+    
+        let currentZ = 0;
+        const totalSpan = sz.d + corridorLength;
+    
+        for (let i = 0; i < opts.rooms; i++) {
+            const roomZ = currentZ;
+    
+            // Windows on alternating walls
+            const roomWindows = [];
+            if (i === 0 || i === opts.rooms - 1) {
+                roomWindows.push({ wall: 'east', position: 0.5, width: 2.0, height: 1.8 });
+            }
+            if (i % 2 === 0) {
+                roomWindows.push({ wall: 'west', position: 0.5, width: 1.8, height: 1.5 });
+            }
+    
+            // Doorways
+            const roomOpenings = [];
+            if (i > 0) {
+                roomOpenings.push({ wall: 'north', position: 0.5, width: corridorWidth, height: roomHeight * 0.75 });
+            }
+            if (i < opts.rooms - 1) {
+                roomOpenings.push({ wall: 'south', position: 0.5, width: corridorWidth, height: roomHeight * 0.75 });
+            }
+    
+            // Torches
+            const roomTorches = [
+                { wall: 'east', position: 0.25, height: roomHeight * 0.6 },
+                { wall: 'west', position: 0.75, height: roomHeight * 0.6 },
+                { wall: 'north', position: 0.3, height: roomHeight * 0.6 },
+                { wall: 'south', position: 0.7, height: roomHeight * 0.6 }
+            ];
+    
+            dungeonBuilder.buildRoom({
+                width: sz.w,
+                depth: sz.d,
+                height: roomHeight,
+                position: { x: 0, y: 0, z: roomZ },
+                windows: roomWindows,
+                openings: roomOpenings,
+                torches: roomTorches
+            });
+    
+            // Corridor
+            if (i < opts.rooms - 1) {
+                const corridorStartZ = roomZ + sz.d / 2;
+                const corridorEndZ = roomZ + totalSpan - sz.d / 2;
+    
+                dungeonBuilder.buildCorridor({
+                    start: { x: 0, y: 0, z: corridorStartZ },
+                    end: { x: 0, y: 0, z: corridorEndZ },
+                    width: corridorWidth,
+                    height: roomHeight * 0.8
+                });
+    
+                dungeonBuilder.placeTorchAt(
+                    corridorWidth / 2 - 0.5,
+                    roomHeight * 0.45,
+                    (corridorStartZ + corridorEndZ) / 2
+                );
+            }
+    
+            currentZ += totalSpan;
+        }
+    
+        // Light shafts
+        if (opts.lightShafts && dungeonBuilder.windows.length > 0) {
+            dungeonBuilder.createLightShafts(camera);
+        }
+    
+        // Reset player position
+        if (player) {
+            player.position = new BABYLON.Vector3(0, 2, 0);
+            if (playerAggregate) {
+                playerAggregate.body.setLinearVelocity(BABYLON.Vector3.Zero());
+                playerAggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+            }
+        }
+    
+        console.log(`🏰 Dungeon built: ${opts.rooms} rooms, ${dungeonBuilder.windows.length} windows, ${dungeonBuilder.lights.length} lights`);
+    }
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // PLAYER MOVEMENT
+    // ═══════════════════════════════════════════════════════
+    
+    function updatePlayer() {
+        if (!player || !playerAggregate) return;
+    
+        const body = playerAggregate.body;
+        const force = 3500;
+    
+        // Get camera-relative forward/right for intuitive movement
+        const camDir = camera.getTarget().subtract(camera.position).normalize();
+        const forward = new BABYLON.Vector3(camDir.x, 0, camDir.z).normalize();
+        const right = BABYLON.Vector3.Cross(BABYLON.Vector3.Up(), forward).normalize();
+    
+        let moveDir = BABYLON.Vector3.Zero();
+    
+        if (keys['w'] || keys['arrowup'])    moveDir.addInPlace(forward);
+        if (keys['s'] || keys['arrowdown'])  moveDir.subtractInPlace(forward);
+        if (keys['a'] || keys['arrowleft'])  moveDir.addInPlace(right);
+        if (keys['d'] || keys['arrowright']) moveDir.subtractInPlace(right);
+    
+        if (moveDir.length() > 0) {
+            moveDir.normalize();
+            body.applyForce(moveDir.scale(force), player.position);
+        }
+    
+        // Jump
+        if (keys[' ']) {
+            const vel = body.getLinearVelocity();
+            if (Math.abs(vel.y) < 1.5) {
+                body.applyImpulse(new BABYLON.Vector3(0, 250, 0), player.position);
+            }
+            keys[' '] = false; // Single jump
+        }
+    
+        // Damping
+        const vel = body.getLinearVelocity();
+        body.setLinearVelocity(new BABYLON.Vector3(vel.x * 0.92, vel.y, vel.z * 0.92));
+    
+        // Prevent rotation (keep player upright)
+        body.setAngularVelocity(BABYLON.Vector3.Zero());
+    }
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // UI: REBUILD DUNGEON FROM CONFIG PANEL
+    // ═══════════════════════════════════════════════════════
+    
+    function rebuildDungeon() {
+        const rooms = parseInt(document.getElementById('cfgRooms').value);
+        const size = document.getElementById('cfgSize').value;
+        const shafts = document.getElementById('cfgShafts').value === 'on';
+        buildDungeon({ rooms, size, lightShafts: shafts });
+    }
+    
+    // Sync range display
+    document.getElementById('cfgRooms').addEventListener('input', (e) => {
+        document.getElementById('cfgRoomsVal').textContent = e.target.value;
+    });
+    
+    
+    // ═══════════════════════════════════════════════════════
+    // BOOT
+    // ═══════════════════════════════════════════════════════
+    
+    boot().catch(err => {
+        console.error('Boot failed:', err);
+        setLoad(0, 'Error: ' + err.message);
+    });
+    </script>
+</body>
+</html>

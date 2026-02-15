@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level Template v2.0</title>
+    <style>
+        /* === CORE STYLING === */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+        }
+
+        /* === GAME CONTAINER === */
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* === HUD OVERLAY === */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+        }
+
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+
+        #trick {
+            font-size: 28px;
+            color: #00FF00;
+            margin-bottom: 10px;
+            min-height: 35px;
+        }
+
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+
+        #kills {
+            font-size: 20px;
+            color: #FF0000;
+            margin-top: 5px;
+        }
+
+        /* === SPEECH BUBBLE === */
+        #speechBubble {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            border: 4px solid #000;
+            border-radius: 20px;
+            padding: 25px 30px;
+            max-width: 400px;
+            display: none;
+            z-index: 150;
+            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        #speechBubble.active {
+            display: block;
+            animation: bubblePop 0.1s ease-out;
+        }
+
+        @keyframes bubblePop {
+            0% { transform: translateY(-50%) scale(0); }
+            60% { transform: translateY(-50%) scale(1.1); }
+            100% { transform: translateY(-50%) scale(1); }
+        }
+
+        #speakerName {
+            font-size: 24px;
+            color: #000;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: none;
+        }
+
+        #speechText {
+            font-size: 18px;
+            color: #000;
+            line-height: 1.5;
+            font-family: Impact, sans-serif;
+            text-shadow: none;
+            min-height: 60px;
+        }
+
+        #dialoguePrompt {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+            text-align: right;
+            font-family: Arial, sans-serif;
+        }
+
+        /* === INTERACT PROMPT === */
+        #interactPrompt {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-size: 24px;
+            text-shadow: 3px 3px 0 #000;
+            display: none;
+            z-index: 100;
+            animation: bounce 0.5s infinite alternate;
+        }
+
+        @keyframes bounce {
+            0% { transform: translateX(-50%) translateY(0); }
+            100% { transform: translateX(-50%) translateY(-10px); }
+        }
+
+        /* === OBJECTIVES PANEL === */
+        #objectives {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            min-width: 200px;
+            z-index: 100;
+        }
+
+        .objectives-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+
+        .objective-item {
+            margin-bottom: 8px;
+        }
+
+        /* === CONTROLS === */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* === BOSS HEALTH BAR === */
+        #bossHealthBar {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            display: none;
+            z-index: 100;
+        }
+
+        #bossHealthBar.active {
+            display: block;
+        }
+
+        .boss-label {
+            text-align: center;
+            font-size: 24px;
+            color: #FF0000;
+            text-shadow: 2px 2px 0 #000;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .health-bar-container {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #FF0000;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .health-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #FF0000, #FF6B6B);
+            transition: width 0.3s;
+        }
+
+        /* === TITLE SCREEN === */
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+
+        #title h1 {
+            font-size: 72px;
+            color: #FF0000;
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; }
+        }
+
+        /* === LOADING === */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            z-index: 300;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading indicator -->
+    <div id="loading">▶ INITIALIZING APPLESAUCE v2.0...</div>
+
+    <!-- Title screen -->
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level Template v2.0</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #FF0000;">⚠️ MAXIMUM GORE MODE ⚠️</p>
+    </div>
+
+    <!-- Speech bubble for dialogues -->
+    <div id="speechBubble">
+        <div id="speakerName">SPEAKER</div>
+        <div id="speechText">Dialogue text goes here...</div>
+        <div id="dialoguePrompt">[Press F to continue...]</div>
+    </div>
+
+    <!-- Game container -->
+    <div id="game-container"></div>
+
+    <!-- HUD -->
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="kills">KILLS: 0</div>
+    </div>
+
+    <!-- Objectives panel -->
+    <div id="objectives">
+        <div class="objectives-title">OBJECTIVES:</div>
+        <div class="objective-item" id="obj1">☐ Roadkill 10 People (0/10)</div>
+        <div class="objective-item" id="obj2">☐ Land 5 Kickflips (0/5)</div>
+        <div class="objective-item" id="obj3">☐ Defeat the Boss</div>
+    </div>
+
+    <!-- Boss health bar -->
+    <div id="bossHealthBar">
+        <div class="boss-label">BOSS</div>
+        <div class="health-bar-container">
+            <div class="health-bar-fill" id="bossHealth" style="width: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- Interact prompt -->
+    <div id="interactPrompt">Press F to interact</div>
+
+    <!-- Controls -->
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        Z - 360 Flip | B - Impossible<br>
+        F - Talk to NPCs<br>
+        Grind rails automatically<br>
+        Click to lock mouse
+    </div>
+
+    <!-- Three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- APPLESAUCE Engine v2.0 -->
+    <script src="../engine/applesauce-core-33.js"></script>
+
+    <script>
+        // ============================================================
+        // LEVEL DATA CONFIGURATION
+        // ============================================================
+        
+        const LEVEL_DATA = {
+            // Level metadata
+            name: "Level Template v2.0",
+            description: "Template with dialogue, NPCs, and enhanced features",
+            
+            // === SPAWN POINT ===
+            spawnPoint: {
+                x: 0,
+                z: 10
+            },
+            
+            // === TERRAIN ===
+            terrain: {
+                type: "hill",
+                hillLength: 250,
+                hillWidth: 200,
+                hillHeight: 60
+            },
+            
+            // === GROUND PLANES ===
+            ground: [
+                {
+                    type: "grass",
+                    width: 150,
+                    depth: 100,
+                    position: { x: 0, y: 0.01, z: 320 }
+                },
+                {
+                    type: "concrete",
+                    width: 80,
+                    depth: 80,
+                    position: { x: 0, y: 0.02, z: 320 }
+                }
+            ],
+            
+            // === OBSTACLES ===
+            obstacles: [
+                // Downhill rails
+                {
+                    type: "longRail",
+                    xOffset: -8,
+                    zStart: 50,
+                    zEnd: 250,
+                    heightStart: 48,
+                    heightEnd: 2
+                },
+                {
+                    type: "longRail",
+                    xOffset: 8,
+                    zStart: 50,
+                    zEnd: 250,
+                    heightStart: 48,
+                    heightEnd: 2
+                },
+                
+                // Quarter pipes
+                {
+                    type: "quarterPipe",
+                    x: -30,
+                    z: 320,
+                    rotation: 0,
+                    width: 10
+                },
+                {
+                    type: "quarterPipe",
+                    x: 30,
+                    z: 320,
+                    rotation: Math.PI,
+                    width: 10
+                },
+                
+                // Fun box
+                {
+                    type: "funbox",
+                    x: 0,
+                    z: 290
+                },
+                
+                // Ledges
+                {
+                    type: "ledge",
+                    x: -20,
+                    z: 340,
+                    length: 12,
+                    height: 1.2
+                },
+                {
+                    type: "ledge",
+                    x: 20,
+                    z: 340,
+                    length: 12,
+                    height: 1.2
+                },
+                
+                // Stairs
+                {
+                    type: "stairs",
+                    x: 0,
+                    z: 360,
+                    rotation: 0
+                },
+                
+                // Flat rails
+                {
+                    type: "flatRail",
+                    x: -15,
+                    z: 310,
+                    length: 15,
+                    rotation: Math.PI / 4
+                },
+                {
+                    type: "flatRail",
+                    x: 15,
+                    z: 310,
+                    length: 15,
+                    rotation: -Math.PI / 4
+                }
+            ],
+            
+            // === PROPS ===
+            props: [
+                // Background buildings
+                {
+                    type: "building",
+                    width: 40,
+                    height: 60,
+                    depth: 40,
+                    color: "0x2a2a2a",
+                    position: { x: -80, y: 30, z: 380 }
+                },
+                {
+                    type: "building",
+                    width: 35,
+                    height: 80,
+                    depth: 35,
+                    color: "0x1a1a1a",
+                    position: { x: 80, y: 40, z: 390 }
+                },
+                
+                // Signs
+                {
+                    type: "sign",
+                    width: 15,
+                    height: 8,
+                    color: "0xFF0000",
+                    position: { x: -50, y: 6, z: 300 }
+                }
+            ],
+            
+            // === NPCs WITH DIALOGUE ===
+            // NEW FEATURE: Add NPCs with dialogue trees!
+            npcs: [
+                {
+                    name: "Skater Dude",
+                    x: -10,
+                    z: 280,
+                    color: 0x00FF00,
+                    dialogue: [
+                        {
+                            speaker: "Skater Dude",
+                            text: "Yo! Welcome to the park, dude!"
+                        },
+                        {
+                            speaker: "Skater Dude",
+                            text: "You gotta hit those downhill rails if you wanna get gnarly!"
+                        },
+                        {
+                            speaker: "Skater Dude",
+                            text: "Watch out for the boss though... he's HUGE."
+                        }
+                    ]
+                },
+                {
+                    name: "Mysterious Figure",
+                    x: 10,
+                    z: 285,
+                    color: 0x8B00FF,
+                    dialogue: [
+                        {
+                            speaker: "Mysterious Figure",
+                            text: "You seek the ultimate grind?"
+                        },
+                        {
+                            speaker: "Mysterious Figure",
+                            text: "Master the kickflip, young skater..."
+                        },
+                        {
+                            speaker: "Mysterious Figure",
+                            text: "And the boss shall fall before you."
+                        }
+                    ]
+                },
+                {
+                    name: "Old Timer",
+                    x: 0,
+                    z: 370,
+                    color: 0xFFAA00,
+                    dialogue: [
+                        {
+                            speaker: "Old Timer",
+                            text: "Back in my day, we didn't have all these fancy tricks..."
+                        },
+                        {
+                            speaker: "Old Timer",
+                            text: "We just went FAST and hoped for the best!"
+                        },
+                        {
+                            speaker: "Old Timer",
+                            text: "But you kids are alright. Show that boss what's up!"
+                        }
+                    ]
+                }
+            ],
+            
+            // === ENEMIES ===
+            enemies: {
+                count: 15,
+                spawnArea: {
+                    xMin: -40,
+                    xMax: 40,
+                    zMin: 280,
+                    zMax: 380
+                }
+            },
+            
+            // === OBJECTIVES ===
+            objectives: {
+                roadkill: {
+                    target: 10
+                },
+                kickflips: {
+                    target: 5
+                },
+                boss: {
+                    spawns: true
+                }
+            }
+        };
+
+        // ============================================================
+        // ENGINE INITIALIZATION
+        // ============================================================
+        
+        let game;
+        let hudUpdateInterval;
+
+        window.addEventListener('load', () => {
+            console.log('▶ Starting APPLESAUCE v2.0...');
+            
+            // Hide title after delay
+            setTimeout(() => {
+                const title = document.getElementById('title');
+                title.classList.add('fade-out');
+                setTimeout(() => title.style.display = 'none', 2000);
+            }, 3000);
+            
+            // Hide loading
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+            }, 500);
+            
+            // Create game instance
+            game = new ApplesauceEngine('game-container');
+            
+            // Load level
+            game.loadLevelFromData(LEVEL_DATA);
+            
+            // Start game loop
+            game.start();
+            
+            // Start HUD updates
+            startHUDUpdates();
+            
+            console.log('✓ APPLESAUCE v2.0 initialized!');
+        });
+
+        // ============================================================
+        // HUD UPDATE SYSTEM
+        // ============================================================
+        
+        function startHUDUpdates() {
+            hudUpdateInterval = setInterval(updateHUD, 100);
+        }
+
+        function updateHUD() {
+            if (!game || !game.state) return;
+            
+            const state = game.state;
+            
+            // Update stats
+            document.getElementById('score').textContent = `SCORE: ${Math.floor(state.score)}`;
+            document.getElementById('combo').textContent = `COMBO: ${state.combo}x`;
+            document.getElementById('trick').textContent = state.currentTrick;
+            document.getElementById('kills').textContent = `KILLS: ${state.kills}`;
+            
+            // Speed with lethal indicator
+            const speedDisplay = Math.floor(Math.abs(state.speed) * 100);
+            const speedElement = document.getElementById('speed');
+            if (speedDisplay >= 20) {
+                speedElement.style.color = '#FF0000';
+                speedElement.textContent = `SPEED: ${speedDisplay} [LETHAL]`;
+            } else {
+                speedElement.style.color = '#00FFFF';
+                speedElement.textContent = `SPEED: ${speedDisplay}`;
+            }
+            
+            // Update objectives
+            updateObjective('roadkill', state.objectives.roadkill, 'obj1', 'Roadkill 10 People');
+            updateObjective('kickflips', state.objectives.kickflips, 'obj2', 'Land 5 Kickflips');
+            
+            // Boss objective
+            const obj3 = state.objectives.boss;
+            const obj3Element = document.getElementById('obj3');
+            const obj3Text = obj3.complete ? '☑' : '☐';
+            const obj3Color = obj3.complete ? 'color: #00FF00;' : obj3.spawned ? 'color: #FF0000; font-weight: bold;' : '';
+            const obj3Label = obj3.spawned && !obj3.complete ? 'Defeat the Boss [ACTIVE]' : 'Defeat the Boss';
+            obj3Element.innerHTML = `<span style="${obj3Color}">${obj3Text} ${obj3Label}</span>`;
+            
+            // Boss health bar
+            updateBossHealthBar(state);
+            
+            // Interact prompt
+            updateInteractPrompt(state);
+        }
+
+        function updateObjective(type, objData, elementId, label) {
+            const element = document.getElementById(elementId);
+            const checkmark = objData.complete ? '☑' : '☐';
+            const color = objData.complete ? 'color: #00FF00;' : '';
+            element.innerHTML = `<span style="${color}">${checkmark} ${label} (${objData.current}/${objData.target})</span>`;
+        }
+
+        function updateBossHealthBar(state) {
+            const healthBar = document.getElementById('bossHealthBar');
+            const healthFill = document.getElementById('bossHealth');
+            
+            if (state.boss && state.boss.isAlive) {
+                healthBar.classList.add('active');
+                const healthPercent = (state.boss.health / state.boss.maxHealth) * 100;
+                healthFill.style.width = `${healthPercent}%`;
+            } else {
+                healthBar.classList.remove('active');
+            }
+        }
+
+        function updateInteractPrompt(state) {
+            const prompt = document.getElementById('interactPrompt');
+            if (state.nearNPC && !game.dialogueSystem.isActive) {
+                prompt.style.display = 'block';
+                prompt.textContent = `Press F to talk to ${state.nearNPC.name}`;
+            } else {
+                prompt.style.display = 'none';
+            }
+        }
+
+        // ============================================================
+        // CUSTOM EVENT HANDLERS
+        // ============================================================
+        
+        // Level complete check
+        function checkLevelComplete() {
+            if (!game || !game.state) return;
+            
+            const obj = game.state.objectives;
+            if (obj.roadkill.complete && obj.kickflips.complete && obj.boss.complete) {
+                console.log('✓ LEVEL COMPLETE!');
+                // Add your level complete logic here
+                // Could show victory screen, load next level, etc.
+            }
+        }
+        
+        setInterval(checkLevelComplete, 1000);
+
+        // Debug info (optional)
+        if (false) { // Set to true for debug mode
+            setInterval(() => {
+                if (game && game.player) {
+                    console.log({
+                        position: game.player.position,
+                        speed: game.state.speed,
+                        combo: game.state.combo,
+                        kills: game.state.kills
+                    });
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Staircase Level</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            background: #000;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ff1493;
+            text-shadow: 0 0 10px #ff1493;
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border: 2px solid #ff1493;
+            border-radius: 5px;
+        }
+        
+        #ui h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        #ui .stat {
+            margin: 5px 0;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+        }
+        
+        #ragdollBanner {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #ragdollBanner .subtext {
+            font-size: 16px;
+            color: #ff6666;
+            text-shadow: 0 0 10px #ff6666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="ui">
+        <h2>🛹 APPLESAUCE</h2>
+        <div class="stat">Speed: <span id="speed">0.0</span> m/s</div>
+        <div class="stat">Position: <span id="position">0, 0, 0</span></div>
+        <div class="stat">FPS: <span id="fps">0</span></div>
+    </div>
+    
+    <div id="instructions">
+        <strong>CONTROLS:</strong><br>
+        W/↑ - Forward | S/↓ - Backward<br>
+        A/← - Turn Left | D/→ - Turn Right<br>
+        SPACE - Jump | F - Kickflip<br>
+        Q/E - Lean Left/Right<br>
+        R - Respawn (after bail)
+    </div>
+    
+    <div id="ragdollBanner">
+        💀 BAILED! 💀
+        <div class="subtext">Press R to respawn</div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <script type="module">
+        // Import the skater module
+        import { BabylonSkater } from './engine/skater/babylon-skater-rag.js';
+        
+        const canvas = document.getElementById('renderCanvas');
+        const engine = new BABYLON.Engine(canvas, true, {
+            preserveDrawingBuffer: true,
+            stencil: true
+        });
+        
+        let scene;
+        let skater;
+        let camera;
+        let keys = {};
+        
+        // Spawn position for respawning after ragdoll
+        const SPAWN = { x: 0, y: 5, z: -5 };
+        
+        // Ragdoll UI
+        const ragdollBanner = document.getElementById('ragdollBanner');
+        
+        // Initialize Havok Physics
+        const havokInstance = await HavokPhysics();
+        const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+        
+        // Create scene
+        scene = new BABYLON.Scene(engine);
+        scene.enablePhysics(new BABYLON.Vector3(0, -20, 0), havokPlugin);
+        scene.clearColor = new BABYLON.Color3(0.1, 0.05, 0.15);
+        
+        // Fog for depth
+        scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+        scene.fogDensity = 0.01;
+        scene.fogColor = new BABYLON.Color3(0.1, 0.05, 0.15);
+        
+        // Lighting
+        const hemiLight = new BABYLON.HemisphericLight(
+            "hemiLight",
+            new BABYLON.Vector3(0, 1, 0),
+            scene
+        );
+        hemiLight.intensity = 0.6;
+        hemiLight.diffuse = new BABYLON.Color3(0.8, 0.9, 1);
+        hemiLight.groundColor = new BABYLON.Color3(0.3, 0.2, 0.4);
+        
+        const dirLight = new BABYLON.DirectionalLight(
+            "dirLight",
+            new BABYLON.Vector3(-1, -2, -1),
+            scene
+        );
+        dirLight.intensity = 0.8;
+        dirLight.position = new BABYLON.Vector3(20, 40, 20);
+        
+        // Shadows
+        const shadowGenerator = new BABYLON.ShadowGenerator(2048, dirLight);
+        shadowGenerator.useBlurExponentialShadowMap = true;
+        shadowGenerator.blurScale = 2;
+        shadowGenerator.setDarkness(0.4);
+        
+        // Create materials
+        const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+        groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.25);
+        groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        
+        const stairMat = new BABYLON.StandardMaterial("stairMat", scene);
+        stairMat.diffuseColor = new BABYLON.Color3(0.3, 0.25, 0.35);
+        stairMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+        
+        // TOP PLATFORM (flat area)
+        const topPlatform = BABYLON.MeshBuilder.CreateBox(
+            "topPlatform",
+            { width: 30, height: 2, depth: 20 },
+            scene
+        );
+        topPlatform.position = new BABYLON.Vector3(0, -1, 0);
+        topPlatform.material = groundMat;
+        topPlatform.receiveShadows = true;
+        
+        new BABYLON.PhysicsAggregate(
+            topPlatform,
+            BABYLON.PhysicsShapeType.BOX,
+            { mass: 0, friction: 0.5 },
+            scene
+        );
+        
+        // STAIRCASE (10 steps)
+        const stepCount = 100;
+        const stepWidth = 30;
+        const stepHeight = 1;
+        const stepDepth = 2;
+        
+        for (let i = 0; i < stepCount; i++) {
+            const step = BABYLON.MeshBuilder.CreateBox(
+                `step${i}`,
+                { width: stepWidth, height: stepHeight, depth: stepDepth },
+                scene
+            );
+            
+            step.position = new BABYLON.Vector3(
+                0,
+                -stepHeight * i - 1.5,
+                10 + (stepDepth * i)
+            );
+            
+            step.material = stairMat;
+            step.receiveShadows = true;
+            
+            new BABYLON.PhysicsAggregate(
+                step,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 0, friction: 0.6 },
+                scene
+            );
+            
+            shadowGenerator.addShadowCaster(step);
+        }
+        
+        // BOTTOM PLATFORM (flat area at bottom of stairs)
+        const bottomPlatform = BABYLON.MeshBuilder.CreateBox(
+            "bottomPlatform",
+            { width: 350, height: 2, depth: 350 },
+            scene
+        );
+        bottomPlatform.position = new BABYLON.Vector3(
+            30,
+            -stepHeight * stepCount - 1.5,
+            10 + (stepDepth * stepCount) + 15
+        );
+        bottomPlatform.material = groundMat;
+        bottomPlatform.receiveShadows = true;
+        
+        new BABYLON.PhysicsAggregate(
+            bottomPlatform,
+            BABYLON.PhysicsShapeType.BOX,
+            { mass: 0, friction: 0.5 },
+            scene
+        );
+
+        // EXTENDED BOTTOM HALLWAY 
+        const bottomHallway = BABYLON.MeshBuilder.CreateBox(
+            "bottomHallway",
+            { width: 60, height: 2, depth: 30 },
+            scene
+        );
+        bottomPlatform.position = new BABYLON.Vector3(
+            30,
+            -stepHeight * stepCount - 1.5,
+            10 + (stepDepth * stepCount) + -15
+        );
+        bottomHallway.material = groundMat;
+        bottomHallway.receiveShadows = true;
+        
+        new BABYLON.PhysicsAggregate(
+            bottomHallway,
+            BABYLON.PhysicsShapeType.BOX,
+            { mass: 0, friction: 0.5 },
+            scene
+        );
+        
+        // SIDE WALLS for visual bounds
+        [-16, 16].forEach(xPos => {
+            const wall = BABYLON.MeshBuilder.CreateBox(
+                `wall${xPos}`,
+                { width: 1, height: 65, depth: 80 },
+                scene
+            );
+            wall.position = new BABYLON.Vector3(xPos, 5, 20);
+            wall.material = stairMat;
+            wall.receiveShadows = true;
+            
+            new BABYLON.PhysicsAggregate(
+                wall,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 0, friction: 0.3 },
+                scene
+            );
+        });
+        
+        // Add some decorative boxes
+        for (let i = 0; i < 5; i++) {
+            const box = BABYLON.MeshBuilder.CreateBox(
+                `decoBox${i}`,
+                { size: 2 + Math.random() * 2 },
+                scene
+            );
+            box.position = new BABYLON.Vector3(
+                -10 + Math.random() * 20,
+                3,
+                -5 + Math.random() * 10
+            );
+            box.rotation.y = Math.random() * Math.PI;
+            
+            const boxMat = new BABYLON.StandardMaterial(`boxMat${i}`, scene);
+            boxMat.diffuseColor = new BABYLON.Color3(
+                0.5 + Math.random() * 0.5,
+                0.1 + Math.random() * 0.3,
+                0.5 + Math.random() * 0.5
+            );
+            box.material = boxMat;
+            box.receiveShadows = true;
+            
+            new BABYLON.PhysicsAggregate(
+                box,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 5, friction: 0.5, restitution: 0.3 },
+                scene
+            );
+            
+            shadowGenerator.addShadowCaster(box);
+        }
+        
+        // SPAWN SKATER (set debug to true to see ground detection raycast)
+        const skaterModule = new BabylonSkater(scene, false);
+        const skaterData = skaterModule.spawn({
+            x: 0,
+            y: 5,
+            z: -5,
+            deckColor: new BABYLON.Color3(1, 0.08, 0.58),
+            bodyColor: new BABYLON.Color3(0.1, 0.1, 0.1),
+            skinColor: new BABYLON.Color3(1, 0.86, 0.67)
+        });
+        
+        skater = skaterModule;
+        
+        // Add skater to shadow casters
+        shadowGenerator.addShadowCaster(skaterData.parts.deck);
+        shadowGenerator.addShadowCaster(skaterData.parts.body);
+        shadowGenerator.addShadowCaster(skaterData.parts.head);
+        
+        // CAMERA - Follow camera
+        camera = new BABYLON.FollowCamera(
+            "followCam",
+            new BABYLON.Vector3(0, 10, -10),
+            scene
+        );
+        camera.radius = 12;
+        camera.heightOffset = 6;
+        camera.rotationOffset = 180;
+        camera.cameraAcceleration = 0.05;
+        camera.maxCameraSpeed = 10;
+        camera.lockedTarget = skaterData.collider;
+        scene.activeCamera = camera;
+        camera.attachControl(canvas, true);
+        
+        // Keyboard input
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            // Respawn from ragdoll
+            if (e.key.toLowerCase() === 'r' && skater.isRagdoll()) {
+                skater.disableRagdoll(SPAWN.x, SPAWN.y, SPAWN.z);
+                ragdollBanner.style.display = 'none';
+                return;
+            }
+            
+            // Block all other actions during ragdoll
+            if (skater.isRagdoll()) return;
+            
+            // Jump
+            if (e.code === 'Space') {
+                skater.jump();
+            }
+            
+            // Kickflip
+            if (e.key.toLowerCase() === 'f') {
+                skater.doTrick('kickflip');
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        // UI updates
+        const speedEl = document.getElementById('speed');
+        const posEl = document.getElementById('position');
+        const fpsEl = document.getElementById('fps');
+        
+        // Game loop
+        scene.onBeforeRenderObservable.add(() => {
+            // Update skater (skips internally when ragdolled)
+            skater.update();
+            
+            // Check for bail → trigger ragdoll
+            if (skater.didBail() && !skater.isRagdoll()) {
+                skater.enableRagdoll();
+                ragdollBanner.style.display = 'block';
+            }
+            
+            // Block all movement input during ragdoll
+            if (!skater.isRagdoll()) {
+                // Handle continuous input
+                if (keys['w'] || keys['arrowup']) {
+                    skater.accelerateForward();
+                }
+                if (keys['s'] || keys['arrowdown']) {
+                    skater.accelerateBackward();
+                }
+                if (keys['a'] || keys['arrowleft']) {
+                    skater.turnLeft();
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    skater.turnRight();
+                }
+                if (keys['q']) {
+                    skater.leanLeft();
+                } else if (keys['e']) {
+                    skater.leanRight();
+                } else {
+                    skater.resetLean();
+                }
+            }
+            
+            
+            // Update UI
+            const speed = skater.getSpeed();
+            speedEl.textContent = speed.toFixed(1);
+            
+            const pos = skater.getPosition();
+            posEl.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+            
+            fpsEl.textContent = engine.getFps().toFixed(0);
+        });
+        
+        // Render loop
+        engine.runRenderLoop(() => {
+            scene.render();
+        });
+        
+        // Handle resize
+        window.addEventListener('resize', () => {
+            engine.resize();
+        });
+        
+        console.log('🛹 APPLESAUCE Staircase Level loaded!');
+        console.log('Scene ready, skater spawned, physics active');
+    </script>
+</body>
+</html>

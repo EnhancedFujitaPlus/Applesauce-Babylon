@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level 19</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        /* HUD Container */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+        }
+        
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+        
+        #trick {
+            font-size: 28px;
+            color: #00FF00;
+            margin-bottom: 10px;
+            min-height: 35px;
+        }
+        
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+        
+        #kills {
+            font-size: 20px;
+            color: #FF0000;
+            margin-top: 5px;
+        }
+        
+        /* Controls Display */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            z-index: 100;
+        }
+        
+        /* Objectives Panel */
+        #objectives {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            min-width: 200px;
+            z-index: 100;
+        }
+        
+        /* Title Screen */
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #title h1 {
+            font-size: 72px;
+            color: #FF0000;
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+        
+        /* Speech Bubble */
+        #speechBubble {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            border: 4px solid #000;
+            border-radius: 20px;
+            padding: 25px 30px;
+            max-width: 400px;
+            display: none;
+            z-index: 150;
+            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+        }
+        
+        #speechBubble.active {
+            display: block;
+            animation: bubblePop 0.3s ease-out;
+        }
+        
+        @keyframes bubblePop {
+            0% { transform: translateY(-50%) scale(0); }
+            60% { transform: translateY(-50%) scale(1.1); }
+            100% { transform: translateY(-50%) scale(1); }
+        }
+        
+        #speakerName {
+            font-size: 24px;
+            color: #000;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: none;
+        }
+        
+        #speechText {
+            font-size: 18px;
+            color: #000;
+            line-height: 1.5;
+            font-family: Impact, sans-serif;
+            text-shadow: none;
+            min-height: 60px;
+        }
+        
+        #dialoguePrompt {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+            text-align: right;
+            font-family: Arial, sans-serif;
+        }
+        
+        /* Interact Prompt */
+        #interactPrompt {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-size: 24px;
+            text-shadow: 3px 3px 0 #000;
+            display: none;
+            z-index: 100;
+            animation: bounce 0.5s infinite alternate;
+        }
+        
+        @keyframes bounce {
+            0% { transform: translateX(-50%) translateY(0); }
+            100% { transform: translateX(-50%) translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Title Screen -->
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level 18: Re-Regis-ter</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #FF0000;">⚠️ MAXIMUM GORE MODE ⚠️</p>
+    </div>
+
+    <!-- Speech Bubble -->
+    <div id="speechBubble">
+        <div id="speakerName">SPEAKER</div>
+        <div id="speechText">Dialogue text goes here...</div>
+        <div id="dialoguePrompt">[Press F to continue...]</div>
+    </div>
+    
+    <!-- HUD -->
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="kills">KILLS: 0</div>
+    </div>
+    
+    <!-- Objectives Panel -->
+    <div id="objectives"></div>
+    
+    <!-- Controls -->
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        B - Impossible | Z - 360 Flip<br>
+        F - Interact / Advance Dialogue<br>
+        ESC - Pause<br>
+        Grind rails automatically<br>
+        Hit enemies at speed = ROADKILL
+    </div>
+    
+    <!-- Interact Prompt -->
+    <div id="interactPrompt">Press F to interact</div>
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+        }
+    }
+    </script>
+      <!-- Main game loader as ES6 module -->
+    <script type="module">
+        // Import Three.js
+        import * as THREE from 'three';
+        
+        // Make THREE available globally for modules that need it
+        window.THREE = THREE;
+        
+        // Import your modules
+        import { ApplesauceCore } from './engine/applesauce-core_copy_2.js';
+        import { ApplesauceMaterials } from './engine/materials/applesauce-materials.js';
+        import { ApplesauceGore } from './engine/gore/applesauce-gore.js';
+        import { ApplesauceDialogue } from './engine/dialogue/applesauce-dialogue.js';
+        import { ApplesauceEnemies } from './engine/enemies/applesauce-enemies.js';
+        import { ApplesauceObjectives } from './engine/objectives/applesauce-objectives.js';
+        import { ApplesauceLevelBuilder } from './engine/materials/applesauce-level-builder.js';
+
+        
+        // Import level config
+        import { Level19Config, initLevel19 } from './configs/level-19-config.js';
+
+        // Create game engine
+        const game = new ApplesauceCore({
+            goreEnabled: Level19Config.goreEnabled,
+            maxSpeed: 1.2,
+            hillHeight: Level19Config.terrain.hillHeight,
+            hillLength: Level19Config.terrain.hillLength
+        });
+        
+        // Register modules
+        game.registerModule('gore', new ApplesauceGore(game));
+        game.registerModule('dialogue', new ApplesauceDialogue(game));
+        game.registerModule('enemies', new ApplesauceEnemies(game));
+        game.registerModule('objectives', new ApplesauceObjectives(game));
+        
+        // Initialize level
+        initLevel19(game);
+        
+        // Fade out title screen after 3 seconds
+        setTimeout(() => {
+            const title = document.getElementById('title');
+            title.classList.add('fade-out');
+            setTimeout(() => {
+                title.style.display = 'none';
+            }, 2000);
+        }, 3000);
+        
+        // Start game
+        game.start();
+        
+        // Global access for debugging
+        window.game = game;
+        console.log('🎮 Game ready! Access via window.game');
+    </script>
+</body>
+</html>

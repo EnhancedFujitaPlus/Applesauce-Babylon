@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level 20: St. Clair's Defeat</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            background: #000;
+        }
+        
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            font-size: 24px;
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #ff6b6b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div id="loading">
+        <div>LOADING LEVEL 20</div>
+        <div>ST. CLAIR'S DEFEAT</div>
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <!-- Import Map for Three.js r182 -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "engine/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <!-- Main Game Initialization (ES6 Module) -->
+    <script type="module">
+        import { ApplesauceCore } from './engine/applesauce-core-33.js';
+        import { Level20Config } from './configs/level20-config.js';
+        
+        // Hide loading screen when game starts
+        function hideLoading() {
+            const loader = document.getElementById('loading');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => loader.remove(), 500);
+            }
+        }
+        
+        // Initialize game
+        async function initGame() {
+            try {
+                console.log('🎮 Initializing APPLESAUCE Level 20...');
+                
+                // Create game instance with configuration
+                const game = new ApplesauceCore({
+                    goreEnabled: true,           // Gore system active
+                    dialogueEnabled: true,       // Dialogue for battle context
+                    enemiesEnabled: true,        // Enemy soldiers
+                    objectivesEnabled: true,     // Mission objectives
+                    materialsEnabled: true,      // Custom materials
+                    musicEnabled: true,          // Battle music
+                    gearEnabled: true,           // Weapons/gear
+                    weatherEnabled: true,        // Atmospheric effects
+                    weaponsEnabled: true,        // Combat system
+                    combatEnabled: true,         // Full combat
+                    pauseEnabled: true,          // Pause functionality
+                    skyboxEnabled: true,         // Custom sky
+                    levelBuilderEnabled: true    // Level building tools
+                });
+                
+                // Load the level
+                await game.loadLevel(Level20Config);
+                
+                // Start game
+                game.start();
+                
+                hideLoading();
+                
+                console.log('✅ Level 20 loaded successfully!');
+            } catch (error) {
+                console.error('❌ Failed to initialize game:', error);
+                document.getElementById('loading').innerHTML = 
+                    '<div style="color: #ff6b6b;">ERROR LOADING LEVEL<br>' + 
+                    error.message + '</div>';
+            }
+        }
+        
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGame);
+        } else {
+            initGame();
+        }
+    </script>
+</body>
+</html>

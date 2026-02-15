@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - STADIUM LEVEL</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            display: block;
+        }
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ff0000;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px #000;
+            z-index: 100;
+        }
+        #crowd-meter {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            font-size: 18px;
+            z-index: 100;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 14px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <div>KILLS: <span id="kills">0</span></div>
+        <div>BLOOD: <span id="blood">0</span>L</div>
+        <div>HOME: <span id="home-score">0</span> | AWAY: <span id="away-score">0</span></div>
+    </div>
+    
+    <div id="crowd-meter">
+        <div>CROWD HYPE: <span id="crowd-mood">50</span>%</div>
+        <div id="crowd-bar" style="width: 200px; height: 20px; background: #333; border: 2px solid #fff;">
+            <div id="crowd-fill" style="width: 50%; height: 100%; background: linear-gradient(90deg, #ff0000, #ff6600);"></div>
+        </div>
+    </div>
+    
+    <div id="instructions">
+        WASD: Move | SPACE: Jump | SHIFT: Sprint | W: Stadium Wave
+    </div>
+
+    <!-- Three.js r182 -->
+    <script src="./engine/three.min.js"></script>
+    
+    <!-- Load modules in order -->
+    <script src="./engine/stadium/stadium-rink.js"></script>
+    <script src="./engine/stadium/stadium-stands.js"></script>
+    <script src="./engine/stadium/stadium-crowd.js"></script>
+    <script src="./engine/stadium/stadium-lighting.js"></script>
+    <script src="./engine/stadium/stadium-level.js"></script>
+    
+    <script>
+        // =================================
+        // MAIN GAME INITIALIZATION
+        // =================================
+        
+        class StadiumGame {
+            constructor() {
+                this.init();
+            }
+            
+            init() {
+                // Scene setup
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.Fog(0x000000, 50, 150);
+                
+                // Camera
+                this.camera = new THREE.PerspectiveCamera(
+                    75,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000
+                );
+                this.camera.position.set(0, 15, 30);
+                
+                // Renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(this.renderer.domElement);
+                
+                // Clock
+                this.clock = new THREE.Clock();
+                
+                // Player setup
+                this.setupPlayer();
+                
+                // Load stadium level
+                this.stadium = new StadiumLevel(this);
+                
+                // Input
+                this.keys = {};
+                this.setupInput();
+                
+                // Stats
+                this.stats = {
+                    kills: 0,
+                    bloodSpilled: 0
+                };
+                
+                // Start game loop
+                this.animate();
+                
+                console.log('🏟️ STADIUM LOADED - LET THE CARNAGE BEGIN!');
+            }
+            
+            setupPlayer() {
+                // Simple player for now (replace with your skater module)
+
+
+                this.player = new THREE.Group();
+        
+                const deckGeo = new THREE.BoxGeometry(0.8, 0.1, 2.5);
+                const deckMat = new THREE.MeshLambertMaterial({ color: 0xFF1493 });
+                const deck = new THREE.Mesh(deckGeo, deckMat);
+                deck.position.y = 0.3;
+                this.player.add(deck);
+                
+                for (let pos of [[-0.3, 0.15, -0.8], [0.3, 0.15, -0.8], [-0.3, 0.15, 0.8], [0.3, 0.15, 0.8]]) {
+                    const wheelGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 12);
+                    const wheelMat = new THREE.MeshLambertMaterial({ color: 0x000000 });
+                    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                    wheel.position.set(...pos);
+                    wheel.rotation.z = Math.PI / 2;
+                    this.player.add(wheel);
+                }
+                
+                const bodyGeo = new THREE.BoxGeometry(0.6, 1.2, 0.4);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+                const body = new THREE.Mesh(bodyGeo, bodyMat);
+                body.position.set(0, 1.2, -0.2);
+                this.player.add(body);
+                
+                const headGeo = new THREE.SphereGeometry(0.3, 8, 8);
+                const headMat = new THREE.MeshLambertMaterial({ color: 0xFFDBAC });
+                const head = new THREE.Mesh(headGeo, headMat);
+                head.position.set(0, 2.1, -0.2);
+                this.player.add(head);
+                
+                for (let side of [-1, 1]) {
+                    const armGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+                    const arm = new THREE.Mesh(armGeo, bodyMat);
+                    arm.position.set(side * 0.4, 1.2, -0.2);
+                    this.player.add(arm);
+                }
+
+                        this.player.castShadow = true;
+                        this.scene.add(this.player);
+
+                
+                // Player physics
+                this.playerVelocity = new THREE.Vector3();
+                this.playerSpeed = 10;
+                this.playerJumpForce = 8;
+                this.onGround = true;
+            }
+
+            
+            setupInput() {
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key.toLowerCase()] = true;
+                    
+                    // Stadium wave trigger
+                    if (e.key.toLowerCase() === 'w' && e.shiftKey) {
+                        this.stadium.startStadiumWave();
+                    }
+                });
+                
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key.toLowerCase()] = false;
+                });
+                
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+            
+            updatePlayer(deltaTime) {
+                const moveSpeed = this.playerSpeed * deltaTime;
+                const moveDir = new THREE.Vector3();
+                
+                // Movement
+                if (this.keys['w']) moveDir.z -= 1;
+                if (this.keys['s']) moveDir.z += 1;
+                if (this.keys['a']) moveDir.x -= 1;
+                if (this.keys['d']) moveDir.x += 1;
+                
+                if (moveDir.length() > 0) {
+                    moveDir.normalize();
+                    this.player.position.x += moveDir.x * moveSpeed;
+                    this.player.position.z += moveDir.z * moveSpeed;
+                }
+                
+                // Jump
+                if (this.keys[' '] && this.onGround) {
+                    this.playerVelocity.y = this.playerJumpForce;
+                    this.onGround = false;
+                }
+                
+                // Gravity
+                if (!this.onGround) {
+                    this.playerVelocity.y -= 20 * deltaTime;
+                    this.player.position.y += this.playerVelocity.y * deltaTime;
+                    
+                    if (this.player.position.y <= 1) {
+                        this.player.position.y = 1;
+                        this.playerVelocity.y = 0;
+                        this.onGround = true;
+                    }
+                }
+                
+                // Camera follow
+                this.camera.position.x = this.player.position.x;
+                this.camera.position.z = this.player.position.z + 15;
+                this.camera.position.y = this.player.position.y + 10;
+                this.camera.lookAt(this.player.position);
+            }
+            
+            updateHUD() {
+                document.getElementById('kills').textContent = this.stats.kills;
+                document.getElementById('blood').textContent = this.stats.bloodSpilled.toFixed(1);
+                document.getElementById('home-score').textContent = this.stadium.homeTeamScore;
+                document.getElementById('away-score').textContent = this.stadium.awayTeamScore;
+                
+                // Crowd mood
+                const moodPercent = Math.floor(this.stadium.crowd.crowdMood * 100);
+                document.getElementById('crowd-mood').textContent = moodPercent;
+                document.getElementById('crowd-fill').style.width = moodPercent + '%';
+            }
+            
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                const deltaTime = this.clock.getDelta();
+                const gameTime = this.clock.getElapsedTime();
+                
+                // Update player
+                this.updatePlayer(deltaTime);
+                
+                // Update stadium (crowd, scoreboard, etc.)
+                this.stadium.update(deltaTime, gameTime);
+                
+                // Update HUD
+                this.updateHUD();
+                
+                // Render
+                this.renderer.render(this.scene, this.camera);
+            }
+            
+            // Event handlers (called by combat/gore systems)
+            onEnemyKilled(enemy) {
+                this.stats.kills++;
+                this.stadium.onEnemyKilled(enemy);
+            }
+            
+            onBloodSpill(amount, position) {
+                this.stats.bloodSpilled += amount;
+                this.stadium.onBloodSpill(amount, position);
+            }
+            
+            onPlayerHit(damage, position) {
+                this.stadium.onPlayerHit(damage, position);
+            }
+        }
+        
+        // Start the game!
+        const game = new StadiumGame();
+    </script>
+</body>
+</html>

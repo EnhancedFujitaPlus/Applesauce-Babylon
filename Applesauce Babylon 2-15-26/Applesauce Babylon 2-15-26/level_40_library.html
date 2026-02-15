@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - The Library Level</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0c;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border: 2px solid #ff1593;
+            max-width: 400px;
+            z-index: 100;
+        }
+        
+        #ui h1 {
+            color: #ff1593;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        #ui h2 {
+            color: #fff;
+            font-size: 14px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+        
+        #ui p {
+            font-size: 12px;
+            line-height: 1.6;
+            margin-bottom: 5px;
+        }
+        
+        .key {
+            background: #ff1593;
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 24px;
+            z-index: 200;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #ff1593;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #hideUI {
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: #ff1593;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        #hideUI:hover {
+            background: #ff4db8;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="loading">
+        <div style="color: #ff1593; font-size: 32px; margin-bottom: 10px;">THE LIBRARY</div>
+        <div>Loading procedural textures...</div>
+        <div class="spinner"></div>
+        <div style="font-size: 14px; color: #888; margin-top: 20px;">
+            You have found conflict itself. Something different awakens indifference. Insane graphics dude.<br>
+            What is time to a machine? No need for an MRI, life support, or an indifference. <br>
+            The last time conflict arose was written about it here. Maybe I could find out what happened here before
+            <div style="font-size: 16px; color: #900; margin-right: 40px;">
+                THE OWL
+            </div>
+        </div>
+    </div>
+    
+    <div id="ui">
+        <h1>Level 14: Library</h1>
+        <p style="color: #888; font-style: italic; margin-bottom: 10px;">
+            A procedural cathedral
+        </p>
+        
+        <h2>To-Do List</h2>
+        <p><span class="key">Pick Fight With</span> Owl</p>
+        <p><span class="key">Steal Blood</span> Utilize Corpse</p>
+        <p><span class="key">Configure</span>Bones</p>
+        <p><span class="key">Strategize</span> Waste Management System</p>
+        <p><span class="key">Plant</span> Tom Clancy</p>
+        
+        <h2>To-Do List After Destroying Conflict</h2>
+        <p><span class="key">Set Aside My Feet</span> Watch Teli</p>
+        <p><span class="key">Pet My Dog</span> He watches teli too</p>
+        <p><span class="key">Buy Teli 3</span> Teli 4 comes out next month</p>
+        
+        <h2>To-Do List After Buying Teli 5</h2>
+        <p style="font-size: 11px; color: #aaa;">
+            This library uses Babylon.js procedural textures: Does that mean improper? I don't know
+            <br>• Wood (shelves, floors) - Featured in Teli 6
+            <br>• Marble (pillars) - Teli 7 Marble, Probably made with Teli 5
+            <br>• Brick (walls) - Teli 1 bologna, not even thinking about waste dispose system for the meta-physical destruction of conflict itself
+        </p>
+        
+        <button id="hideUI">Hide UI (H)</button>
+    </div>
+    
+    <!-- Babylon.js -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    
+    <!-- Havok Physics -->
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <!-- Procedural Textures Library -->
+    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+    
+    <!-- Game modules -->
+    <script type="module">
+        import { LibraryLevelController } from './configs/babylon-library-integration.js';
+        
+        // Start the library level
+        async function start() {
+            try {
+                console.log('🎮 Starting APPLESAUCE - The Library Level');
+                
+                const controller = new LibraryLevelController();
+                await controller.init('renderCanvas');
+                
+                // Hide loading screen
+                document.getElementById('loading').classList.add('hidden');
+                
+                // Expose globally
+                window.library = controller;
+                
+                console.log('✅ Library level ready!');
+                console.log('💡 Access via window.library in console');
+                
+            } catch (error) {
+                console.error('❌ Failed to start:', error);
+                document.getElementById('loading').innerHTML = 
+                    `<div style="color: #ff1593;">ERROR</div>
+                     <div style="color: #fff; font-size: 14px; margin-top: 20px;">${error.message}</div>`;
+            }
+        }
+        
+        // UI controls
+        document.getElementById('hideUI').addEventListener('click', () => {
+            document.getElementById('ui').classList.toggle('hidden');
+        });
+        
+        // Toggle UI with H key
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                // Only toggle if not trying to do a trick while jumping
+                if (!e.repeat) {
+                    document.getElementById('ui').classList.toggle('hidden');
+                }
+            }
+        });
+        
+        // Start when ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', start);
+        } else {
+            start();
+        }
+    </script>
+</body>
+</html>

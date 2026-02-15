@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE 3D Level Editor - Enhanced</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #header {
+            background: #000;
+            padding: 10px 20px;
+            border-bottom: 3px solid #FF1493;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        #header h1 {
+            color: #FF1493;
+            font-size: 28px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px #FF1493;
+        }
+        
+        #controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            background: #FF1493;
+            border: none;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+        }
+        
+        .btn:hover {
+            background: #ff0080;
+            box-shadow: 0 0 15px #FF1493;
+        }
+        
+        .btn.secondary {
+            background: #00FFFF;
+            color: #000;
+        }
+        
+        .btn.secondary:hover {
+            background: #00cccc;
+            box-shadow: 0 0 15px #00FFFF;
+        }
+        
+        #main-container {
+            display: flex;
+            height: calc(100vh - 62px);
+        }
+        
+        #viewport {
+            flex: 1;
+            position: relative;
+            background: #000;
+        }
+        
+        #sidebar {
+            width: 380px;
+            background: #2a2a2a;
+            overflow-y: auto;
+            border-left: 2px solid #444;
+        }
+        
+        .panel {
+            padding: 20px;
+            border-bottom: 2px solid #444;
+        }
+        
+        .panel h2 {
+            color: #FF1493;
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+        
+        .object-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .object-btn {
+            padding: 15px;
+            background: #444;
+            border: 2px solid #666;
+            color: #fff;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        
+        .object-btn:hover {
+            background: #555;
+            border-color: #FF1493;
+            transform: scale(1.05);
+        }
+        
+        .object-btn.active {
+            background: #FF1493;
+            border-color: #FF1493;
+            box-shadow: 0 0 10px #FF1493;
+        }
+        
+        .property-item {
+            margin-bottom: 15px;
+        }
+        
+        .property-item label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .property-item input,
+        .property-item select,
+        .property-item textarea {
+            width: 100%;
+            padding: 8px;
+            background: #444;
+            border: 1px solid #666;
+            color: #fff;
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .property-item textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        #object-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .list-item {
+            padding: 10px;
+            background: #333;
+            margin-bottom: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid #666;
+        }
+        
+        .list-item:hover {
+            background: #444;
+            border-left-color: #FF1493;
+        }
+        
+        .list-item.selected {
+            background: #444;
+            border-left-color: #FF1493;
+        }
+        
+        .list-item-name {
+            font-size: 12px;
+        }
+        
+        .list-item-delete {
+            background: #ff4444;
+            border: none;
+            color: #fff;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 10px;
+        }
+        
+        .list-item-delete:hover {
+            background: #ff0000;
+        }
+        
+        #help-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 50;
+            pointer-events: none;
+        }
+        
+        .help-item {
+            margin-bottom: 5px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .help-key {
+            color: #FF1493;
+            font-weight: bold;
+            min-width: 80px;
+        }
+        
+        #status {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 11px;
+            z-index: 50;
+            pointer-events: none;
+        }
+        
+        .dialogue-line {
+            background: #333;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-left: 3px solid #666;
+            font-size: 12px;
+        }
+        
+        .dialogue-line:hover {
+            background: #444;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+            border: 3px solid #FF1493;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-content h2 {
+            color: #FF1493;
+            margin-bottom: 20px;
+        }
+        
+        .tab-container {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #444;
+        }
+        
+        .tab {
+            padding: 10px 15px;
+            background: #333;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+        }
+        
+        .tab:hover {
+            background: #444;
+        }
+        
+        .tab.active {
+            background: #FF1493;
+            color: #fff;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>🛹 LEVEL EDITOR v2.0</h1>
+        <div id="controls">
+            <button class="btn secondary" onclick="clearLevel()">NEW LEVEL</button>
+            <button class="btn secondary" onclick="importLevel()">IMPORT</button>
+            <button class="btn" onclick="exportLevel()">EXPORT JSON</button>
+            <button class="btn" onclick="exportHTML()">EXPORT HTML</button>
+        </div>
+    </div>
+    
+    <div id="main-container">
+        <div id="viewport">
+            <div id="help-overlay">
+                <div class="help-item"><span class="help-key">Left Mouse</span> Place/Select</div>
+                <div class="help-item"><span class="help-key">Right Mouse</span> Rotate Camera</div>
+                <div class="help-item"><span class="help-key">Mouse Wheel</span> Zoom</div>
+                <div class="help-item"><span class="help-key">R</span> Rotate Object</div>
+                <div class="help-item"><span class="help-key">D</span> Duplicate</div>
+                <div class="help-item"><span class="help-key">Delete</span> Remove Object</div>
+            </div>
+            
+            <div id="status">
+                Objects: <span id="object-count">0</span> | 
+                NPCs: <span id="npc-count">0</span> | 
+                Enemies: <span id="enemy-count">0</span>
+            </div>
+        </div>
+        
+        <div id="sidebar">
+            <!-- Tabs -->
+            <div class="tab-container" style="background: #2a2a2a; padding: 10px 10px 0;">
+                <button class="tab active" onclick="switchTab('obstacles')">OBSTACLES</button>
+                <button class="tab" onclick="switchTab('buildings')">BUILDINGS</button>
+                <button class="tab" onclick="switchTab('npcs')">NPCs</button>
+                <button class="tab" onclick="switchTab('enemies')">ENEMIES</button>
+            </div>
+            
+            <!-- Obstacles Tab -->
+            <div id="tab-obstacles" class="panel tab-content active">
+                <h2>Obstacles & Rails</h2>
+                <div class="object-grid">
+                    <button class="object-btn" onclick="selectObjectType('rail')">🟦 RAIL</button>
+                    <button class="object-btn" onclick="selectObjectType('ramp')">🔺 RAMP</button>
+                    <button class="object-btn" onclick="selectObjectType('box')">📦 BOX</button>
+                    <button class="object-btn" onclick="selectObjectType('stairs')">🪜 STAIRS</button>
+                    <button class="object-btn" onclick="selectObjectType('halfpipe')">🌙 HALFPIPE</button>
+                    <button class="object-btn" onclick="selectObjectType('quarter')">🔄 QUARTER</button>
+                </div>
+            </div>
+            
+            <!-- Buildings Tab -->
+            <div id="tab-buildings" class="panel tab-content">
+                <h2>Buildings & Structures</h2>
+                <div class="object-grid">
+                    <button class="object-btn" onclick="selectObjectType('house')">🏠 HOUSE</button>
+                    <button class="object-btn" onclick="selectObjectType('store')">🏪 STORE</button>
+                    <button class="object-btn" onclick="selectObjectType('skyscraper')">🏢 SKYSCRAPER</button>
+                    <button class="object-btn" onclick="selectObjectType('warehouse')">🏭 WAREHOUSE</button>
+                    <button class="object-btn" onclick="selectObjectType('tree')">🌲 TREE</button>
+                    <button class="object-btn" onclick="selectObjectType('bench')">🪑 BENCH</button>
+                </div>
+            </div>
+            
+            <!-- NPCs Tab -->
+            <div id="tab-npcs" class="panel tab-content">
+                <h2>Non-Player Characters</h2>
+                <div class="object-grid">
+                    <button class="object-btn" onclick="selectObjectType('npc_friendly')">😊 FRIENDLY NPC</button>
+                    <button class="object-btn" onclick="selectObjectType('npc_merchant')">💰 MERCHANT</button>
+                    <button class="object-btn" onclick="selectObjectType('npc_quest')">❓ QUEST GIVER</button>
+                    <button class="object-btn" onclick="selectObjectType('npc_custom')">👤 CUSTOM NPC</button>
+                </div>
+                
+                <div class="property-item" style="margin-top: 20px;">
+                    <button class="btn" style="width: 100%;" onclick="openDialogueEditor()">📝 EDIT NPC DIALOGUE</button>
+                </div>
+            </div>
+            
+            <!-- Enemies Tab -->
+            <div id="tab-enemies" class="panel tab-content">
+                <h2>Enemies & Hazards</h2>
+                <div class="object-grid">
+                    <button class="object-btn" onclick="selectObjectType('enemy_basic')">👹 BASIC ENEMY</button>
+                    <button class="object-btn" onclick="selectObjectType('enemy_fast')">⚡ FAST ENEMY</button>
+                    <button class="object-btn" onclick="selectObjectType('enemy_tank')">🛡️ TANK ENEMY</button>
+                    <button class="object-btn" onclick="selectObjectType('enemy_boss')">👑 BOSS</button>
+                </div>
+            </div>
+            
+            <!-- Level Info -->
+            <div class="panel">
+                <h2>Level Info</h2>
+                <div class="property-item">
+                    <label>Level Name</label>
+                    <input type="text" id="level-name" value="Untitled Level" />
+                </div>
+                <div class="property-item">
+                    <label>Author</label>
+                    <input type="text" id="level-author" value="Anonymous" />
+                </div>
+                <div class="property-item">
+                    <label>Description</label>
+                    <textarea id="level-description" placeholder="Level description..."></textarea>
+                </div>
+            </div>
+            
+            <!-- Properties -->
+            <div class="panel">
+                <h2>Object Properties</h2>
+                <div id="properties-panel">
+                    <p style="color: #666; font-size: 12px;">Select an object to edit properties</p>
+                </div>
+            </div>
+            
+            <!-- Objects List -->
+            <div class="panel">
+                <h2>Scene Objects</h2>
+                <div id="object-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Dialogue Editor Modal -->
+    <div id="dialogue-modal" class="modal">
+        <div class="modal-content">
+            <h2>NPC Dialogue Editor</h2>
+            <div class="property-item">
+                <label>NPC Name</label>
+                <input type="text" id="npc-name" value="NPC" />
+            </div>
+            <div class="property-item">
+                <label>Dialogue Lines (one per line)</label>
+                <textarea id="npc-dialogue" rows="10" placeholder="Enter dialogue lines...
+Example:
+Hey there, skater!
+Welcome to the neighborhood.
+Watch out for those rails!"></textarea>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn" onclick="saveDialogue()">SAVE</button>
+                <button class="btn secondary" onclick="closeDialogueEditor()">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ==========================================
+        // === EDITOR STATE ===
+        // ==========================================
+        const editor = {
+            scene: null,
+            camera: null,
+            renderer: null,
+            objects: [],
+            npcs: [],
+            enemies: [],
+            buildings: [],
+            selectedObject: null,
+            placementMode: null,
+            history: [[]],
+            historyIndex: 0,
+            mouseDown: false,
+            mousePos: { x: 0, y: 0 }
+        };
+        
+        // ==========================================
+        // === INITIALIZATION ===
+        // ==========================================
+        function init() {
+            const container = document.getElementById('viewport');
+            
+            // Scene
+            editor.scene = new THREE.Scene();
+            editor.scene.background = new THREE.Color(0x87CEEB);
+            editor.scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+            
+            // Camera
+            editor.camera = new THREE.PerspectiveCamera(
+                75,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            editor.camera.position.set(0, 30, 40);
+            editor.camera.lookAt(0, 0, 0);
+            
+            // Renderer
+            editor.renderer = new THREE.WebGLRenderer({ antialias: true });
+            editor.renderer.setSize(container.clientWidth, container.clientHeight);
+            editor.renderer.shadowMap.enabled = true;
+            container.appendChild(editor.renderer.domElement);
+            
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            editor.scene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight.position.set(50, 50, 50);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.left = -100;
+            dirLight.shadow.camera.right = 100;
+            dirLight.shadow.camera.top = 100;
+            dirLight.shadow.camera.bottom = -100;
+            editor.scene.add(dirLight);
+            
+            // Ground
+            const groundGeo = new THREE.PlaneGeometry(200, 200);
+            const groundMat = new THREE.MeshLambertMaterial({ 
+                color: 0x2d5016,
+                side: THREE.DoubleSide 
+            });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            editor.scene.add(ground);
+            
+            // Grid
+            const gridHelper = new THREE.GridHelper(200, 40, 0x444444, 0x222222);
+            editor.scene.add(gridHelper);
+            
+            // Event listeners
+            setupEventListeners();
+            
+            // Start animation
+            animate();
+            
+            updateStatus();
+        }
+        
+        function setupEventListeners() {
+            const canvas = editor.renderer.domElement;
+            
+            canvas.addEventListener('mousedown', onMouseDown);
+            canvas.addEventListener('mousemove', onMouseMove);
+            canvas.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('wheel', onMouseWheel);
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // ==========================================
+        // === OBJECT CREATION ===
+        // ==========================================
+        function createObject(type, position) {
+            let mesh, color, size;
+            
+            // Obstacles
+            if (type === 'rail') {
+                const geo = new THREE.BoxGeometry(8, 0.3, 0.3);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 1.5;
+            } else if (type === 'ramp') {
+                const geo = new THREE.BoxGeometry(6, 0.5, 6);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.z = -Math.PI / 6;
+                mesh.position.y = 1;
+            } else if (type === 'box') {
+                const geo = new THREE.BoxGeometry(3, 2, 3);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 1;
+            } else if (type === 'stairs') {
+                const group = new THREE.Group();
+                for (let i = 0; i < 5; i++) {
+                    const geo = new THREE.BoxGeometry(4, 0.5, 2);
+                    const mat = new THREE.MeshLambertMaterial({ color: 0x808080 });
+                    const step = new THREE.Mesh(geo, mat);
+                    step.position.set(0, i * 0.5, i * 2);
+                    group.add(step);
+                }
+                mesh = group;
+                mesh.position.y = 0.25;
+            } else if (type === 'halfpipe') {
+                const geo = new THREE.CylinderGeometry(5, 5, 10, 16, 1, true, 0, Math.PI);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x8B4513, side: THREE.DoubleSide });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.z = Math.PI / 2;
+                mesh.position.y = 0;
+            } else if (type === 'quarter') {
+                const geo = new THREE.CylinderGeometry(4, 4, 8, 16, 1, true, 0, Math.PI / 2);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x8B4513, side: THREE.DoubleSide });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.rotation.z = Math.PI / 2;
+                mesh.position.y = 0;
+            }
+            // Buildings
+            else if (type === 'house') {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(8, 6, 8),
+                    new THREE.MeshLambertMaterial({ color: 0xf5deb3 })
+                );
+                body.position.y = 3;
+                const roof = new THREE.Mesh(
+                    new THREE.ConeGeometry(6, 3, 4),
+                    new THREE.MeshLambertMaterial({ color: 0x8B0000 })
+                );
+                roof.position.y = 7.5;
+                roof.rotation.y = Math.PI / 4;
+                group.add(body);
+                group.add(roof);
+                mesh = group;
+            } else if (type === 'store') {
+                const geo = new THREE.BoxGeometry(10, 8, 8);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x4169E1 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 4;
+            } else if (type === 'skyscraper') {
+                const geo = new THREE.BoxGeometry(12, 40, 12);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x696969 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 20;
+            } else if (type === 'warehouse') {
+                const geo = new THREE.BoxGeometry(15, 10, 20);
+                const mat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                mesh = new THREE.Mesh(geo, mat);
+                mesh.position.y = 5;
+            } else if (type === 'tree') {
+                const group = new THREE.Group();
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.5, 0.5, 4),
+                    new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+                );
+                trunk.position.y = 2;
+                const leaves = new THREE.Mesh(
+                    new THREE.SphereGeometry(2, 8, 8),
+                    new THREE.MeshLambertMaterial({ color: 0x228B22 })
+                );
+                leaves.position.y = 5;
+                group.add(trunk);
+                group.add(leaves);
+                mesh = group;
+            } else if (type === 'bench') {
+                const group = new THREE.Group();
+                const seat = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 0.2, 1),
+                    new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+                );
+                seat.position.y = 0.8;
+                const back = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 1, 0.2),
+                    new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+                );
+                back.position.y = 1.3;
+                back.position.z = -0.4;
+                group.add(seat);
+                group.add(back);
+                mesh = group;
+            }
+            // NPCs
+            else if (type.startsWith('npc_')) {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.4, 0.4, 1.5),
+                    new THREE.MeshLambertMaterial({ color: 0x0000FF })
+                );
+                body.position.y = 0.75;
+                const head = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3),
+                    new THREE.MeshLambertMaterial({ color: 0xFFDBAC })
+                );
+                head.position.y = 1.8;
+                group.add(body);
+                group.add(head);
+                mesh = group;
+            }
+            // Enemies
+            else if (type.startsWith('enemy_')) {
+                const group = new THREE.Group();
+                const body = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.4, 0.4, 1.5),
+                    new THREE.MeshLambertMaterial({ color: 0xFF0000 })
+                );
+                body.position.y = 0.75;
+                const head = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3),
+                    new THREE.MeshLambertMaterial({ color: 0x8B0000 })
+                );
+                head.position.y = 1.8;
+                group.add(body);
+                group.add(head);
+                mesh = group;
+                
+                if (type === 'enemy_boss') {
+                    mesh.scale.set(2, 2, 2);
+                }
+            }
+            
+            if (!mesh) return null;
+            
+            mesh.position.x = position.x;
+            mesh.position.z = position.z;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            
+            const obj = {
+                type: type,
+                mesh: mesh,
+                position: { x: position.x, y: mesh.position.y, z: position.z },
+                rotation: 0,
+                data: {}
+            };
+            
+            // Add type-specific data
+            if (type.startsWith('npc_')) {
+                obj.data.name = 'NPC';
+                obj.data.dialogue = ['Hello there!'];
+            } else if (type.startsWith('enemy_')) {
+                obj.data.health = type === 'enemy_boss' ? 100 : type === 'enemy_tank' ? 50 : 20;
+                obj.data.speed = type === 'enemy_fast' ? 0.15 : 0.08;
+            }
+            
+            return obj;
+        }
+        
+        // ==========================================
+        // === TAB SWITCHING ===
+        // ==========================================
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+        }
+        
+        // ==========================================
+        // === OBJECT SELECTION ===
+        // ==========================================
+        function selectObjectType(type) {
+            editor.placementMode = type;
+            
+            // Update button states
+            document.querySelectorAll('.object-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        // ==========================================
+        // === MOUSE EVENTS ===
+        // ==========================================
+        function onMouseDown(event) {
+            editor.mouseDown = true;
+            editor.mousePos = { x: event.clientX, y: event.clientY };
+            
+            if (event.button === 0 && editor.placementMode) {
+                placeObject(event);
+            } else if (event.button === 0) {
+                selectObjectAtMouse(event);
+            }
+        }
+        
+        function onMouseMove(event) {
+            if (editor.mouseDown && event.buttons === 2) {
+                // Right mouse - rotate camera
+                const deltaX = event.clientX - editor.mousePos.x;
+                const deltaY = event.clientY - editor.mousePos.y;
+                
+                const distance = editor.camera.position.length();
+                const angle = Math.atan2(editor.camera.position.x, editor.camera.position.z);
+                const newAngle = angle - deltaX * 0.01;
+                
+                editor.camera.position.x = Math.sin(newAngle) * distance;
+                editor.camera.position.z = Math.cos(newAngle) * distance;
+                editor.camera.position.y = Math.max(5, editor.camera.position.y - deltaY * 0.1);
+                editor.camera.lookAt(0, 0, 0);
+            }
+            
+            editor.mousePos = { x: event.clientX, y: event.clientY };
+        }
+        
+        function onMouseUp(event) {
+            editor.mouseDown = false;
+        }
+        
+        function onMouseWheel(event) {
+            event.preventDefault();
+            const delta = event.deltaY * 0.05;
+            const distance = editor.camera.position.length();
+            const newDistance = Math.max(10, Math.min(100, distance + delta));
+            editor.camera.position.multiplyScalar(newDistance / distance);
+        }
+        
+        function placeObject(event) {
+            const mouse = new THREE.Vector2(
+                (event.clientX / window.innerWidth) * 2 - 1,
+                -(event.clientY / window.innerHeight) * 2 + 1
+            );
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, editor.camera);
+            
+            const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+            const intersection = new THREE.Vector3();
+            raycaster.ray.intersectPlane(groundPlane, intersection);
+            
+            if (intersection) {
+                const obj = createObject(editor.placementMode, {
+                    x: Math.round(intersection.x),
+                    z: Math.round(intersection.z)
+                });
+                
+                if (obj) {
+                    editor.objects.push(obj);
+                    editor.scene.add(obj.mesh);
+                    selectObject(obj);
+                    saveHistory();
+                    updateObjectList();
+                    updateStatus();
+                }
+            }
+        }
+        
+        function selectObjectAtMouse(event) {
+            const mouse = new THREE.Vector2(
+                (event.clientX / window.innerWidth) * 2 - 1,
+                -(event.clientY / window.innerHeight) * 2 + 1
+            );
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, editor.camera);
+            
+            const meshes = editor.objects.map(o => o.mesh);
+            const intersects = raycaster.intersectObjects(meshes, true);
+            
+            if (intersects.length > 0) {
+                let targetMesh = intersects[0].object;
+                while (targetMesh.parent && targetMesh.parent.type === 'Group') {
+                    targetMesh = targetMesh.parent;
+                }
+                const obj = editor.objects.find(o => o.mesh === targetMesh);
+                if (obj) selectObject(obj);
+            } else {
+                selectObject(null);
+            }
+        }
+        
+        function selectObject(obj) {
+            editor.selectedObject = obj;
+            updateProperties();
+            updateObjectList();
+        }
+        
+        // ==========================================
+        // === KEYBOARD EVENTS ===
+        // ==========================================
+        function onKeyDown(event) {
+            if (event.key === 'r' || event.key === 'R') {
+                rotateSelectedObject();
+            } else if (event.key === 'd' || event.key === 'D') {
+                duplicateSelectedObject();
+            } else if (event.key === 'Delete') {
+                deleteSelectedObject();
+            }
+        }
+        
+        // ==========================================
+        // === PROPERTIES PANEL ===
+        // ==========================================
+        function updateProperties() {
+            const panel = document.getElementById('properties-panel');
+            
+            if (!editor.selectedObject) {
+                panel.innerHTML = '<p style="color: #666; font-size: 12px;">Select an object to edit properties</p>';
+                return;
+            }
+            
+            const obj = editor.selectedObject;
+            let html = `
+                <div class="property-item">
+                    <label>Type</label>
+                    <input type="text" value="${obj.type}" disabled />
+                </div>
+                <div class="property-item">
+                    <label>X Position</label>
+                    <input type="number" value="${obj.position.x}" onchange="updateObjectPos('x', this.value)" />
+                </div>
+                <div class="property-item">
+                    <label>Z Position</label>
+                    <input type="number" value="${obj.position.z}" onchange="updateObjectPos('z', this.value)" />
+                </div>
+                <div class="property-item">
+                    <label>Rotation (degrees)</label>
+                    <input type="number" value="${Math.round(obj.rotation * 180 / Math.PI)}" 
+                           onchange="updateObjectRotation(this.value)" />
+                </div>
+            `;
+            
+            // Add type-specific properties
+            if (obj.type.startsWith('npc_')) {
+                html += `
+                    <div class="property-item">
+                        <label>NPC Name</label>
+                        <input type="text" value="${obj.data.name}" 
+                               onchange="editor.selectedObject.data.name = this.value" />
+                    </div>
+                    <div class="property-item">
+                        <button class="btn" style="width: 100%;" onclick="editNPCDialogue()">EDIT DIALOGUE</button>
+                    </div>
+                `;
+            } else if (obj.type.startsWith('enemy_')) {
+                html += `
+                    <div class="property-item">
+                        <label>Health</label>
+                        <input type="number" value="${obj.data.health}" 
+                               onchange="editor.selectedObject.data.health = parseInt(this.value)" />
+                    </div>
+                    <div class="property-item">
+                        <label>Speed</label>
+                        <input type="number" step="0.01" value="${obj.data.speed}" 
+                               onchange="editor.selectedObject.data.speed = parseFloat(this.value)" />
+                    </div>
+                `;
+            }
+            
+            panel.innerHTML = html;
+        }
+        
+        function updateObjectPos(axis, value) {
+            if (!editor.selectedObject) return;
+            editor.selectedObject.position[axis] = parseFloat(value);
+            editor.selectedObject.mesh.position[axis] = parseFloat(value);
+        }
+        
+        function updateObjectRotation(degrees) {
+            if (!editor.selectedObject) return;
+            const radians = degrees * Math.PI / 180;
+            editor.selectedObject.rotation = radians;
+            editor.selectedObject.mesh.rotation.y = radians;
+        }
+        
+        function rotateSelectedObject() {
+            if (!editor.selectedObject) return;
+            const newRotation = editor.selectedObject.rotation + Math.PI / 4;
+            updateObjectRotation(newRotation * 180 / Math.PI);
+            updateProperties();
+        }
+        
+        function duplicateSelectedObject() {
+            if (!editor.selectedObject) return;
+            const original = editor.selectedObject;
+            const newPos = {
+                x: original.position.x + 5,
+                z: original.position.z + 5
+            };
+            const duplicate = createObject(original.type, newPos);
+            duplicate.rotation = original.rotation;
+            duplicate.mesh.rotation.y = original.rotation;
+            duplicate.data = JSON.parse(JSON.stringify(original.data));
+            
+            editor.objects.push(duplicate);
+            editor.scene.add(duplicate.mesh);
+            selectObject(duplicate);
+            
+            saveHistory();
+            updateObjectList();
+            updateStatus();
+        }
+        
+        function deleteSelectedObject() {
+            if (!editor.selectedObject) return;
+            
+            editor.scene.remove(editor.selectedObject.mesh);
+            editor.objects = editor.objects.filter(o => o !== editor.selectedObject);
+            editor.selectedObject = null;
+            
+            saveHistory();
+            updateObjectList();
+            updateProperties();
+            updateStatus();
+        }
+        
+        // ==========================================
+        // === NPC DIALOGUE EDITOR ===
+        // ==========================================
+        function editNPCDialogue() {
+            if (!editor.selectedObject || !editor.selectedObject.type.startsWith('npc_')) return;
+            
+            document.getElementById('npc-name').value = editor.selectedObject.data.name;
+            document.getElementById('npc-dialogue').value = editor.selectedObject.data.dialogue.join('\n');
+            document.getElementById('dialogue-modal').classList.add('active');
+        }
+        
+        function openDialogueEditor() {
+            if (!editor.selectedObject || !editor.selectedObject.type.startsWith('npc_')) {
+                alert('Please select an NPC first!');
+                return;
+            }
+            editNPCDialogue();
+        }
+        
+        function saveDialogue() {
+            if (!editor.selectedObject) return;
+            
+            editor.selectedObject.data.name = document.getElementById('npc-name').value;
+            const dialogueText = document.getElementById('npc-dialogue').value;
+            editor.selectedObject.data.dialogue = dialogueText.split('\n').filter(line => line.trim());
+            
+            closeDialogueEditor();
+            updateProperties();
+        }
+        
+        function closeDialogueEditor() {
+            document.getElementById('dialogue-modal').classList.remove('active');
+        }
+        
+        // ==========================================
+        // === OBJECT LIST ===
+        // ==========================================
+        function updateObjectList() {
+            const list = document.getElementById('object-list');
+            list.innerHTML = '';
+            
+            editor.objects.forEach((obj, i) => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+                if (obj === editor.selectedObject) {
+                    item.classList.add('selected');
+                }
+                
+                let name = obj.type;
+                if (obj.type.startsWith('npc_')) {
+                    name = `${obj.data.name} (NPC)`;
+                } else if (obj.type.startsWith('enemy_')) {
+                    name = obj.type.replace('enemy_', 'Enemy: ');
+                }
+                
+                item.innerHTML = `
+                    <span class="list-item-name">${name} (${Math.round(obj.position.x)}, ${Math.round(obj.position.z)})</span>
+                    <button class="list-item-delete" onclick="deleteObjectByIndex(${i})">DEL</button>
+                `;
+                
+                item.onclick = (e) => {
+                    if (!e.target.classList.contains('list-item-delete')) {
+                        selectObject(obj);
+                    }
+                };
+                
+                list.appendChild(item);
+            });
+        }
+        
+        function deleteObjectByIndex(index) {
+            const obj = editor.objects[index];
+            editor.scene.remove(obj.mesh);
+            editor.objects.splice(index, 1);
+            if (editor.selectedObject === obj) {
+                editor.selectedObject = null;
+                updateProperties();
+            }
+            updateObjectList();
+            updateStatus();
+            saveHistory();
+        }
+        
+        // ==========================================
+        // === STATUS ===
+        // ==========================================
+        function updateStatus() {
+            document.getElementById('object-count').textContent = editor.objects.length;
+            document.getElementById('npc-count').textContent = editor.objects.filter(o => o.type.startsWith('npc_')).length;
+            document.getElementById('enemy-count').textContent = editor.objects.filter(o => o.type.startsWith('enemy_')).length;
+        }
+        
+        // ==========================================
+        // === HISTORY ===
+        // ==========================================
+        function saveHistory() {
+            editor.history = editor.history.slice(0, editor.historyIndex + 1);
+            editor.history.push(JSON.parse(JSON.stringify(
+                editor.objects.map(o => ({
+                    type: o.type,
+                    position: o.position,
+                    rotation: o.rotation,
+                    data: o.data
+                }))
+            )));
+            editor.historyIndex++;
+        }
+        
+        // ==========================================
+        // === LEVEL MANAGEMENT ===
+        // ==========================================
+        function clearLevel() {
+            if (confirm('Clear all objects?')) {
+                editor.objects.forEach(o => editor.scene.remove(o.mesh));
+                editor.objects = [];
+                editor.selectedObject = null;
+                saveHistory();
+                updateObjectList();
+                updateProperties();
+                updateStatus();
+            }
+        }
+        
+        function exportLevel() {
+            const levelData = {
+                name: document.getElementById('level-name').value,
+                author: document.getElementById('level-author').value,
+                description: document.getElementById('level-description').value,
+                version: "2.0",
+                obstacles: editor.objects.filter(o => !o.type.startsWith('npc_') && !o.type.startsWith('enemy_') && 
+                           !['house', 'store', 'skyscraper', 'warehouse', 'tree', 'bench'].includes(o.type)).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    rotation: obj.rotation
+                })),
+                buildings: editor.objects.filter(o => ['house', 'store', 'skyscraper', 'warehouse', 'tree', 'bench'].includes(o.type)).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    rotation: obj.rotation
+                })),
+                npcs: editor.objects.filter(o => o.type.startsWith('npc_')).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    name: obj.data.name,
+                    dialogue: obj.data.dialogue
+                })),
+                enemies: editor.objects.filter(o => o.type.startsWith('enemy_')).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    health: obj.data.health,
+                    speed: obj.data.speed
+                }))
+            };
+            
+            const json = JSON.stringify(levelData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = levelData.name.replace(/\s+/g, '_').toLowerCase() + '.json';
+            a.click();
+            
+            alert('✅ Level exported as JSON!');
+        }
+        
+        function exportHTML() {
+            const levelData = {
+                name: document.getElementById('level-name').value,
+                author: document.getElementById('level-author').value,
+                description: document.getElementById('level-description').value,
+                obstacles: editor.objects.filter(o => !o.type.startsWith('npc_') && !o.type.startsWith('enemy_') && 
+                           !['house', 'store', 'skyscraper', 'warehouse', 'tree', 'bench'].includes(o.type)).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    rotation: obj.rotation
+                })),
+                buildings: editor.objects.filter(o => ['house', 'store', 'skyscraper', 'warehouse', 'tree', 'bench'].includes(o.type)).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    rotation: obj.rotation
+                })),
+                npcs: editor.objects.filter(o => o.type.startsWith('npc_')).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    name: obj.data.name,
+                    dialogue: obj.data.dialogue
+                })),
+                enemies: editor.objects.filter(o => o.type.startsWith('enemy_')).map(obj => ({
+                    type: obj.type,
+                    x: obj.position.x,
+                    z: obj.position.z,
+                    health: obj.data.health,
+                    speed: obj.data.speed
+                }))
+            };
+            
+            // Generate HTML with embedded level data
+            const htmlTemplate = generateHTMLTemplate(levelData);
+            
+            const blob = new Blob([htmlTemplate], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = levelData.name.replace(/\s+/g, '_').toLowerCase() + '.html';
+            a.click();
+            
+            alert('✅ Level exported as HTML!\n\nYou can now open this file directly in a browser to play your level.');
+        }
+        
+        function generateHTMLTemplate(levelData) {
+            return `<!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>${levelData.name} - APPLESAUCE</title>
+                        <style>
+                            * { margin: 0; padding: 0; box-sizing: border-box; }
+                            body { font-family: 'Impact', 'Arial Black', sans-serif; overflow: hidden; background: #000; }
+                            #hud { position: absolute; top: 20px; left: 20px; color: #fff; z-index: 100; 
+                                text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+                            #score { font-size: 48px; color: #FFD700; margin-bottom: 10px; }
+                            #info { position: absolute; top: 20px; right: 20px; color: #fff; background: rgba(0,0,0,0.7);
+                                    padding: 15px; border-radius: 10px; font-size: 14px; }
+                            #controls { position: absolute; bottom: 20px; left: 20px; color: #fff; background: rgba(0,0,0,0.7);
+                                    padding: 15px; border-radius: 10px; font-size: 14px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="hud">
+                            <div id="score">SCORE: 0</div>
+                            <div id="combo" style="font-size: 32px; color: #FF1493;">COMBO: 0x</div>
+                            <div id="speed" style="font-size: 24px; color: #00FFFF;">SPEED: 0</div>
+                        </div>
+                        
+                        <div id="info">
+                            <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #FFD700;">${levelData.name}</div>
+                            <div style="font-size: 12px; color: #aaa;">By ${levelData.author}</div>
+                            ${levelData.description ? '<div style="font-size: 12px; margin-top: 10px;">' + levelData.description + '</div>' : ''}
+                        </div>
+                        
+                        <div id="controls">
+                            <strong>CONTROLS:</strong><br>
+                            WASD/Arrows - Move<br>
+                            SPACE - Ollie<br>
+                            Q - Kickflip | E - Heelflip<br>
+                            Click to lock mouse
+                        </div>
+
+                        <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+                        <script>
+                            // LEVEL DATA
+                            const LEVEL_DATA = ${JSON.stringify(levelData, null, 8)};
+                            
+                            // Basic game setup
+                            const scene = new THREE.Scene();
+                            scene.background = new THREE.Color(0x87CEEB);
+                            scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+                            
+                            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                            const renderer = new THREE.WebGLRenderer({ antialias: true });
+                            renderer.setSize(window.innerWidth, window.innerHeight);
+                            renderer.shadowMap.enabled = true;
+                            document.body.appendChild(renderer.domElement);
+                            
+                            // Lights
+                            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                            scene.add(ambientLight);
+                            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+                            dirLight.position.set(50, 50, 50);
+                            dirLight.castShadow = true;
+                            scene.add(dirLight);
+                            
+                            // Ground
+                            const groundGeo = new THREE.PlaneGeometry(200, 200);
+                            const groundMat = new THREE.MeshLambertMaterial({ color: 0x2d5016, side: THREE.DoubleSide });
+                            const ground = new THREE.Mesh(groundGeo, groundMat);
+                            ground.rotation.x = -Math.PI / 2;
+                            ground.receiveShadow = true;
+                            scene.add(ground);
+                            
+                            // Player
+                            const player = new THREE.Group();
+                            const board = new THREE.Mesh(
+                                new THREE.BoxGeometry(0.3, 0.1, 1.2),
+                                new THREE.MeshLambertMaterial({ color: 0xFF0000 })
+                            );
+                            player.add(board);
+                            player.position.y = 1;
+                            scene.add(player);
+                            
+                            // Game state
+                            const state = { x: 0, z: 0, speed: 0, rotation: 0, score: 0, combo: 0 };
+                            const keys = {};
+                            
+                            // Load level objects (simplified for demo)
+                            console.log('Loading level:', LEVEL_DATA.name);
+                            console.log('Objects:', LEVEL_DATA.obstacles.length, 'obstacles,', 
+                                        LEVEL_DATA.buildings.length, 'buildings,',
+                                        LEVEL_DATA.npcs.length, 'NPCs,',
+                                        LEVEL_DATA.enemies.length, 'enemies');
+                            
+                            // Input
+                            window.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+                            window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+                            
+                            // Game loop
+                            function animate() {
+                                requestAnimationFrame(animate);
+                                
+                                // Basic movement
+                                if (keys['w'] || keys['arrowup']) state.speed += 0.01;
+                                if (keys['s'] || keys['arrowdown']) state.speed -= 0.01;
+                                if (keys['a'] || keys['arrowleft']) state.rotation += 0.05;
+                                if (keys['d'] || keys['arrowright']) state.rotation -= 0.05;
+                                
+                                state.speed *= 0.98;
+                                state.x += Math.sin(state.rotation) * state.speed;
+                                state.z += Math.cos(state.rotation) * state.speed;
+                                
+                                player.position.set(state.x, 1, state.z);
+                                player.rotation.y = state.rotation;
+                                
+                                camera.position.set(
+                                    state.x - Math.sin(state.rotation) * 10,
+                                    7,
+                                    state.z - Math.cos(state.rotation) * 10
+                                );
+                                camera.lookAt(player.position);
+                                
+                                // Update HUD
+                                document.getElementById('score').textContent = 'SCORE: ' + Math.floor(state.score);
+                                document.getElementById('combo').textContent = 'COMBO: ' + state.combo + 'x';
+                                document.getElementById('speed').textContent = 'SPEED: ' + Math.floor(Math.abs(state.speed) * 100);
+                                
+                                renderer.render(scene, camera);
+                            }
+                            
+                            animate();
+                            
+                            window.addEventListener('resize', () => {
+                                camera.aspect = window.innerWidth / window.innerHeight;
+                                camera.updateProjectionMatrix();
+                                renderer.setSize(window.innerWidth, window.innerHeight);
+                            });
+                        </script>
+                    </body>
+                    </html>`;
+                            }
+                            
+        function importLevel() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        loadLevelData(data);
+                    } catch (err) {
+                        alert('Error loading level: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+        
+        function loadLevelData(data) {
+            clearLevel();
+            
+            if (data.name) document.getElementById('level-name').value = data.name;
+            if (data.author) document.getElementById('level-author').value = data.author;
+            if (data.description) document.getElementById('level-description').value = data.description;
+            
+            // Load all object types
+            const allObjects = [
+                ...(data.obstacles || []),
+                ...(data.buildings || []),
+                ...(data.npcs || []),
+                ...(data.enemies || [])
+            ];
+            
+            allObjects.forEach(objData => {
+                const obj = createObject(objData.type, { x: objData.x, z: objData.z });
+                if (!obj) return;
+                
+                obj.rotation = objData.rotation || 0;
+                obj.mesh.rotation.y = objData.rotation || 0;
+                
+                if (objData.name) obj.data.name = objData.name;
+                if (objData.dialogue) obj.data.dialogue = objData.dialogue;
+                if (objData.health !== undefined) obj.data.health = objData.health;
+                if (objData.speed !== undefined) obj.data.speed = objData.speed;
+                
+                editor.objects.push(obj);
+                editor.scene.add(obj.mesh);
+            });
+            
+            saveHistory();
+            updateObjectList();
+            updateStatus();
+        }
+        
+        // ==========================================
+        // === ANIMATION ===
+        // ==========================================
+        function onWindowResize() {
+            const container = document.getElementById('viewport');
+            editor.camera.aspect = container.clientWidth / container.clientHeight;
+            editor.camera.updateProjectionMatrix();
+            editor.renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            editor.renderer.render(editor.scene, editor.camera);
+        }
+        
+        // Start!
+        init();
+    </script>
+</body>
+</html>

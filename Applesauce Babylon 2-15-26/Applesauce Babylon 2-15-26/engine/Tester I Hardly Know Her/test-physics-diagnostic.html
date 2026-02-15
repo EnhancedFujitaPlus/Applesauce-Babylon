@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Diagnostic</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Courier New', monospace; }
+        #renderCanvas { width: 100%; height: 100%; display: block; }
+        
+        #physics-debug {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #0f0;
+            background: rgba(0, 0, 0, 0.95);
+            padding: 20px;
+            border: 2px solid #0f0;
+            font-size: 12px;
+            z-index: 1000;
+            max-width: 500px;
+        }
+        
+        .section { margin: 15px 0; padding: 10px 0; border-top: 1px solid #0f0; }
+        .label { color: #888; font-size: 11px; }
+        .value { color: #0ff; font-weight: bold; }
+        .good { color: #0f0; }
+        .bad { color: #f00; }
+        .warn { color: #ff0; }
+        
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        button:hover { background: #0ff; }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="physics-debug">
+        <div style="font-size: 16px; font-weight: bold; margin-bottom: 15px;">⚡ PHYSICS DIAGNOSTIC</div>
+        
+        <div class="section">
+            <div class="label">Physics Body State:</div>
+            <div>Motion Type: <span class="value" id="motion-type">N/A</span></div>
+            <div>Mass: <span class="value" id="mass">N/A</span></div>
+            <div>Active: <span class="value" id="active">N/A</span></div>
+        </div>
+        
+        <div class="section">
+            <div class="label">Velocity:</div>
+            <div>Linear: <span class="value" id="linear-vel">N/A</span></div>
+            <div>Angular: <span class="value" id="angular-vel">N/A</span></div>
+            <div>Speed: <span class="value" id="speed">0.0</span> m/s</div>
+        </div>
+        
+        <div class="section">
+            <div class="label">Position:</div>
+            <div>Collider: <span class="value" id="collider-pos">N/A</span></div>
+            <div>Visual: <span class="value" id="visual-pos">N/A</span></div>
+            <div>Synced: <span class="value" id="synced">N/A</span></div>
+        </div>
+        
+        <div class="section">
+            <div class="label">Manual Tests:</div>
+            <button onclick="testForce()">Apply Force Forward</button>
+            <button onclick="testImpulse()">Apply Impulse Up</button>
+            <button onclick="testTeleport()">Teleport Up</button>
+            <button onclick="resetPlayer()">Reset Player</button>
+        </div>
+        
+        <div class="section">
+            <div class="label">Last Action:</div>
+            <div id="last-action" style="color: #ff0;">None</div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <script type="module">
+        import { BabylonSkater } from './engine/skater/babylon-skater.js';
+        
+        let canvas, engine, scene, camera, playerModule, player;
+        let keys = {};
+        
+        window.testForce = function() {
+            if (!player || !player.aggregate) {
+                log('❌ No physics aggregate!', 'bad');
+                return;
+            }
+            
+            log('🔥 Applying 500N forward force...', 'warn');
+            const forward = player.collider.forward;
+            const force = forward.scale(500);
+            player.aggregate.body.applyForce(
+                force,
+                player.collider.getAbsolutePosition()
+            );
+            
+            setTimeout(() => {
+                const vel = player.aggregate.body.getLinearVelocity();
+                log(`Velocity after force: [${vel.x.toFixed(2)}, ${vel.y.toFixed(2)}, ${vel.z.toFixed(2)}]`, 'good');
+            }, 100);
+        };
+        
+        window.testImpulse = function() {
+            if (!player || !player.aggregate) {
+                log('❌ No physics aggregate!', 'bad');
+                return;
+            }
+            
+            log('🔥 Applying upward impulse...', 'warn');
+            player.aggregate.body.applyImpulse(
+                new BABYLON.Vector3(0, 300, 0),
+                player.collider.getAbsolutePosition()
+            );
+        };
+        
+        window.testTeleport = function() {
+            if (!player || !player.collider) {
+                log('❌ No collider!', 'bad');
+                return;
+            }
+            
+            log('🔥 Teleporting player up...', 'warn');
+            player.collider.position.y += 5;
+        };
+        
+        window.resetPlayer = function() {
+            if (!player || !player.collider) {
+                log('❌ No collider!', 'bad');
+                return;
+            }
+            
+            log('🔄 Resetting player...', 'warn');
+            player.collider.position = new BABYLON.Vector3(0, 5, 0);
+            player.aggregate.body.setLinearVelocity(BABYLON.Vector3.Zero());
+            player.aggregate.body.setAngularVelocity(BABYLON.Vector3.Zero());
+        };
+        
+        function log(message, type = 'good') {
+            const el = document.getElementById('last-action');
+            el.textContent = message;
+            el.className = type;
+            console.log(message);
+        }
+        
+        function updateDebug() {
+            if (!player || !player.aggregate) return;
+            
+            const body = player.aggregate.body;
+            
+            // Motion type
+            const motionType = body.getMotionType();
+            const motionTypeText = motionType === 1 ? 'DYNAMIC' : 
+                                   motionType === 2 ? 'STATIC' : 
+                                   motionType === 3 ? 'KINEMATIC' : 'UNKNOWN';
+            document.getElementById('motion-type').textContent = motionTypeText;
+            document.getElementById('motion-type').className = motionType === 1 ? 'good' : 'bad';
+            
+            // Mass
+            const mass = body.getMassProperties().mass;
+            document.getElementById('mass').textContent = mass.toFixed(2) + ' kg';
+            document.getElementById('mass').className = mass > 0 ? 'good' : 'bad';
+            
+            // Active state
+
+            body.physicsImpostor;
+            
+            // Velocity
+            const linVel = body.getLinearVelocity();
+            document.getElementById('linear-vel').textContent = 
+                `[${linVel.x.toFixed(2)}, ${linVel.y.toFixed(2)}, ${linVel.z.toFixed(2)}]`;
+            
+            const angVel = body.getAngularVelocity();
+            document.getElementById('angular-vel').textContent = 
+                `[${angVel.x.toFixed(2)}, ${angVel.y.toFixed(2)}, ${angVel.z.toFixed(2)}]`;
+            
+            const speed = linVel.length();
+            document.getElementById('speed').textContent = speed.toFixed(10);
+            document.getElementById('speed').className = speed > 3.0 ? 'good' : 'value';
+            
+            // Position
+            const colliderPos = player.collider.position;
+            document.getElementById('collider-pos').textContent = 
+                `[${colliderPos.x.toFixed(2)}, ${colliderPos.y.toFixed(2)}, ${colliderPos.z.toFixed(2)}]`;
+            
+            const visualPos = player.root.position;
+            document.getElementById('visual-pos').textContent = 
+                `[${visualPos.x.toFixed(2)}, ${visualPos.y.toFixed(2)}, ${visualPos.z.toFixed(2)}]`;
+            
+            const distance = BABYLON.Vector3.Distance(colliderPos, visualPos);
+            document.getElementById('synced').textContent = distance < 1 ? 'YES' : `NO (${distance.toFixed(2)}m apart)`;
+            document.getElementById('synced').className = distance < 1 ? 'good' : 'bad';
+        }
+        
+        async function init() {
+            try {
+                console.log('🎮 Initializing physics diagnostic...');
+                
+                canvas = document.getElementById('renderCanvas');
+                engine = new BABYLON.Engine(canvas, true);
+                scene = new BABYLON.Scene(engine);
+                scene.clearColor = new BABYLON.Color4(0.53, 0.81, 0.92, 1.0);
+                
+                // Camera
+                camera = new BABYLON.ArcRotateCamera(
+                    "camera",
+                    -Math.PI / 2,
+                    Math.PI / 3,
+                    15,
+                    BABYLON.Vector3.Zero(),
+                    scene
+                );
+                camera.attachControl(canvas, true);
+                
+                // Lighting
+                new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+                
+                // Initialize Havok
+                console.log('⚡ Loading Havok...');
+                const havokInstance = await HavokPhysics();
+                const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+                scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), havokPlugin);
+                console.log('✅ Havok ready');
+                
+                // Create ground
+                const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 100, height: 100 }, scene);
+                const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+                groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.5, 0.3);
+                ground.material = groundMat;
+                ground.receiveShadow = true;
+                
+                new BABYLON.PhysicsAggregate(
+                    ground,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0, friction: 0.8 },
+                    scene
+                );
+                
+                // Create player
+                console.log('🛹 Creating player...');
+                playerModule = new BabylonSkater(scene);
+                player = playerModule.spawn({ x: 0, y: 5, z: 0 });
+                
+                camera.lockedTarget = player.collider;
+                
+                console.log('✅ Player created');
+                console.log('Physics aggregate:', player.aggregate);
+                console.log('Physics body:', player.aggregate.body);
+                console.log('Collider:', player.collider);
+                
+                // Test physics body properties
+                const body = player.aggregate.body;
+                console.log('Motion type:', body.getMotionType());
+                console.log('Mass:', body.getMassProperties().mass);
+                console.log('Initial velocity:', body.getLinearVelocity());
+                
+                // Input
+                scene.onKeyboardObservable.add((kbInfo) => {
+                    const key = kbInfo.event.key.toLowerCase();
+                    
+                    if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYDOWN) {
+                        keys[key] = true;
+                        console.log('Key pressed:', key);
+                        
+                        if (key === ' ') {
+                            log('🔥 Jump key pressed', 'warn');
+                            playerModule.jump(300);
+                        }
+                    } else if (kbInfo.type === BABYLON.KeyboardEventTypes.KEYUP) {
+                        keys[key] = false;
+                    }
+                });
+                
+                // Game loop
+                engine.runRenderLoop(() => {
+                    // Update player
+                    playerModule.update();
+                    
+                    // Handle input and log it
+                    if (keys['w'] || keys['arrowup']) {
+                        console.log('W pressed - calling moveForward(50)');
+                        playerModule.moveForward(50);
+                        log('Moving forward (W pressed)', 'good');
+                    }
+                    if (keys['s'] || keys['arrowdown']) {
+                        playerModule.moveBackward(30);
+                        log('Moving backward (S pressed)', 'good');
+                    }
+                    if (keys['a'] || keys['arrowleft']) {
+                        playerModule.turnLeft(5);
+                        log('Turning left (A pressed)', 'good');
+                    }
+                    if (keys['d'] || keys['arrowright']) {
+                        playerModule.turnRight(5);
+                        log('Turning right (D pressed)', 'good');
+                    }
+                    
+                    updateDebug();
+                    scene.render();
+                });
+                
+                window.addEventListener('resize', () => engine.resize());
+                
+                console.log('✅ Ready! Press WASD or use buttons to test');
+                log('Press WASD or click buttons to test physics', 'good');
+                
+            } catch (error) {
+                console.error('❌ Failed:', error);
+                log('Failed to initialize: ' + error.message, 'bad');
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - PARKING LOT</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+        }
+        
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+        
+        #trick {
+            font-size: 28px;
+            color: #00FF00;
+            margin-bottom: 10px;
+            min-height: 35px;
+        }
+        
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #title h1 {
+            font-size: 72px;
+            color: #FFD700;
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level 4: PARKING LOT CARNAGE</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #FF0000;">⚠️ MAXIMUM GORE MODE ⚠️</p>
+    </div>
+    
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="kills" style="font-size: 20px; color: #FF0000; margin-top: 5px;">KILLS: 0</div>
+    </div>
+    
+    <div id="objectives" style="position: absolute; top: 20px; right: 20px; color: #fff; background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 10px; font-family: Arial, sans-serif; font-size: 14px; min-width: 200px;">
+        <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #FFD700;">OBJECTIVES:</div>
+        <div id="obj1" style="margin-bottom: 8px;">☐ Roadkill 10 People (0/10)</div>
+        <div id="obj2" style="margin-bottom: 8px;">☐ Land 5 Kickflips (0/5)</div>
+        <div id="obj3" style="margin-bottom: 8px;">☐ Land 5 Heelfips (0/5)</div>
+        <div id="obj4" style="margin-bottom: 8px;">☐ Land 5 Impossibles (0/5)</div>
+        <div id="obj5" style="margin-bottom: 8px;">☐ Land 5 Treflips (0/5)</div>
+        <div id="obj6" style="margin-bottom: 8px;">☐ Defeat the Boss</div>
+    </div>
+
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        R - Impossible | T - Tre Flip<br> 
+        Grind rails automatically<br>
+        Hit enemies at speed = ROADKILL<br>
+        Click to lock mouse
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x87CEEB, 100, 400);
+        scene.background = new THREE.Color(0x87CEEB);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        
+        setTimeout(() => {
+            document.getElementById('title').classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('title').style.display = 'none';
+            }, 2000);
+        }, 3000);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+        sun.position.set(50, 200, 50);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -150;
+        sun.shadow.camera.right = 150;
+        sun.shadow.camera.top = 150;
+        sun.shadow.camera.bottom = -150;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        scene.add(sun);
+        
+        // Materials
+        const concreteMat = new THREE.MeshLambertMaterial({ color: 0x808080 });
+        const asphaltMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+        const roadMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2 });
+        const grassMat = new THREE.MeshLambertMaterial({ color: 0x2d5a2d });
+        
+        // OBSTACLES ARRAY (for grindable rails)
+        const obstacles = [];
+        
+        // ============================================
+        // PROP CREATION FUNCTIONS
+        // Copy these examples to add more props!
+        // ============================================
+        
+        /**
+         * Creates a simple rectangular building
+         * @param {number} x - X position
+         * @param {number} z - Z position  
+         * @param {number} width - Width of building
+         * @param {number} depth - Depth of building
+         * @param {number} height - Height of building
+         * @param {number} color - Hex color (e.g., 0xFF0000)
+         */
+        function createBuilding(x, z, width, depth, height, color = 0x8B4513) {
+            const buildingGeo = new THREE.BoxGeometry(width, height, depth);
+            const buildingMat = new THREE.MeshLambertMaterial({ color: color });
+            const building = new THREE.Mesh(buildingGeo, buildingMat);
+            building.position.set(x, height / 2, z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+            return building;
+        }
+
+        function createBuildingSkyscraper(x, z, width, depth, height, color = 0x5C5514) {
+            const buildingGeo = new THREE.BoxGeometry(width, height, depth);
+            const buildingMat = new THREE.MeshLambertMaterial({ color: color });
+            const building = new THREE.Mesh(buildingGeo, buildingMat);
+            building.position.set(x, height / 20, z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+            return building;
+        }
+        
+        /**
+         * Creates a parked car
+         * @param {number} x - X position
+         * @param {number} z - Z position
+         * @param {number} rotation - Rotation in radians (0 = facing +Z)
+         * @param {number} color - Hex color
+         */
+        function createCar(x, z, rotation = 0, color = 0xFF0000) {
+            const car = new THREE.Group();
+            
+            // Car body
+            const bodyGeo = new THREE.BoxGeometry(2, 1, 4);
+            const bodyMat = new THREE.MeshLambertMaterial({ color: color });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.5;
+            body.castShadow = true;
+            car.add(body);
+            
+            // Car roof
+            const roofGeo = new THREE.BoxGeometry(1.8, 0.8, 2);
+            const roof = new THREE.Mesh(roofGeo, bodyMat);
+            roof.position.y = 1.4;
+            roof.castShadow = true;
+            car.add(roof);
+            
+            // Wheels
+            const wheelPositions = [
+                [-0.9, 0.3, 1.2],
+                [0.9, 0.3, 1.2],
+                [-0.9, 0.3, -1.2],
+                [0.9, 0.3, -1.2]
+            ];
+            
+            wheelPositions.forEach(pos => {
+                const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.3, 12);
+                const wheelMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+                const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(...pos);
+                wheel.castShadow = true;
+                car.add(wheel);
+            });
+            
+            car.position.set(x, 0, z);
+            car.rotation.y = rotation;
+            scene.add(car);
+            return car;
+        }
+        
+        /**
+         * Creates a lamp post with light
+         * @param {number} x - X position
+         * @param {number} z - Z position
+         */
+        function createLampPost(x, z) {
+            const lamp = new THREE.Group();
+            
+            // Post
+            const postGeo = new THREE.CylinderGeometry(0.1, 0.15, 6, 8);
+            const postMat = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
+            const post = new THREE.Mesh(postGeo, postMat);
+            post.position.y = 3;
+            post.castShadow = true;
+            lamp.add(post);
+            
+            // Light fixture
+            const fixtureGeo = new THREE.BoxGeometry(0.4, 0.3, 0.4);
+            const fixtureMat = new THREE.MeshLambertMaterial({ color: 0xFFFF00 });
+            const fixture = new THREE.Mesh(fixtureGeo, fixtureMat);
+            fixture.position.y = 6;
+            lamp.add(fixture);
+            
+            // Point light (no shadows to save performance)
+            const light = new THREE.PointLight(0xFFFF00, 0.5, 20);
+            light.position.y = 6;
+            lamp.add(light);
+            
+            lamp.position.set(x, 0, z);
+            scene.add(lamp);
+            return lamp;
+        }
+        
+        /**
+         * Creates a dumpster
+         * @param {number} x - X position
+         * @param {number} z - Z position
+         * @param {number} rotation - Rotation in radians
+         */
+        function createDumpster(x, z, rotation = 0) {
+            const dumpster = new THREE.Group();
+            
+            const bodyGeo = new THREE.BoxGeometry(2, 1.5, 3);
+            const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2a5a2a });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.75;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            dumpster.add(body);
+            
+            // Lid
+            const lidGeo = new THREE.BoxGeometry(2.1, 0.1, 3.1);
+            const lid = new THREE.Mesh(lidGeo, bodyMat);
+            lid.position.y = 1.5;
+            lid.rotation.x = -0.3;
+            lid.castShadow = true;
+            dumpster.add(lid);
+            
+            dumpster.position.set(x, 0, z);
+            dumpster.rotation.y = rotation;
+            scene.add(dumpster);
+            return dumpster;
+        }
+        
+        /**
+         * Creates a flat rail (grindable!)
+         * @param {number} x - X position
+         * @param {number} z - Z position
+         * @param {number} length - Length of rail
+         * @param {number} rotation - Rotation in radians
+         */
+        function createFlatRail(x, z, length, rotation = 0) {
+            const group = new THREE.Group();
+            
+            const railGeo = new THREE.CylinderGeometry(0.15, 0.15, length, 8);
+            const rail = new THREE.Mesh(railGeo, metalMat);
+            rail.rotation.z = Math.PI / 2;
+            rail.position.y = 1.2;
+            rail.castShadow = true;
+            group.add(rail);
+            
+            // Posts every 4 units
+            for (let i = -length/2 + 1; i < length/2; i += 4) {
+                const postGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 6);
+                const post = new THREE.Mesh(postGeo, metalMat);
+                post.position.set(i, 0.6, 0);
+                post.castShadow = true;
+                group.add(post);
+            }
+            
+            group.position.set(x, 0, z);
+            group.rotation.y = rotation;
+            scene.add(group);
+            obstacles.push({ mesh: rail, type: 'rail', parent: group });
+            return group;
+        }
+        
+        /**
+         * Creates a parking space with lines
+         * @param {number} x - X position
+         * @param {number} z - Z position
+         * @param {number} rotation - Rotation in radians
+         */
+        function createParkingSpace(x, z, rotation = 0) {
+            const space = new THREE.Group();
+            
+            // White lines
+            const lineWidth = 0.1;
+            const spaceWidth = 3;
+            const spaceDepth = 5;
+            
+            // Left line
+            const leftLineGeo = new THREE.PlaneGeometry(lineWidth, spaceDepth);
+            const lineMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+            const leftLine = new THREE.Mesh(leftLineGeo, lineMat);
+            leftLine.rotation.x = -Math.PI / 2;
+            leftLine.position.set(-spaceWidth/2, 0.01, 0);
+            space.add(leftLine);
+            
+            // Right line
+            const rightLine = new THREE.Mesh(leftLineGeo, lineMat);
+            rightLine.rotation.x = -Math.PI / 2;
+            rightLine.position.set(spaceWidth/2, 0.01, 0);
+            space.add(rightLine);
+            
+            space.position.set(x, 0, z);
+            space.rotation.y = rotation;
+            scene.add(space);
+            return space;
+        }
+        
+        /**
+         * Creates a simple bench
+         * @param {number} x - X position
+         * @param {number} z - Z position
+         * @param {number} rotation - Rotation in radians
+         */
+        function createBench(x, z, rotation = 0) {
+            const bench = new THREE.Group();
+            
+            // Seat
+            const seatGeo = new THREE.BoxGeometry(2, 0.2, 0.5);
+            const woodMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            const seat = new THREE.Mesh(seatGeo, woodMat);
+            seat.position.y = 0.5;
+            seat.castShadow = true;
+            bench.add(seat);
+            
+            // Back
+            const backGeo = new THREE.BoxGeometry(2, 0.8, 0.1);
+            const back = new THREE.Mesh(backGeo, woodMat);
+            back.position.set(0, 0.9, -0.2);
+            back.castShadow = true;
+            bench.add(back);
+            
+            // Legs
+            for (let side of [-0.8, 0.8]) {
+                const legGeo = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+                const legMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set(side, 0.25, 0.15);
+                leg.castShadow = true;
+                bench.add(leg);
+            }
+            
+            bench.position.set(x, 0, z);
+            bench.rotation.y = rotation;
+            scene.add(bench);
+            return bench;
+        }
+        
+        // ============================================
+        // LEVEL LAYOUT
+        // ============================================
+        
+        // GROUND - Large parking lot area
+        const groundSize = 2000;
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+        const ground = new THREE.Mesh(groundGeo, asphaltMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        // ROAD - Running through the middle
+        const roadWidth = 20;
+        const roadGeo = new THREE.PlaneGeometry(roadWidth, groundSize);
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI / 2;
+        road.position.y = 0.01;
+        road.receiveShadow = true;
+        scene.add(road);
+        
+        // Road lines
+        for (let z = -groundSize/2; z < groundSize/2; z += 10) {
+            const lineGeo = new THREE.PlaneGeometry(0.3, 4);
+            const lineMat = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
+            const line = new THREE.Mesh(lineGeo, lineMat);
+            line.rotation.x = -Math.PI / 2;
+            line.position.set(0, 0.02, z);
+            scene.add(line);
+        }
+        //roads full
+        function createRoads(x, y, z, width, height, depth, color) {
+            const geometry = new THREE.BoxGeometry(roadWidth, groundSize);
+            const material = new THREE.MeshLambertMaterial({ roadGeo, roadMat, });
+            const roads = new THREE.Mesh(geometry, material);
+            roads.position.set(x, height / 2, z);
+            roads.rotation.x = -Math.PI / 2;
+            roads.castShadow = true;
+            roads.receiveShadow = true;
+            scene.add(roads);
+        }
+
+
+        // Building
+        const buildingsGeo = new THREE.BoxGeometry(35, 7, 35);
+        const BuildingsMat = new THREE.MeshLambertMaterial({ color: 0x702020 });
+        const buildings = new THREE.Mesh(groundGeo, roadGeo);
+        buildings.position.set(0, 0, roadMat + 5);
+        buildings.castShadow = true;
+        buildings.receiveShadow = true;
+        scene.add(buildings);
+
+        function createBuildings(x, y, z, width, height, depth, color) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshLambertMaterial({ color: color });
+            const buildings = new THREE.Mesh(geometry, material);
+            buildings.position.set(x, height / 2, z);
+            buildings.castShadow = true;
+            buildings.receiveShadow = true;
+            return buildings;
+        }
+
+        // Define your city layout
+        const cityBuildings = [
+            { x: 110, z: 90, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: 90, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 210, z: 130, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: 150, z: 150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: 190, z: 190, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 110, z: 190, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: 290, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 310, z: 130, width: 40, height: 60, depth: 50, color: 0x803030 },
+            { x: 450, z: 150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: 390, z: 150, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 410, z: 190, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: 590, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 610, z: 130, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: 100, z: 150, width: 40, height: 70, depth: 30, color: 0x803030 },
+            { x: 100, z: 190, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 250, z: 290, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: 150, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 510, z: 330, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: 350, z: 150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: 790, z: 150, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: -110, z: 90, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: -245, z: 90, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: -210, z: 130, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: -150, z: 150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: -190, z: 190, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: -110, z: 190, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: -245, z: 290, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: -310, z: 130, width: 40, height: 60, depth: 50, color: 0x803030 },
+            { x: -450, z: 150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: -390, z: 150, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: -410, z: 190, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: -245, z: 590, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: -610, z: 130, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: -100, z: 150, width: 40, height: 70, depth: 30, color: 0x803030 },
+            { x: -100, z: 190, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: -250, z: 290, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: -245, z: 150, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: -510, z: 330, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: -350, z: 150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: -790, z: 150, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 110, z: -90, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: -90, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 210, z: -130, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: 150, z: -150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: 190, z: -190, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 110, z: -190, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: -290, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 310, z: -130, width: 40, height: 60, depth: 50, color: 0x803030 },
+            { x: 450, z: -150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: 390, z: -150, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 410, z: -190, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: -590, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 610, z: -130, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: 100, z: -150, width: 40, height: 70, depth: 30, color: 0x803030 },
+            { x: 100, z: -190, width: 40, height: 17, depth: 30, color: 0x800030 },
+            { x: 250, z: -290, width: 35, height: 70, depth: 35, color: 0x702020 },
+            { x: 245, z: -150, width: 25, height: 12, depth: 25, color: 0x604040 },
+            { x: 510, z: -330, width: 40, height: 20, depth: 30, color: 0x803030 },
+            { x: 350, z: -150, width: 40, height: 10, depth: 30, color: 0x803030 },
+            { x: 790, z: -150, width: 40, height: 17, depth: 30, color: 0x800030 },
+
+
+            // Add as many as you need...
+        ];
+
+        // Create all buildings
+        const cityGroup = new THREE.Group();
+        cityBuildings.forEach(b => {
+            const buildings = createBuildings(b.x, 0, b.z, b.width, b.height, b.depth, b.color);
+            cityGroup.add(buildings);
+        });
+        scene.add(cityGroup);
+
+        function generateCityGrid(startX, startZ, rows, cols, spacing) {
+            const cityGroup = new THREE.Group();
+            
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    // Randomize building properties for variety
+                    const height = 300 + Math.random() * 15;
+                    const width = 200 + Math.random() * 20;
+                    const depth = 200 + Math.random() * 20;
+                    const color = Math.random() > 0.5 ? 0x702020 : 0x604040;
+                    
+                    const x = startX + (col * spacing);
+                    const z = startZ + (row * spacing);
+                    
+                    const buildings = createBuildings(x, 0, z, width, height, depth, color);
+                    cityGroup.add(buildings);
+                }
+            }
+            
+            return cityGroup;
+        }
+
+        // Create a 5x5 city grid
+        const city = generateCityGrid(100, roadGeo + 5, 15, 5, 60);
+        scene.add(city);
+        
+        // ============================================
+        // ADD YOUR PROPS HERE!
+        // Copy and modify these examples
+        // ============================================
+
+        createRoads(50, 50, 20,)
+        
+        // BUILDINGS - Around the perimeter
+        createBuilding(-80, -80, 30, 40, 25, 0x8B4513);
+        createBuilding(-80, 80, 30, 40, 30, 0x696969);
+        createBuilding(80, -80, 35, 35, 20, 0xA0522D);
+        createBuilding(80, 80, 30, 45, 28, 0x8B7355);
+        createBuildingSkyscraper(80, 80, 25, 5, 500, 0x45643)
+        
+        // PARKING SPACES - Left side
+        for (let i = 0; i < 10; i++) {
+            createParkingSpace(-40, -80 + i * 6, 0);
+        }
+        
+        // PARKING SPACES - Right side  
+        for (let i = 0; i < 10; i++) {
+            createParkingSpace(40, -80 + i * 6, Math.PI);
+        }
+        
+        // CARS - Some parked, some scattered
+        createCar(-40, -75, 0, 0xFF0000);
+        createCar(-40, -63, 0, 0x0000FF);
+        createCar(-40, -51, 0, 0xFFFF00);
+        createCar(-40, -39, 0, 0x00FF00);
+        createCar(40, -69, Math.PI, 0xFF00FF);
+        createCar(40, -57, Math.PI, 0x00FFFF);
+        createCar(40, -45, Math.PI, 0xFFA500);
+        
+        // Random scattered cars
+        createCar(25, 30, Math.PI / 4, 0x8B0000);
+        createCar(-35, 45, -Math.PI / 6, 0x4169E1);
+        
+        // LAMP POSTS - Along road
+        for (let z = -90; z <= 90; z += 30) {
+            createLampPost(-12, z);
+            createLampPost(12, z);
+        }
+        
+        // DUMPSTERS - Behind buildings
+        createDumpster(-75, -60, Math.PI / 2);
+        createDumpster(-75, 60, Math.PI / 2);
+        createDumpster(75, -60, -Math.PI / 2);
+        
+        // BENCHES - Scattered around
+        createBench(-50, 10, Math.PI / 4);
+        createBench(50, -20, -Math.PI / 3);
+        
+        // RAILS - For grinding!
+        createFlatRail(-40, 0, 20, 0);
+        createFlatRail(40, 20, 15, Math.PI / 6);
+        createFlatRail(0, 60, 25, Math.PI / 2);
+        
+        // ============================================
+        // TO ADD MORE PROPS:
+        // 1. Copy one of the function calls above
+        // 2. Change the x and z positions
+        // 3. Adjust rotation (in radians: Math.PI = 180°, Math.PI/2 = 90°)
+        // 4. Change color (0xRRGGBB format)
+        // 
+        // Example: Add a red building at position (50, -50)
+        // createBuilding(50, -50, 20, 20, 15, 0xFF0000);
+        //
+        // Example: Add a blue car facing north at (10, 10)
+        // createCar(10, 10, 0, 0x0000FF);
+        // ============================================
+        
+        // Player (same as other levels)
+        const player = new THREE.Group();
+        
+        const deckGeo = new THREE.BoxGeometry(0.8, 0.1, 2.5);
+        const deckMat = new THREE.MeshLambertMaterial({ color: 0xFF1493 });
+        const deck = new THREE.Mesh(deckGeo, deckMat);
+        deck.position.y = 0.3;
+        player.add(deck);
+        
+        for (let pos of [[-0.3, 0.15, -0.8], [0.3, 0.15, -0.8], [-0.3, 0.15, 0.8], [0.3, 0.15, 0.8]]) {
+            const wheelGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 12);
+            const wheelMat = new THREE.MeshLambertMaterial({ color: 0x000000 });
+            const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+            wheel.position.set(...pos);
+            wheel.rotation.z = Math.PI / 2;
+            player.add(wheel);
+        }
+        
+        const bodyGeo = new THREE.BoxGeometry(0.6, 1.2, 0.4);
+        const bodyMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        body.position.set(0, 1.2, -0.2);
+        player.add(body);
+        
+        const headGeo = new THREE.SphereGeometry(0.3, 8, 8);
+        const headMat = new THREE.MeshLambertMaterial({ color: 0xFFDBAC });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.set(0, 2.1, -0.2);
+        player.add(head);
+        
+        for (let side of [-1, 1]) {
+            const armGeo = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+            const arm = new THREE.Mesh(armGeo, bodyMat);
+            arm.position.set(side * 0.4, 1.2, -0.2);
+            player.add(arm);
+        }
+        
+        player.position.set(0, 0.5, -50);
+        scene.add(player);
+        
+        // Game state
+        const state = {
+            speed: 0,
+            maxSpeed: 1.2,
+            acceleration: 0.03,
+            friction: 0.98,
+            turnSpeed: 0.03,
+            rotation: 0,
+            jumping: false,
+            jumpVelocity: 0,
+            gravity: -0.025,
+            grounded: true,
+            grinding: false,
+            currentRail: null,
+            score: 0,
+            combo: 0,
+            comboTimer: 0,
+            currentTrick: '',
+            trickTimer: 0,
+            canTrick: true,
+            spinning: false,
+            spinRotation: 0,
+            blood: [],
+            enemies: [],
+            gibs: [],
+            kills: 0,
+            kickflips: 0,
+            impossibles: 0,
+            attemptingKickflip: false,
+            attemptingImpossible: false,
+            objectives: {
+                roadkill: { complete: false, current: 0, target: 20 },
+                kickflips: { complete: false, current: 0, target: 5 },
+                heelfips: { complete: false, current: 0, target: 5 },
+                impossibles: {complete: false, current: 0, target: 5 },
+                treflips: { complete: false, current: 0, target: 5 },
+                boss: { complete: false, spawned: false }
+            }
+        };
+        
+        const keys = {};
+        
+        // Spawn some enemies
+        function createEnemy(x, z) {
+            const enemy = new THREE.Group();
+            enemy.alive = true;
+            
+            const bodyColors = [0xFF6B9D, 0x4ECDC4, 0xFFE66D, 0xA8E6CF, 0xFF8B94];
+            const bodyGeo = new THREE.BoxGeometry(0.6, 1.4, 0.4);
+            const bodyMat = new THREE.MeshLambertMaterial({ 
+                color: bodyColors[Math.floor(Math.random() * bodyColors.length)]
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.7;
+            body.castShadow = true;
+            enemy.add(body);
+            
+            const headGeo = new THREE.SphereGeometry(0.35, 8, 8);
+            const headMat = new THREE.MeshLambertMaterial({ color: 0xFFDBAC });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.6;
+            head.castShadow = true;
+            enemy.add(head);
+            
+            for (let side of [-1, 1]) {
+                const armGeo = new THREE.BoxGeometry(0.2, 1, 0.2);
+                const arm = new THREE.Mesh(armGeo, bodyMat);
+                arm.position.set(side * 0.4, 0.7, 0);
+                arm.castShadow = true;
+                enemy.add(arm);
+            }
+            
+            for (let side of [-1, 1]) {
+                const legGeo = new THREE.BoxGeometry(0.25, 1, 0.25);
+                const legMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set(side * 0.2, -0.5, 0);
+                leg.castShadow = true;
+                enemy.add(leg);
+            }
+            
+            enemy.speed = 0.02 + Math.random() * 0.02;
+            enemy.direction = Math.random() * Math.PI * 2;
+            enemy.wanderTimer = Math.floor(Math.random() * 120) + 60;
+            
+            enemy.position.set(x, 0, z);
+            scene.add(enemy);
+            state.enemies.push(enemy);
+            
+            return enemy;
+        }
+        
+        // Spawn enemies in parking lot
+        for (let i = 0; i < 10; i++) {
+            const x = (Math.random() - 0.5) * 150;
+            const z = (Math.random() - 0.5) * 150;
+            createEnemy(x, z);
+        }
+        
+        // Gore system (same as other levels)
+        function createBloodSplatter(position, intensity = 1) {
+            const particleCount = Math.floor(80 * intensity);
+            for (let i = 0; i < particleCount; i++) {
+                const size = 0.1 + Math.random() * 0.4;
+                const geo = new THREE.SphereGeometry(size, 4, 4);
+                const mat = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
+                const particle = new THREE.Mesh(geo, mat);
+                
+                particle.position.copy(position);
+                particle.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.35 * intensity,
+                    Math.random() * 0.5 * intensity,
+                    (Math.random() - 0.5) * 0.35 * intensity
+                );
+                particle.lifetime = 1200;
+                particle.castShadow = true;
+                
+                scene.add(particle);
+                state.blood.push(particle);
+            }
+        }
+        
+        function createGib(position, velocity) {
+            const gibTypes = [
+                { geo: new THREE.BoxGeometry(0.3, 0.3, 0.3), color: 0xFF0000 },
+                { geo: new THREE.BoxGeometry(0.4, 0.2, 0.2), color: 0x8B0000 },
+                { geo: new THREE.SphereGeometry(0.25, 6, 6), color: 0xFF1493 },
+            ];
+            
+            const gibType = gibTypes[Math.floor(Math.random() * gibTypes.length)];
+            const mat = new THREE.MeshLambertMaterial({ color: gibType.color });
+            const gib = new THREE.Mesh(gibType.geo, mat);
+            
+            gib.position.copy(position);
+            gib.velocity = velocity.clone();
+            gib.rotationVelocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.3,
+                (Math.random() - 0.5) * 0.3,
+                (Math.random() - 0.5) * 0.3
+            );
+            gib.lifetime = 2400;
+            gib.castShadow = true;
+            
+            scene.add(gib);
+            state.gibs.push(gib);
+            
+            return gib;
+        }
+        
+        function createBloodPool(position, size = 1) {
+            const poolGeo = new THREE.CircleGeometry(size, 12);
+            const poolMat = new THREE.MeshBasicMaterial({ 
+                color: 0x8B0000,
+                transparent: true,
+                opacity: 0.8
+            });
+            const pool = new THREE.Mesh(poolGeo, poolMat);
+            pool.rotation.x = -Math.PI / 2;
+            pool.position.copy(position);
+            pool.position.y = 0.02;
+            pool.lifetime = 5000;
+            
+            scene.add(pool);
+            state.blood.push(pool);
+        }
+        
+        function destroyEnemy(enemy, impactVelocity) {
+            if (!enemy.alive) return;
+            
+            enemy.alive = false;
+            const position = enemy.position.clone();
+            position.y += 1;
+            
+            createBloodSplatter(position, 3);
+            
+            for (let i = 0; i < 12; i++) {
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2 + impactVelocity.x * 0.15,
+                    Math.random() * 0.3 + 0.1,
+                    (Math.random() - 0.5) * 0.2 + impactVelocity.z * 0.15
+                );
+                createGib(position, velocity);
+            }
+            
+            createBloodPool(enemy.position, 2 + Math.random());
+            
+            scene.remove(enemy);
+            const index = state.enemies.indexOf(enemy);
+            if (index > -1) {
+                state.enemies.splice(index, 1);
+            }
+            
+            const killScore = Math.floor(Math.abs(state.speed) * 500);
+            state.score += killScore;
+            state.combo++;
+            state.comboTimer = 120;
+            state.kills++;
+            
+            state.currentTrick = `ROADKILL! +${killScore}`;
+            state.trickTimer = 60;
+        }
+        
+        function checkEnemyCollisions() {
+            const playerSpeed = Math.abs(state.speed);
+            const killSpeed = 0.2;
+            
+            for (let enemy of state.enemies) {
+                if (!enemy.alive) continue;
+                
+                const dx = player.position.x - enemy.position.x;
+                const dz = player.position.z - enemy.position.z;
+                const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                const dy = Math.abs(player.position.y - enemy.position.y);
+                
+                if (horizontalDist < 2 && dy < 2) {
+                    if (playerSpeed > killSpeed) {
+                        const impactVelocity = new THREE.Vector3(
+                            Math.sin(state.rotation) * state.speed,
+                            0,
+                            Math.cos(state.rotation) * state.speed
+                        );
+                        destroyEnemy(enemy, impactVelocity);
+                    } else {
+                        createBloodSplatter(player.position.clone(), 1);
+                        state.speed *= 0.3;
+                        state.currentTrick = 'OUCH!';
+                        state.trickTimer = 30;
+                    }
+                }
+            }
+        }
+        
+        function updateEnemies() {
+            if (state.enemies.length < 8 && Math.random() < 0.01) {
+                const x = (Math.random() - 0.5) * 150;
+                const z = (Math.random() - 0.5) * 150;
+                createEnemy(x, z);
+            }
+            
+            for (let enemy of state.enemies) {
+                if (!enemy.alive) continue;
+                
+                enemy.wanderTimer--;
+                if (enemy.wanderTimer <= 0) {
+                    enemy.direction = Math.random() * Math.PI * 2;
+                    enemy.wanderTimer = Math.floor(Math.random() * 120) + 60;
+                }
+                
+                const newX = enemy.position.x + Math.sin(enemy.direction) * enemy.speed;
+                const newZ = enemy.position.z + Math.cos(enemy.direction) * enemy.speed;
+                
+                enemy.position.x = newX;
+                enemy.position.z = newZ;
+                enemy.rotation.y = enemy.direction;
+                
+                if (enemy.position.x < -95 || enemy.position.x > 95 ||
+                    enemy.position.z < -95 || enemy.position.z > 95) {
+                    enemy.direction += Math.PI;
+                    enemy.wanderTimer = 60;
+                }
+            }
+        }
+        
+        // Controls
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            if (e.key === ' ') {
+                if (state.grinding) {
+                    state.grinding = false;
+                    state.currentRail = null;
+                    state.jumpVelocity = 0.35;
+                    state.jumping = true;
+                    state.grounded = false;
+                    state.canTrick = true;
+                } else if (state.grounded && !state.jumping) {
+                    state.jumping = true;
+                    state.jumpVelocity = 0.35;
+                    state.grounded = false;
+                    state.canTrick = true;
+                }
+            }
+            
+            if (!state.grounded && state.canTrick) {
+                if (e.key.toLowerCase() === 'q') {
+                    state.currentTrick = 'KICKFLIP!';
+                    state.spinning = true;
+                    state.spinRotation = 0;
+                    state.combo++;
+                    state.trickTimer = 60;
+                    state.canTrick = false;
+                }
+                if (e.key.toLowerCase() === 'e') {
+                    state.currentTrick = 'HEELFLIP!';
+                    state.spinning = true;
+                    state.spinRotation = 0;
+                    state.combo++;
+                    state.trickTimer = 60;
+                    state.canTrick = false;
+                }
+                if (e.key.toLowerCase() === 'r') {
+                    state.currentTrick = 'IMPOSSIBLE!';
+                    state.spinning = true;
+                    state.spinRotation = 0;
+                    state.combo++;
+                    state.trickTimer = 60;
+                    state.canTrick = false;
+                }
+                if (e.key.toLowerCase() === 't') {
+                    state.currentTrick = 'TREFLIP!';
+                    state.spinning = true;
+                    state.spinRotation = 0;
+                    state.combo++;
+                    state.trickTimer = 60;
+                    state.canTrick = false;
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === renderer.domElement) {
+                state.rotation -= e.movementX * 0.002;
+            }
+        });
+        
+        renderer.domElement.addEventListener('click', () => {
+            renderer.domElement.requestPointerLock();
+        });
+        
+        function checkGrinding() {
+            if (state.grounded) {
+                if (state.grinding) {
+                    state.grinding = false;
+                    state.currentRail = null;
+                }
+                return;
+            }
+            
+            if (state.jumpVelocity > 0.05) return;
+            
+            for (let obstacle of obstacles) {
+                if (obstacle.type === 'rail') {
+                    const worldPos = new THREE.Vector3();
+                    obstacle.mesh.getWorldPosition(worldPos);
+                    
+                    const dx = player.position.x - worldPos.x;
+                    const dz = player.position.z - worldPos.z;
+                    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                    const dy = player.position.y - worldPos.y;
+                    
+                    if (horizontalDist < 3 && Math.abs(dy) < 2) {
+                        state.grinding = true;
+                        state.currentRail = obstacle.mesh;
+                        state.jumpVelocity = 0;
+                        player.position.y = worldPos.y;
+                        
+                        if (state.combo === 0) {
+                            state.combo = 1;
+                        }
+                        
+                        state.currentTrick = '50-50 GRIND!';
+                        state.trickTimer = 10;
+                        return;
+                    }
+                }
+            }
+        }
+        
+        function update() {
+            if (keys['w'] || keys['arrowup']) {
+                state.speed = Math.min(state.speed + state.acceleration, state.maxSpeed);
+            }
+            if (keys['s'] || keys['arrowdown']) {
+                state.speed = Math.max(state.speed - state.acceleration, -state.maxSpeed * 0.5);
+            }
+            
+            if (keys['a'] || keys['arrowleft']) {
+                state.rotation += state.turnSpeed;
+            }
+            if (keys['d'] || keys['arrowright']) {
+                state.rotation -= state.turnSpeed;
+            }
+            
+            state.speed *= state.friction;
+            
+            const forward = new THREE.Vector3(
+                Math.sin(state.rotation),
+                0,
+                Math.cos(state.rotation)
+            );
+            
+            player.position.x += forward.x * state.speed;
+            player.position.z += forward.z * state.speed;
+            player.rotation.y = state.rotation;
+            
+            if (state.jumping || state.grinding) {
+                if (!state.grinding) {
+                    player.position.y += state.jumpVelocity;
+                    state.jumpVelocity += state.gravity;
+                }
+                
+                const groundLevel = 0.5;
+                
+                if (player.position.y <= groundLevel && !state.grinding) {
+                    player.position.y = groundLevel;
+                    state.jumping = false;
+                    state.jumpVelocity = 0;
+                    state.grounded = true;
+                    
+                    if (state.combo > 0) {
+                        const comboScore = state.combo * 100;
+                        state.score += comboScore;
+                        state.comboTimer = 120;
+                    }
+                    
+                    if (state.spinning && Math.abs(state.spinRotation % (Math.PI * 2)) > 0.5) {
+                        createBloodSplatter(player.position.clone(), 1.5);
+                        state.combo = 0;
+                        state.currentTrick = 'BAILED!';
+                        state.trickTimer = 60;
+                    }
+                    
+                    state.spinning = false;
+                    state.spinRotation = 0;
+                    deck.rotation.x = 0;
+                }
+            } else {
+                player.position.y = 0.5;
+            }
+            
+            if (state.spinning) {
+                state.spinRotation += 0.3;
+                deck.rotation.x = state.spinRotation;
+            }
+            
+            checkGrinding();
+            
+            if (state.grinding) {
+                state.score += 5;
+                state.combo = Math.max(state.combo, 1);
+                state.comboTimer = 10;
+                state.grounded = false;
+                state.jumping = true;
+                
+                if (state.currentRail) {
+                    const worldPos = new THREE.Vector3();
+                    state.currentRail.getWorldPosition(worldPos);
+                    const dx = player.position.x - worldPos.x;
+                    const dz = player.position.z - worldPos.z;
+                    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (horizontalDist > 4) {
+                        state.grinding = false;
+                        state.currentRail = null;
+                        state.jumpVelocity = -0.1;
+                    }
+                }
+            }
+            
+            if (state.comboTimer > 0) {
+                state.comboTimer--;
+                if (state.comboTimer === 0 && state.grounded && !state.grinding) {
+                    state.combo = 0;
+                }
+            }
+            
+            if (state.trickTimer > 0) {
+                state.trickTimer--;
+                if (state.trickTimer === 0) {
+                    state.currentTrick = '';
+                }
+            }
+            
+            updateEnemies();
+            checkEnemyCollisions();
+            
+            // Update blood
+            for (let i = state.blood.length - 1; i >= 0; i--) {
+                const particle = state.blood[i];
+                
+                if (particle.lifetime !== undefined) {
+                    particle.lifetime--;
+                    if (particle.lifetime <= 0) {
+                        scene.remove(particle);
+                        state.blood.splice(i, 1);
+                        continue;
+                    }
+                    
+                    if (particle.material && particle.material.transparent) {
+                        const fadeStart = particle.lifetime < 200 ? particle.lifetime / 200 : 1;
+                        particle.material.opacity = Math.min(0.8, fadeStart * 0.8);
+                    }
+                }
+                
+                if (particle.velocity) {
+                    particle.position.add(particle.velocity);
+                    particle.velocity.y -= 0.015;
+                    
+                    if (particle.position.y < 0.1) {
+                        particle.position.y = 0.1;
+                        particle.velocity.multiplyScalar(0.3);
+                    }
+                    
+                    if (particle.position.y < 0.15 && particle.velocity.length() < 0.02) {
+                        particle.velocity = null;
+                        if (!particle.lifetime) {
+                            particle.lifetime = 1500;
+                        }
+                    }
+                }
+            }
+            
+            // Update gibs
+            for (let i = state.gibs.length - 1; i >= 0; i--) {
+                const gib = state.gibs[i];
+                
+                gib.lifetime--;
+                if (gib.lifetime <= 0) {
+                    scene.remove(gib);
+                    state.gibs.splice(i, 1);
+                    continue;
+                }
+                
+                if (gib.velocity.length() > 0.01) {
+                    gib.position.add(gib.velocity);
+                    gib.velocity.y -= 0.015;
+                    
+                    gib.rotation.x += gib.rotationVelocity.x;
+                    gib.rotation.y += gib.rotationVelocity.y;
+                    gib.rotation.z += gib.rotationVelocity.z;
+                    
+                    if (gib.position.y < 0.2) {
+                        gib.position.y = 0.2;
+                        gib.velocity.y *= -0.3;
+                        gib.velocity.x *= 0.5;
+                        gib.velocity.z *= 0.5;
+                        gib.rotationVelocity.multiplyScalar(0.5);
+                        
+                        if (Math.abs(gib.velocity.y) < 0.08) {
+                            gib.velocity.set(0, 0, 0);
+                            gib.rotationVelocity.set(0, 0, 0);
+                        }
+                    }
+                }
+            }
+            
+            const cameraOffset = new THREE.Vector3(
+                -Math.sin(state.rotation) * 10,
+                7,
+                -Math.cos(state.rotation) * 10
+            );
+            
+            camera.position.lerp(
+                player.position.clone().add(cameraOffset),
+                0.1
+            );
+            camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            
+            document.getElementById('score').textContent = `SCORE: ${Math.floor(state.score)}`;
+            document.getElementById('combo').textContent = `COMBO: ${state.combo}x`;
+            document.getElementById('trick').textContent = state.currentTrick;
+            document.getElementById('kills').textContent = `KILLS: ${state.kills}`;
+            
+            const speedDisplay = Math.floor(Math.abs(state.speed) * 100);
+            const speedElement = document.getElementById('speed');
+            if (speedDisplay >= 20) {
+                speedElement.style.color = '#FF0000';
+                speedElement.textContent = `SPEED: ${speedDisplay} [LETHAL]`;
+            } else {
+                speedElement.style.color = '#00FFFF';
+                speedElement.textContent = `SPEED: ${speedDisplay}`;
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        animate();
+    </script>
+</body>
+</html>

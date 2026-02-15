@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - HELMET FACTORY</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+        }
+        
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+        
+        #trick {
+            font-size: 28px;
+            color: #00FF00;
+            margin-bottom: 10px;
+            min-height: 35px;
+        }
+        
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #title h1 {
+            font-size: 72px;
+            color: #FF0000;
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+
+        #debug {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #0ff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level 13: HELMET FACTORY</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #FF1493;">🪖 COLLECT HELMETS 🪖</p>
+    </div>
+    
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="helmets" style="font-size: 20px; color: #FF1493; margin-top: 5px;">HELMETS: 0</div>
+    </div>
+    
+    <div id="debug">
+        Position: (0, 0, 0)<br>
+        Velocity: 0<br>
+        Grounded: false
+    </div>
+    
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        Mouse - Look around<br>
+        Click to lock pointer
+    </div>
+
+    <!-- Babylon.js Core -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <!-- Havok Physics -->
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+
+    <!-- Your Skater Module -->
+    <script type="module">
+        import { BabylonSkater } from './engine/skater/babylon-skater.js';
+
+        // ============================================
+        // GAME STATE
+        // ============================================
+        const gameState = {
+            score: 0,
+            combo: 0,
+            comboTimer: 0,
+            currentTrick: '',
+            trickTimer: 0,
+            helmetsCollected: 0,
+            spinning: false,
+            spinRotation: 0,
+            grounded: false,
+            keys: {}
+        };
+
+        // ============================================
+        // BABYLON.JS SCENE SETUP
+        // ============================================
+        const canvas = document.getElementById('renderCanvas');
+        const engine = new BABYLON.Engine(canvas, true);
+        
+        let scene, camera, skater, skaterInstance;
+
+        async function createScene() {
+            // Create scene
+            scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+            scene.fogMode = BABYLON.Scene.FOGMODE_LINEAR;
+            scene.fogColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+            scene.fogStart = 50;
+            scene.fogEnd = 200;
+
+            // Initialize Havok Physics
+            const havokInstance = await HavokPhysics();
+            const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+            scene.enablePhysics(new BABYLON.Vector3(0, -30, 0), havokPlugin);
+
+            console.log('🎮 Physics initialized!');
+
+            // ============================================
+            // CAMERA SETUP - Third Person Follow
+            // ============================================
+            camera = new BABYLON.UniversalCamera("camera", new BABYLON.Vector3(0, 10, -15), scene);
+            camera.setTarget(new BABYLON.Vector3(0, 2, 0));
+            camera.attachControl(canvas,  true);
+            
+            // Camera settings for smooth follow
+            camera.fov = 1.2;
+            camera.minZ = 0.1;
+            camera.maxZ = 1000;
+
+            // Pointer lock for mouse look
+            canvas.addEventListener('click', () => {
+                canvas.requestPointerLock();
+            });
+
+            // Mouse movement for camera rotation
+            let mouseX = 0, mouseY = 0;
+            scene.onPointerMove = (evt) => {
+                if (document.pointerLockElement === canvas) {
+                    mouseX += evt.movementX * 0.002;
+                    mouseY += evt.movementY * 0.002;
+                    mouseY = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, mouseY));
+                }
+            };
+
+            // ============================================
+            // LIGHTING
+            // ============================================
+            const ambientLight = new BABYLON.HemisphericLight("ambient", new BABYLON.Vector3(0, 1, 0), scene);
+            ambientLight.intensity = 0.4;
+            ambientLight.diffuse = new BABYLON.Color3(1, 1, 1);
+            ambientLight.groundColor = new BABYLON.Color3(0.2, 0.2, 0.3);
+
+            // Main directional light (sun through warehouse skylights)
+            const mainLight = new BABYLON.DirectionalLight("mainLight", new BABYLON.Vector3(-1, -2, 1), scene);
+            mainLight.intensity = 0.8;
+            mainLight.diffuse = new BABYLON.Color3(1, 0.9, 0.8);
+            mainLight.position = new BABYLON.Vector3(50, 80, -50);
+            
+            // Enable shadows
+            const shadowGenerator = new BABYLON.ShadowGenerator(2048, mainLight);
+            shadowGenerator.useBlurExponentialShadowMap = true;
+            shadowGenerator.blurScale = 2;
+
+            // Factory spotlights
+            for (let i = 0; i < 8; i++) {
+                const spotLight = new BABYLON.SpotLight(
+                    `spot${i}`,
+                    new BABYLON.Vector3((i % 4 - 1.5) * 30, 20, Math.floor(i / 4) * 50 - 25),
+                    new BABYLON.Vector3(0, -1, 0),
+                    Math.PI / 4,
+                    10,
+                    scene
+                );
+                spotLight.intensity = 0.5;
+                spotLight.diffuse = new BABYLON.Color3(1, 1, 0.9);
+            }
+
+            // ============================================
+            // FACTORY ENVIRONMENT
+            // ============================================
+            
+            // Main factory floor
+            const ground = BABYLON.MeshBuilder.CreateGround(
+                "ground",
+                { width: 150, height: 150 },
+                scene
+            );
+            ground.position.y = 0;
+            ground.receiveShadows = true;
+
+            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+            groundMat.diffuseTexture = new BABYLON.Texture("./images/textures/floor2.png", scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+            groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+            ground.material = groundMat;
+
+            // Ground physics
+            new BABYLON.PhysicsAggregate(
+                ground,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 0, restitution: 0.2, friction: 1.0 },
+                scene
+            );
+
+            // Factory walls
+            function createWall(width, height, depth, position) {
+                const wall = BABYLON.MeshBuilder.CreateBox(
+                    "wall",
+                    { width, height, depth },
+                    scene
+                );
+                wall.position = position;
+                wall.receiveShadows = true;
+
+                const wallMat = new BABYLON.StandardMaterial("wallMat", scene);
+                wallMat.diffuseColor = new BABYLON.Color3(0.25, 0.25, 0.3);
+                wall.material = wallMat;
+
+                new BABYLON.PhysicsAggregate(
+                    wall,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0, restitution: 0, friction: 1.0 },
+                    scene
+                );
+
+                shadowGenerator.addShadowCaster(wall);
+                return wall;
+            }
+
+            // North/South walls
+            createWall(150, 15, 2, new BABYLON.Vector3(0, 7.5, 75));
+            createWall(150, 15, 2, new BABYLON.Vector3(0, 7.5, -75));
+            
+            // East/West walls
+            createWall(2, 15, 150, new BABYLON.Vector3(75, 7.5, 0));
+            createWall(2, 15, 150, new BABYLON.Vector3(-75, 7.5, 0));
+
+            // ============================================
+            // FACTORY EQUIPMENT - Crates, Conveyors, Ramps
+            // ============================================
+            
+            function createCrate(size, position, color) {
+                const crate = BABYLON.MeshBuilder.CreateBox(
+                    "crate",
+                    { width: size.x, height: size.y, depth: size.z },
+                    scene
+                );
+                crate.position = position;
+
+                const crateMat = new BABYLON.StandardMaterial("crateMat", scene);
+                crateMat.diffuseColor = color || new BABYLON.Color3(0.55, 0.27, 0.07);
+                crate.material = crateMat;
+
+                new BABYLON.PhysicsAggregate(
+                    crate,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0, restitution: 0.2, friction: 0.8 },
+                    scene
+                );
+
+                shadowGenerator.addShadowCaster(crate);
+                return crate;
+            }
+
+            // Warehouse crates scattered around
+            createCrate({ x: 4, y: 4, z: 4 }, new BABYLON.Vector3(-30, 2, 30));
+            createCrate({ x: 3, y: 6, z: 3 }, new BABYLON.Vector3(40, 3, -20));
+            createCrate({ x: 5, y: 3, z: 5 }, new BABYLON.Vector3(-50, 1.5, -40));
+            createCrate({ x: 4, y: 5, z: 4 }, new BABYLON.Vector3(20, 2.5, 50));
+
+            // Stacked crates
+            createCrate({ x: 4, y: 4, z: 4 }, new BABYLON.Vector3(50, 2, 20));
+            createCrate({ x: 4, y: 4, z: 4 }, new BABYLON.Vector3(50, 6, 20));
+            createCrate({ x: 4, y: 4, z: 4 }, new BABYLON.Vector3(50, 10, 20));
+
+            // Ramps for sick tricks
+            function createRamp(width, height, depth, position, rotation) {
+                const ramp = BABYLON.MeshBuilder.CreateBox(
+                    "ramp",
+                    { width, height: 0.5, depth },
+                    scene
+                );
+                ramp.position = position;
+                ramp.rotation.x = rotation;
+
+                const rampMat = new BABYLON.StandardMaterial("rampMat", scene);
+                rampMat.diffuseColor = new BABYLON.Color3(0.4, 0.4, 0.5);
+                ramp.material = rampMat;
+
+                new BABYLON.PhysicsAggregate(
+                    ramp,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0, restitution: 0.1, friction: 0.9 },
+                    scene
+                );
+
+                shadowGenerator.addShadowCaster(ramp);
+                return ramp;
+            }
+
+            // Launch ramps
+            createRamp(8, 1, 10, new BABYLON.Vector3(-20, 2.5, 0), Math.PI / 6);
+            createRamp(8, 1, 10, new BABYLON.Vector3(30, 3, -30), Math.PI / 5);
+            createRamp(10, 1, 12, new BABYLON.Vector3(-40, 2, 40), Math.PI / 4);
+
+            // Grind rails
+            function createRail(length, position, rotation) {
+                const rail = BABYLON.MeshBuilder.CreateCylinder(
+                    "rail",
+                    { height: length, diameter: 0.15 },
+                    scene
+                );
+                rail.position = position;
+                rail.rotation.z = Math.PI / 2;
+                rail.rotation.y = rotation;
+
+                const railMat = new BABYLON.StandardMaterial("railMat", scene);
+                railMat.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                railMat.metallic = 1.0;
+                rail.material = railMat;
+
+                new BABYLON.PhysicsAggregate(
+                    rail,
+                    BABYLON.PhysicsShapeType.CYLINDER,
+                    { mass: 0, restitution: 0, friction: 0.1 },
+                    scene
+                );
+
+                shadowGenerator.addShadowCaster(rail);
+                return rail;
+            }
+
+            createRail(15, new BABYLON.Vector3(0, 1.5, -20), 0);
+            createRail(12, new BABYLON.Vector3(-35, 2, 10), Math.PI / 4);
+            createRail(20, new BABYLON.Vector3(25, 1.5, 25), Math.PI / 6);
+
+            // ============================================
+            // HELMETS TO COLLECT
+            // ============================================
+            const helmets = [];
+            
+            function createHelmet(position) {
+                // Simple helmet shape using sphere + box
+                const helmetGroup = new BABYLON.TransformNode("helmetGroup", scene);
+                
+                const dome = BABYLON.MeshBuilder.CreateSphere(
+                    "helmetDome",
+                    { diameter: 1, segments: 16 },
+                    scene
+                );
+                dome.position.y = 0.3;
+                dome.parent = helmetGroup;
+
+                const visor = BABYLON.MeshBuilder.CreateBox(
+                    "visor",
+                    { width: 0.8, height: 0.3, depth: 0.1 },
+                    scene
+                );
+                visor.position.set(0, 0.2, 0.5);
+                visor.parent = helmetGroup;
+
+                const helmetMat = new BABYLON.StandardMaterial("helmetMat", scene);
+                helmetMat.diffuseColor = new BABYLON.Color3(1, 0.08, 0.58);
+                helmetMat.emissiveColor = new BABYLON.Color3(0.3, 0, 0.2);
+                dome.material = helmetMat;
+                visor.material = helmetMat;
+
+                helmetGroup.position = position;
+                
+                // Floating animation
+                helmetGroup.rotation.y = Math.random() * Math.PI * 2;
+                
+                shadowGenerator.addShadowCaster(dome);
+                shadowGenerator.addShadowCaster(visor);
+
+                return { group: helmetGroup, dome, visor, collected: false };
+            }
+
+            // Spawn helmets around the factory
+            helmets.push(createHelmet(new BABYLON.Vector3(10, 2, 10)));
+            helmets.push(createHelmet(new BABYLON.Vector3(-15, 2, -15)));
+            helmets.push(createHelmet(new BABYLON.Vector3(30, 2, -30)));
+            helmets.push(createHelmet(new BABYLON.Vector3(-25, 2, 25)));
+            helmets.push(createHelmet(new BABYLON.Vector3(0, 2, 40)));
+            helmets.push(createHelmet(new BABYLON.Vector3(45, 2, 0)));
+            helmets.push(createHelmet(new BABYLON.Vector3(-40, 2, -35)));
+
+            // ============================================
+            // SPAWN SKATER
+            // ============================================
+            skater = new BabylonSkater(scene, true); // debug = true
+            
+            skaterInstance = skater.spawn({
+                x: 0,
+                y: 5,
+                z: 0,
+                deckColor: new BABYLON.Color3(1, 0.08, 0.58),
+                bodyColor: new BABYLON.Color3(0.1, 0.1, 0.1),
+                skinColor: new BABYLON.Color3(1, 0.86, 0.67)
+            });
+
+            // Add skater to shadow casters
+            shadowGenerator.addShadowCaster(skaterInstance.parts.deck);
+            shadowGenerator.addShadowCaster(skaterInstance.parts.body);
+            shadowGenerator.addShadowCaster(skaterInstance.parts.head);
+
+            console.log('🛹 Skater spawned and ready!');
+
+            // ============================================
+            // INPUT HANDLING
+            // ============================================
+            window.addEventListener('keydown', (e) => {
+                gameState.keys[e.key.toLowerCase()] = true;
+
+                // Jump
+                if (e.key === ' ') {
+                    if (skater.isGrinding()) {
+                        // Jump off grind
+                        skater.jumpOffGrind();
+                    } else {
+                        skater.jump();
+                    }
+                }
+
+                // Tricks (only when airborne)
+                if (!skater.isGrounded() && e.key.toLowerCase() === 'q') {
+                    if (skater.doTrick('kickflip')) {
+                        gameState.currentTrick = 'KICKFLIP!';
+                        gameState.trickTimer = 60;
+                        gameState.combo++;
+                        gameState.score += 100 * gameState.combo;
+                        gameState.comboTimer = 120;
+                    }
+                }
+
+                if (!skater.isGrounded() && e.key.toLowerCase() === 'e') {
+                    if (skater.doTrick('heelflip')) {
+                        gameState.currentTrick = 'HEELFLIP!';
+                        gameState.trickTimer = 60;
+                        gameState.combo++;
+                        gameState.score += 150 * gameState.combo;
+                        gameState.comboTimer = 120;
+                    }
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                gameState.keys[e.key.toLowerCase()] = false;
+            });
+
+            // ============================================
+            // GAME LOOP
+            // ============================================
+            scene.registerBeforeRender(() => {
+                // Update skater physics
+                skater.update();
+
+                // Movement controls - ARCADE STYLE
+                if (gameState.keys['w'] || gameState.keys['arrowup']) {
+                    skater.accelerateForward();
+                }
+                if (gameState.keys['s'] || gameState.keys['arrowdown']) {
+                    skater.accelerateBackward();
+                }
+                if (gameState.keys['a'] || gameState.keys['arrowleft']) {
+                    skater.turnLeft();
+                    skater.leanLeft();
+                }
+                if (gameState.keys['d'] || gameState.keys['arrowright']) {
+                    skater.turnRight();
+                    skater.leanRight();
+                }
+
+                // Reset lean when not turning
+                if (!gameState.keys['a'] && !gameState.keys['arrowleft'] && 
+                    !gameState.keys['d'] && !gameState.keys['arrowright']) {
+                    skater.resetLean();
+                }
+
+                // Check grinding
+                const rails = [];
+                scene.meshes.forEach(mesh => {
+                    if (mesh.name && mesh.name.includes('rail')) {
+                        rails.push(mesh);
+                    }
+                });
+                
+                skater.checkGrinding(rails);
+                
+                // Update grinding state
+                if (skater.isGrinding()) {
+                    if (skater.updateGrinding()) {
+                        gameState.score += 5;
+                        gameState.combo = Math.max(gameState.combo, 1);
+                        gameState.comboTimer = 10;
+                    }
+                }
+
+                // Update game state from skater
+                gameState.grounded = skater.isGrounded();
+                gameState.spinning = skater.isSpinning();
+
+                // Combo timer
+                if (gameState.comboTimer > 0) {
+                    gameState.comboTimer--;
+                    if (gameState.comboTimer === 0 && gameState.grounded && !skater.isGrinding()) {
+                        gameState.combo = 0;
+                    }
+                }
+
+                // Update trick timer
+                if (gameState.trickTimer > 0) {
+                    gameState.trickTimer--;
+                    if (gameState.trickTimer === 0) {
+                        gameState.currentTrick = '';
+                    }
+                }
+
+                // Helmet collection
+                const skaterPos = skater.getPosition();
+                helmets.forEach(helmet => {
+                    if (helmet.collected) return;
+
+                    const distance = BABYLON.Vector3.Distance(skaterPos, helmet.group.position);
+                    if (distance < 2) {
+                        helmet.collected = true;
+                        helmet.group.dispose();
+                        gameState.helmetsCollected++;
+                        gameState.score += 500;
+                        console.log('🪖 Helmet collected!');
+                    }
+
+                    // Rotate and float helmets
+                    if (!helmet.collected) {
+                        helmet.group.rotation.y += 0.02;
+                        helmet.group.position.y = 2 + Math.sin(Date.now() * 0.003 + helmet.group.position.x) * 0.3;
+                    }
+                });
+
+                // ============================================
+                // CAMERA FOLLOW
+                // ============================================
+                const targetPos = skaterPos.clone();
+                targetPos.y += 2; // Look at point slightly above skater
+
+                // Calculate camera position with mouse-based rotation
+                const camDistance = 15;
+                const camHeight = 7;
+                
+                const offsetX = Math.sin(mouseX) * camDistance;
+                const offsetZ = Math.cos(mouseX) * camDistance;
+                const offsetY = camHeight + mouseY * 5;
+
+                const idealCamPos = new BABYLON.Vector3(
+                    targetPos.x + offsetX,
+                    targetPos.y + offsetY,
+                    targetPos.z + offsetZ
+                );
+
+                // Smooth camera follow
+                camera.position = BABYLON.Vector3.Lerp(camera.position, idealCamPos, 0.1);
+                camera.setTarget(targetPos);
+
+                // ============================================
+                // HUD UPDATES
+                // ============================================
+                document.getElementById('score').textContent = `SCORE: ${Math.floor(gameState.score)}`;
+                document.getElementById('combo').textContent = `COMBO: ${gameState.combo}x`;
+                document.getElementById('trick').textContent = gameState.currentTrick;
+                document.getElementById('helmets').textContent = `HELMETS: ${gameState.helmetsCollected}/${helmets.length}`;
+
+                const speed = skater.getSpeed();
+                const speedDisplay = Math.floor(speed * 100);
+                const speedElement = document.getElementById('speed');
+                if (speedDisplay >= 60) {
+                    speedElement.style.color = '#FF0000';
+                    speedElement.textContent = `SPEED: ${speedDisplay} [BLAZING]`;
+                } else if (speedDisplay >= 40) {
+                    speedElement.style.color = '#FFA500';
+                    speedElement.textContent = `SPEED: ${speedDisplay} [FAST]`;
+                } else {
+                    speedElement.style.color = '#00FFFF';
+                    speedElement.textContent = `SPEED: ${speedDisplay}`;
+                }
+
+                // Debug info
+                const debugDiv = document.getElementById('debug');
+                debugDiv.innerHTML = `
+                    Position: (${skaterPos.x.toFixed(1)}, ${skaterPos.y.toFixed(1)}, ${skaterPos.z.toFixed(1)})<br>
+                    Speed: ${speed.toFixed(3)}<br>
+                    Grounded: ${skater.isGrounded()}<br>
+                    Grinding: ${skater.isGrinding()}<br>
+                    Helmets: ${gameState.helmetsCollected}/${helmets.length}
+                `;
+            });
+
+            // ============================================
+            // TITLE SCREEN FADE
+            // ============================================
+            setTimeout(() => {
+                document.getElementById('title').classList.add('fade-out');
+                setTimeout(() => {
+                    document.getElementById('title').style.display = 'none';
+                }, 2000);
+            }, 3000);
+
+            return scene;
+        }
+
+        // ============================================
+        // START THE GAME
+        // ============================================
+        createScene().then((scene) => {
+            engine.runRenderLoop(() => {
+                scene.render();
+            });
+
+            window.addEventListener('resize', () => {
+                engine.resize();
+            });
+
+            console.log('🎮 Helmet Factory loaded successfully!');
+        });
+    </script>
+</body>
+</html>

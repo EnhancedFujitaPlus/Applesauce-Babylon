@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Staircase Level</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            background: #000;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ff1493;
+            text-shadow: 0 0 10px #ff1493;
+            font-size: 14px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border: 2px solid #ff1493;
+            border-radius: 5px;
+        }
+        
+        #ui h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        #ui .stat {
+            margin: 5px 0;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+        }
+        
+        #ragdollBanner {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #ragdollBanner .subtext {
+            font-size: 16px;
+            color: #ff6666;
+            text-shadow: 0 0 10px #ff6666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    
+    <div id="ui">
+        <h2>🛹 APPLESAUCE</h2>
+        <div class="stat">Speed: <span id="speed">0.0</span> m/s</div>
+        <div class="stat">Position: <span id="position">0, 0, 0</span></div>
+        <div class="stat">FPS: <span id="fps">0</span></div>
+        <div class="stat" style="margin-top: 8px; color: #ff4444; text-shadow: 0 0 10px #ff4444;">
+            💀 Kills: <span id="kills">0</span> | 🔪 Dismembers: <span id="dismembers">0</span>
+        </div>
+        <div class="stat" style="color: #ff4444; text-shadow: 0 0 10px #ff4444;">
+            NPCs: <span id="npcCount">0</span>
+        </div>
+    </div>
+    
+    <div id="instructions">
+        <strong>CONTROLS:</strong><br>
+        W/↑ - Forward | S/↓ - Backward<br>
+        A/← - Turn Left | D/→ - Turn Right<br>
+        SPACE - Jump | F - Kickflip<br>
+        Q/E - Lean Left/Right<br>
+        R - Respawn (after bail)
+    </div>
+    
+    <div id="ragdollBanner">
+        💀 BAILED! 💀
+        <div class="subtext">Press R to respawn</div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    
+    <script type="module">
+        // Import modules
+        import { BabylonSkater } from '../skater/babylon-skater-rag.js';
+        import { BabylonGorePhysics } from '../gore/babylon-gore-physics-s.js';
+        
+        const canvas = document.getElementById('renderCanvas');
+        const engine = new BABYLON.Engine(canvas, true, {
+            preserveDrawingBuffer: true,
+            stencil: true
+        });
+        
+        let scene;
+        let skater;
+        let camera;
+        let keys = {};
+        
+        // Spawn position for respawning after ragdoll
+        const SPAWN = { x: 0, y: 5, z: -5 };
+        
+        // Ragdoll UI
+        const ragdollBanner = document.getElementById('ragdollBanner');
+        
+        // Initialize Havok Physics
+        const havokInstance = await HavokPhysics();
+        const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+        
+        // Create scene
+        scene = new BABYLON.Scene(engine);
+        scene.enablePhysics(new BABYLON.Vector3(0, -20, 0), havokPlugin);
+        scene.clearColor = new BABYLON.Color3(0.1, 0.05, 0.15);
+        
+        // Fog for depth
+        scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+        scene.fogDensity = 0.01;
+        scene.fogColor = new BABYLON.Color3(0.1, 0.05, 0.15);
+        
+        // Lighting
+        const hemiLight = new BABYLON.HemisphericLight(
+            "hemiLight",
+            new BABYLON.Vector3(0, 1, 0),
+            scene
+        );
+        hemiLight.intensity = 0.6;
+        hemiLight.diffuse = new BABYLON.Color3(0.8, 0.9, 1);
+        hemiLight.groundColor = new BABYLON.Color3(0.3, 0.2, 0.4);
+        
+        const dirLight = new BABYLON.DirectionalLight(
+            "dirLight",
+            new BABYLON.Vector3(-1, -2, -1),
+            scene
+        );
+        dirLight.intensity = 0.8;
+        dirLight.position = new BABYLON.Vector3(20, 40, 20);
+        
+        // Shadows
+        const shadowGenerator = new BABYLON.ShadowGenerator(2048, dirLight);
+        shadowGenerator.useBlurExponentialShadowMap = true;
+        shadowGenerator.blurScale = 2;
+        shadowGenerator.setDarkness(0.4);
+        
+        // Create materials
+        const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+        groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.25);
+        groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        
+        const stairMat = new BABYLON.StandardMaterial("stairMat", scene);
+        stairMat.diffuseColor = new BABYLON.Color3(0.3, 0.25, 0.35);
+        stairMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+        
+        // TOP PLATFORM (flat area)
+        const topPlatform = BABYLON.MeshBuilder.CreateBox(
+            "topPlatform",
+            { width: 30, height: 2, depth: 20 },
+            scene
+        );
+        topPlatform.position = new BABYLON.Vector3(0, -1, 0);
+        topPlatform.material = groundMat;
+        topPlatform.receiveShadows = true;
+        
+        new BABYLON.PhysicsAggregate(
+            topPlatform,
+            BABYLON.PhysicsShapeType.BOX,
+            { mass: 0, friction: 0.5 },
+            scene
+        );
+        
+        // STAIRCASE (10 steps)
+        const stepCount = 10;
+        const stepWidth = 30;
+        const stepHeight = 1;
+        const stepDepth = 2;
+        
+        for (let i = 0; i < stepCount; i++) {
+            const step = BABYLON.MeshBuilder.CreateBox(
+                `step${i}`,
+                { width: stepWidth, height: stepHeight, depth: stepDepth },
+                scene
+            );
+            
+            step.position = new BABYLON.Vector3(
+                0,
+                -stepHeight * i - 1.5,
+                10 + (stepDepth * i)
+            );
+            
+            step.material = stairMat;
+            step.receiveShadows = true;
+            
+            new BABYLON.PhysicsAggregate(
+                step,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 0, friction: 0.6 },
+                scene
+            );
+            
+            shadowGenerator.addShadowCaster(step);
+        }
+        
+        // BOTTOM PLATFORM (flat area at bottom of stairs)
+        const bottomPlatform = BABYLON.MeshBuilder.CreateBox(
+            "bottomPlatform",
+            { width: 60, height: 2, depth: 30 },
+            scene
+        );
+        bottomPlatform.position = new BABYLON.Vector3(
+            0,
+            -stepHeight * stepCount - 1.5,
+            10 + (stepDepth * stepCount) + 15
+        );
+        bottomPlatform.material = groundMat;
+        bottomPlatform.receiveShadows = true;
+        
+        new BABYLON.PhysicsAggregate(
+            bottomPlatform,
+            BABYLON.PhysicsShapeType.BOX,
+            { mass: 0, friction: 0.5 },
+            scene
+        );
+        
+        // SIDE WALLS for visual bounds
+        [-16, 16].forEach(xPos => {
+            const wall = BABYLON.MeshBuilder.CreateBox(
+                `wall${xPos}`,
+                { width: 1, height: 15, depth: 80 },
+                scene
+            );
+            wall.position = new BABYLON.Vector3(xPos, 5, 20);
+            wall.material = stairMat;
+            wall.receiveShadows = true;
+            
+            new BABYLON.PhysicsAggregate(
+                wall,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 0, friction: 0.3 },
+                scene
+            );
+        });
+        
+        // Add some decorative boxes
+        for (let i = 0; i < 5; i++) {
+            const box = BABYLON.MeshBuilder.CreateBox(
+                `decoBox${i}`,
+                { size: 2 + Math.random() * 2 },
+                scene
+            );
+            box.position = new BABYLON.Vector3(
+                -10 + Math.random() * 20,
+                3,
+                -5 + Math.random() * 10
+            );
+            box.rotation.y = Math.random() * Math.PI;
+            
+            const boxMat = new BABYLON.StandardMaterial(`boxMat${i}`, scene);
+            boxMat.diffuseColor = new BABYLON.Color3(
+                0.5 + Math.random() * 0.5,
+                0.1 + Math.random() * 0.3,
+                0.5 + Math.random() * 0.5
+            );
+            box.material = boxMat;
+            box.receiveShadows = true;
+            
+            new BABYLON.PhysicsAggregate(
+                box,
+                BABYLON.PhysicsShapeType.BOX,
+                { mass: 5, friction: 0.5, restitution: 0.3 },
+                scene
+            );
+            
+            shadowGenerator.addShadowCaster(box);
+        }
+        
+        // SPAWN SKATER (set debug to true to see ground detection raycast)
+        const skaterModule = new BabylonSkater(scene, false);
+        const skaterData = skaterModule.spawn({
+            x: 0,
+            y: 5,
+            z: -5,
+            deckColor: new BABYLON.Color3(1, 0.08, 0.58),
+            bodyColor: new BABYLON.Color3(0.1, 0.1, 0.1),
+            skinColor: new BABYLON.Color3(1, 0.86, 0.67)
+        });
+        
+        skater = skaterModule;
+        
+        // Add skater to shadow casters
+        shadowGenerator.addShadowCaster(skaterData.parts.deck);
+        shadowGenerator.addShadowCaster(skaterData.parts.body);
+        shadowGenerator.addShadowCaster(skaterData.parts.head);
+        
+        // ==========================================
+        // GORE PHYSICS
+        // ==========================================
+        const gore = new BabylonGorePhysics(scene, {
+            enabled: true,
+            showBlood: true,
+            showLogs: true,
+            damageThreshold: 6,
+            severThreshold: 12,
+            explodeThreshold: 25
+        });
+        
+        // ==========================================
+        // NPC SYSTEM
+        // ==========================================
+        const npcs = [];          // Active static NPCs
+        const NPC_HIT_RADIUS = 2; // How close skater must be
+        const NPC_MIN_SPEED = 0.15; // Minimum skater speed to trigger hit
+        
+        /**
+         * Create a simple static NPC at a world position.
+         * Returns an object with all meshes and a dispose method.
+         */
+        function spawnNPC(x, y, z, shirtColor) {
+            const root = new BABYLON.TransformNode(`npc_${Date.now()}_${Math.random().toString(36).substr(2,5)}`, scene);
+            root.position = new BABYLON.Vector3(x, y, z);
+            // Face random direction
+            root.rotation.y = Math.random() * Math.PI * 2;
+            
+            const skinMat = new BABYLON.StandardMaterial(`npcSkin_${root.name}`, scene);
+            skinMat.diffuseColor = new BABYLON.Color3(1, 0.86, 0.67);
+            
+            const clothMat = new BABYLON.StandardMaterial(`npcCloth_${root.name}`, scene);
+            clothMat.diffuseColor = shirtColor || new BABYLON.Color3(
+                0.2 + Math.random() * 0.6,
+                0.2 + Math.random() * 0.6,
+                0.2 + Math.random() * 0.6
+            );
+            
+            const pantsMat = new BABYLON.StandardMaterial(`npcPants_${root.name}`, scene);
+            pantsMat.diffuseColor = new BABYLON.Color3(0.15, 0.15, 0.2);
+            
+            const meshes = [];
+            
+            // Head
+            const head = BABYLON.MeshBuilder.CreateSphere(`${root.name}_head`, { diameter: 0.3, segments: 8 }, scene);
+            head.position.y = 1.6;
+            head.parent = root;
+            head.material = skinMat;
+            head.receiveShadows = true;
+            shadowGenerator.addShadowCaster(head);
+            meshes.push(head);
+            
+            // Upper torso
+            const torso = BABYLON.MeshBuilder.CreateBox(`${root.name}_torso`, { width: 0.4, height: 0.5, depth: 0.25 }, scene);
+            torso.position.y = 1.2;
+            torso.parent = root;
+            torso.material = clothMat;
+            torso.receiveShadows = true;
+            shadowGenerator.addShadowCaster(torso);
+            meshes.push(torso);
+            
+            // Lower torso
+            const hips = BABYLON.MeshBuilder.CreateBox(`${root.name}_hips`, { width: 0.35, height: 0.4, depth: 0.25 }, scene);
+            hips.position.y = 0.75;
+            hips.parent = root;
+            hips.material = clothMat;
+            hips.receiveShadows = true;
+            meshes.push(hips);
+            
+            // Arms
+            [-1, 1].forEach(side => {
+                const arm = BABYLON.MeshBuilder.CreateCapsule(`${root.name}_arm${side}`, { radius: 0.06, height: 0.55 }, scene);
+                arm.position = new BABYLON.Vector3(side * 0.3, 1.15, 0);
+                arm.parent = root;
+                arm.material = skinMat;
+                arm.receiveShadows = true;
+                meshes.push(arm);
+            });
+            
+            // Legs
+            [-1, 1].forEach(side => {
+                const upperLeg = BABYLON.MeshBuilder.CreateCapsule(`${root.name}_uleg${side}`, { radius: 0.08, height: 0.45 }, scene);
+                upperLeg.position = new BABYLON.Vector3(side * 0.12, 0.3, 0);
+                upperLeg.parent = root;
+                upperLeg.material = pantsMat;
+                upperLeg.receiveShadows = true;
+                meshes.push(upperLeg);
+                
+                const lowerLeg = BABYLON.MeshBuilder.CreateCapsule(`${root.name}_lleg${side}`, { radius: 0.06, height: 0.43 }, scene);
+                lowerLeg.position = new BABYLON.Vector3(side * 0.12, -0.15, 0);
+                lowerLeg.parent = root;
+                lowerLeg.material = pantsMat;
+                lowerLeg.receiveShadows = true;
+                meshes.push(lowerLeg);
+            });
+            
+            const npc = {
+                root: root,
+                meshes: meshes,
+                alive: true,
+                dispose() {
+                    meshes.forEach(m => {
+                        shadowGenerator.removeShadowCaster(m);
+                        m.dispose();
+                    });
+                    [skinMat, clothMat, pantsMat].forEach(m => m.dispose());
+                    root.dispose();
+                    this.alive = false;
+                }
+            };
+            
+            npcs.push(npc);
+            return npc;
+        }
+        
+        /**
+         * Check skater vs NPC collisions.
+         * On hit: destroy static NPC, spawn gore ragdoll, apply skater velocity.
+         */
+        function checkNPCCollisions() {
+            if (skater.isRagdoll()) return;
+            
+            const skaterPos = skater.getPosition();
+            const skaterSpeed = skater.getSpeed();
+            
+            if (skaterSpeed < NPC_MIN_SPEED) return;
+            
+            for (let i = npcs.length - 1; i >= 0; i--) {
+                const npc = npcs[i];
+                if (!npc.alive) continue;
+                
+                const npcPos = npc.root.position;
+                const dx = skaterPos.x - npcPos.x;
+                const dz = skaterPos.z - npcPos.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                
+                if (dist < NPC_HIT_RADIUS) {
+                    const hitPos = npcPos.clone();
+                    hitPos.y += 0.5; // Spawn ragdoll at NPC feet level
+                    
+                    // Destroy the static NPC
+                    npc.dispose();
+                    npcs.splice(i, 1);
+                    
+                    // Spawn gore ragdoll at impact point
+                    gore.createRagdoll(hitPos);
+                    
+                    // Apply skater's velocity as impulse to all ragdoll parts
+                    const rot = skater.getRotation();
+                    const speed = skaterSpeed;
+                    const impulseDir = new BABYLON.Vector3(
+                        Math.sin(rot) * speed * 60,
+                        speed * 15 + 5,
+                        Math.cos(rot) * speed * 60
+                    );
+                    
+                    // Get the most recently created ragdoll
+                    const ragdolls = Array.from(gore.ragdolls.values());
+                    const lastRagdoll = ragdolls[ragdolls.length - 1];
+                    
+                    if (lastRagdoll) {
+                        for (const partName in lastRagdoll.bodies) {
+                            const body = lastRagdoll.bodies[partName];
+                            // Add scatter so parts don't all fly in the same line
+                            const scatter = new BABYLON.Vector3(
+                                (Math.random() - 0.5) * 8,
+                                Math.random() * 5,
+                                (Math.random() - 0.5) * 8
+                            );
+                            body.aggregate.body.applyImpulse(
+                                impulseDir.add(scatter),
+                                body.mesh.getAbsolutePosition()
+                            );
+                        }
+                    }
+                    
+                    // Blood burst at impact
+                    if (gore.config.showBlood) {
+                        gore.spawnBlood(hitPos, skaterSpeed * 1500, 'SEVERE');
+                    }
+                    
+                    console.log(`💀 NPC HIT at speed ${skaterSpeed.toFixed(2)} — gore ragdoll spawned!`);
+                }
+            }
+        }
+        
+        // ==========================================
+        // SPAWN INITIAL NPCs
+        // ==========================================
+        
+        // NPCs on top platform
+        spawnNPC(-5, 1, -2);
+        spawnNPC(4, 1, 3);
+        spawnNPC(-8, 1, 5);
+        
+        // NPCs on the stairs (staggered)
+        spawnNPC(3, -1, 13);
+        spawnNPC(-4, -3.5, 17);
+        spawnNPC(6, -6, 21);
+        
+        // NPCs on bottom platform
+        const bottomY = -stepHeight * stepCount - 0.5;
+        const bottomZ = 10 + (stepDepth * stepCount) + 15;
+        spawnNPC(0, bottomY, bottomZ - 5);
+        spawnNPC(-7, bottomY, bottomZ);
+        spawnNPC(5, bottomY, bottomZ + 3);
+        spawnNPC(8, bottomY, bottomZ - 8);
+        
+        console.log(`🧟 ${npcs.length} NPCs spawned`);
+        
+        // CAMERA - Follow camera
+        camera = new BABYLON.FollowCamera(
+            "followCam",
+            new BABYLON.Vector3(0, 10, -10),
+            scene
+        );
+        camera.radius = 12;
+        camera.heightOffset = 6;
+        camera.rotationOffset = 180;
+        camera.cameraAcceleration = 0.05;
+        camera.maxCameraSpeed = 10;
+        camera.lockedTarget = skaterData.collider;
+        scene.activeCamera = camera;
+        camera.attachControl(canvas, true);
+        
+        // Keyboard input
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            // Respawn from ragdoll
+            if (e.key.toLowerCase() === 'r' && skater.isRagdoll()) {
+                skater.disableRagdoll(SPAWN.x, SPAWN.y, SPAWN.z);
+                ragdollBanner.style.display = 'none';
+                return;
+            }
+            
+            // Block all other actions during ragdoll
+            if (skater.isRagdoll()) return;
+            
+            // Jump
+            if (e.code === 'Space') {
+                skater.jump();
+            }
+            
+            // Kickflip
+            if (e.key.toLowerCase() === 'f') {
+                skater.doTrick('kickflip');
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        // UI updates
+        const speedEl = document.getElementById('speed');
+        const posEl = document.getElementById('position');
+        const fpsEl = document.getElementById('fps');
+        const killsEl = document.getElementById('kills');
+        const dismembersEl = document.getElementById('dismembers');
+        const npcCountEl = document.getElementById('npcCount');
+        
+        // Game loop
+        scene.onBeforeRenderObservable.add(() => {
+            // Update skater (skips internally when ragdolled)
+            skater.update();
+            
+            // Check for bail → trigger ragdoll
+            if (skater.didBail() && !skater.isRagdoll()) {
+                skater.enableRagdoll();
+                ragdollBanner.style.display = 'block';
+            }
+            
+            // Check skater vs NPC collisions
+            checkNPCCollisions();
+            
+            // Block all movement input during ragdoll
+            if (!skater.isRagdoll()) {
+                // Handle continuous input
+                if (keys['w'] || keys['arrowup']) {
+                    skater.accelerateForward();
+                }
+                if (keys['s'] || keys['arrowdown']) {
+                    skater.accelerateBackward();
+                }
+                if (keys['a'] || keys['arrowleft']) {
+                    skater.turnLeft();
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    skater.turnRight();
+                }
+                if (keys['q']) {
+                    skater.leanLeft();
+                } else if (keys['e']) {
+                    skater.leanRight();
+                } else {
+                    skater.resetLean();
+                }
+            }
+            
+            
+            // Update UI
+            const speed = skater.getSpeed();
+            speedEl.textContent = speed.toFixed(1);
+            
+            const pos = skater.getPosition();
+            posEl.textContent = `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
+            
+            fpsEl.textContent = engine.getFps().toFixed(0);
+            
+            // Gore stats
+            const goreStats = gore.getStats();
+            killsEl.textContent = goreStats.totalDeaths;
+            dismembersEl.textContent = goreStats.totalDismemberments;
+            npcCountEl.textContent = npcs.filter(n => n.alive).length;
+        });
+        
+        // Render loop
+        engine.runRenderLoop(() => {
+            scene.render();
+        });
+        
+        // Handle resize
+        window.addEventListener('resize', () => {
+            engine.resize();
+        });
+        
+        console.log('🛹 APPLESAUCE Staircase Level loaded!');
+        console.log('Scene ready, skater spawned, physics active');
+    </script>
+</body>
+</html>

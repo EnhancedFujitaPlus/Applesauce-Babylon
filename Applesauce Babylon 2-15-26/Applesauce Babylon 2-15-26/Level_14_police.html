@@ -1,0 +1,1935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - POLICE STATION</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+        }
+        
+        #score {
+            font-size: 48px;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+        
+        #combo {
+            font-size: 32px;
+            color: #FF1493;
+            margin-bottom: 10px;
+        }
+        
+        #trick {
+            font-size: 28px;
+            color: #00FF00;
+            margin-bottom: 10px;
+            min-height: 35px;
+        }
+        
+        #speed {
+            font-size: 24px;
+            color: #00FFFF;
+        }
+        
+        #floor {
+            font-size: 36px;
+            color: #FF6B00;
+            margin-bottom: 10px;
+        }
+        
+        #inventory {
+            font-size: 20px;
+            color: #FFFF00;
+            margin-top: 10px;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #title h1 {
+            font-size: 72px;
+            color: #0066FF;
+            text-shadow: 4px 4px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .fade-out {
+            animation: fadeOut 2s forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+            }
+        }
+        
+        /* SPEECH BUBBLE */
+        #speechBubble {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            border: 4px solid #000;
+            border-radius: 20px;
+            padding: 25px 30px;
+            max-width: 400px;
+            display: none;
+            z-index: 150;
+            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+        }
+        
+        #speechBubble.active {
+            display: block;
+            animation: bubblePop 0.3s ease-out;
+        }
+
+        @keyframes bubblePop {
+            0% { transform: translateY(-50%) scale(0); }
+            60% { transform: translateY(-50%) scale(1.1); }
+            100% { transform: translateY(-50%) scale(1); }
+        }
+
+        #speakerName {
+            font-size: 24px;
+            color: #000;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: none;
+        }
+
+        #speechText {
+            font-size: 18px;
+            color: #000;
+            line-height: 1.5;
+            font-family: Impact, sans-serif;
+            text-shadow: none;
+            min-height: 60px;
+        }
+
+        #dialoguePrompt {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+            text-align: right;
+            font-family: Arial, sans-serif;
+        }
+
+        #interactPrompt {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFD700;
+            font-size: 24px;
+            text-shadow: 3px 3px 0 #000;
+            display: none;
+            z-index: 100;
+            animation: bounce 0.5s infinite alternate;
+        }
+
+        @keyframes bounce {
+            0% { transform: translateX(-50%) translateY(0); }
+            100% { transform: translateX(-50%) translateY(-10px); }
+        }
+        
+        /* ELEVATOR UI */
+        #elevatorUI {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 4px solid #FFD700;
+            border-radius: 15px;
+            padding: 30px;
+            display: none;
+            z-index: 250;
+            min-width: 400px;
+        }
+        
+        #elevatorUI.active {
+            display: block;
+            animation: elevatorPop 0.3s ease-out;
+        }
+        
+        @keyframes elevatorPop {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        #elevatorUI h2 {
+            color: #FFD700;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 32px;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .floor-button {
+            background: linear-gradient(180deg, #0066FF 0%, #0044AA 100%);
+            border: 3px solid #FFD700;
+            color: #FFF;
+            font-family: Impact, sans-serif;
+            font-size: 24px;
+            padding: 15px;
+            margin: 10px 0;
+            width: 100%;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .floor-button:hover {
+            background: linear-gradient(180deg, #0088FF 0%, #0066DD 100%);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .floor-button:active {
+            transform: scale(0.95);
+        }
+        
+        .floor-button.locked {
+            background: linear-gradient(180deg, #666 0%, #444 100%);
+            border-color: #888;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .floor-button.locked:hover {
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .floor-button.current {
+            background: linear-gradient(180deg, #00FF00 0%, #00AA00 100%);
+        }
+        
+        #closeElevator {
+            background: #FF0000;
+            border: 3px solid #FFD700;
+            color: #FFF;
+            font-family: Impact, sans-serif;
+            font-size: 20px;
+            padding: 10px;
+            margin-top: 15px;
+            width: 100%;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+        
+        #closeElevator:hover {
+            background: #CC0000;
+        }
+        
+        #objectives {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            min-width: 250px;
+        }
+    </style>
+</head>
+<body>
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level X: PRECINCT 13</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #0066FF;">🚓 PROTECT AND SERVE THE TRUTH 🚓</p>
+    </div>
+    
+    <div id="speechBubble">
+        <div id="speakerName">SPEAKER</div>
+        <div id="speechText">Dialogue text goes here...</div>
+        <div id="dialoguePrompt">[Press F to continue...]</div>
+    </div>
+    
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="floor">FLOOR: LOBBY</div>
+        <div id="inventory">INVENTORY: Empty</div>
+    </div>
+    
+    <div id="objectives">
+        <div style="font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #FFD700;">QUEST LOG:</div>
+        <div id="obj1" style="margin-bottom: 8px;">☐ Find a rat outside</div>
+        <div id="obj2" style="margin-bottom: 8px;">☐ Give rat to front desk</div>
+        <div id="obj3" style="margin-bottom: 8px;">☐ Reach the Sheriff (3rd Floor)</div>
+        <div id="obj4" style="margin-bottom: 8px;">☐ Complete 5 Impossibles (0/5)</div>
+        <div id="obj5" style="margin-bottom: 8px;">☐ Unlock Cop Deployment System</div>
+    </div>
+    
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD/Arrows - Move<br>
+        SPACE - Ollie<br>
+        Q - Kickflip | E - Heelflip<br>
+        R - Use Elevator (UI)<br>
+        F - Interact/Talk<br>
+        ESC - Close Menus<br>
+        Grind desks for IMPOSSIBLES!<br>
+        Click to lock mouse
+    </div>
+    
+    <div id="interactPrompt">Press F to interact</div>
+    
+    <div id="elevatorUI">
+        <h2>🏢 SELECT FLOOR 🏢</h2>
+        <button class="floor-button" data-floor="0">GROUND - LOBBY</button>
+        <button class="floor-button" data-floor="1">FLOOR 1 - PATROL OFFICE</button>
+        <button class="floor-button" data-floor="2">FLOOR 2 - DETECTIVE BUREAU</button>
+        <button class="floor-button" data-floor="3">FLOOR 3 - SHERIFF'S OFFICE</button>
+        <button id="closeElevator">CANCEL</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ============================================
+        // SCENE SETUP
+        // ============================================
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x87CEEB, 100, 500); // Extended fog for larger scene
+        scene.background = new THREE.Color(0x87CEEB);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        
+        setTimeout(() => {
+            document.getElementById('title').classList.add('fade-out');
+            setTimeout(() => {
+                document.getElementById('title').style.display = 'none';
+            }, 2000);
+        }, 3000);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        
+        const sun = new THREE.DirectionalLight(0xffffff, 0.5);
+        sun.position.set(50, 100, 50);
+        sun.castShadow = true;
+        sun.shadow.camera.left = -100;
+        sun.shadow.camera.right = 100;
+        sun.shadow.camera.top = 100;
+        sun.shadow.camera.bottom = -100;
+        sun.shadow.mapSize.width = 2048;
+        sun.shadow.mapSize.height = 2048;
+        scene.add(sun);
+        
+        // ============================================
+        // MATERIALS LIBRARY
+        // ============================================
+        const COLORS = {
+            FLOOR_TILE: 0x888888,
+            WALL: 0xCCCCCC,
+            CEILING: 0xFFFFFF,
+            DESK_WOOD: 0x8B4513,
+            DESK_METAL: 0x555555,
+            CHAIR_BLACK: 0x1a1a1a,
+            CHAIR_BLUE: 0x0066FF,
+            METAL: 0x888888,
+            GLASS: 0xB0E0E6,
+            BLOOD: 0x8B0000,
+            FLESH: 0xFFB6C1,
+            RAT_GREY: 0x666666,
+            DUMPSTER_GREEN: 0x2F4F2F
+        };
+        
+        const MATERIALS = {
+            floor: new THREE.MeshLambertMaterial({ color: COLORS.FLOOR_TILE }),
+            wall: new THREE.MeshLambertMaterial({ color: COLORS.WALL }),
+            deskWood: new THREE.MeshLambertMaterial({ color: COLORS.DESK_WOOD }),
+            deskMetal: new THREE.MeshLambertMaterial({ color: COLORS.DESK_METAL }),
+            metal: new THREE.MeshStandardMaterial({ color: COLORS.METAL, metalness: 0.8, roughness: 0.2 }),
+            glass: new THREE.MeshPhongMaterial({ color: COLORS.GLASS, transparent: true, opacity: 0.3 }),
+            blood: new THREE.MeshLambertMaterial({ color: COLORS.BLOOD, transparent: true, opacity: 0.8 }),
+            flesh: new THREE.MeshLambertMaterial({ color: COLORS.FLESH })
+        };
+        
+        // ============================================
+        // DIALOGUE SYSTEM
+        // ============================================
+        const DialogueSystem = {
+            isActive: false,
+            isTyping: false,
+            currentText: '',
+            currentIndex: 0,
+            typingSpeed: 30,
+            currentDialogue: null,
+            
+            show(speaker, text, callback) {
+                this.isActive = true;
+                this.isTyping = true;
+                this.currentText = text;
+                this.currentIndex = 0;
+                this.currentDialogue = { speaker, text, callback };
+                
+                document.getElementById('speakerName').textContent = speaker;
+                document.getElementById('speechText').textContent = '';
+                document.getElementById('speechBubble').classList.add('active');
+                
+                this.typeNextCharacter();
+            },
+            
+            typeNextCharacter() {
+                if (!this.isTyping) return;
+                
+                if (this.currentIndex < this.currentText.length) {
+                    document.getElementById('speechText').textContent += this.currentText[this.currentIndex];
+                    this.currentIndex++;
+                    setTimeout(() => this.typeNextCharacter(), this.typingSpeed);
+                } else {
+                    this.isTyping = false;
+                }
+            },
+            
+            skip() {
+                if (this.isTyping) {
+                    this.isTyping = false;
+                    document.getElementById('speechText').textContent = this.currentText;
+                } else {
+                    this.hide();
+                }
+            },
+            
+            hide() {
+                this.isActive = false;
+                document.getElementById('speechBubble').classList.remove('active');
+                if (this.currentDialogue && this.currentDialogue.callback) {
+                    this.currentDialogue.callback();
+                }
+                this.currentDialogue = null;
+            }
+        };
+        
+        // ============================================
+        // GAME STATE
+        // ============================================
+        const state = {
+            score: 0,
+            combo: 0,
+            comboTimer: 0,
+            currentTrick: '',
+            trickTimer: 0,
+            speed: 0,
+            maxSpeed: 0.3,
+            acceleration: 0.01,
+            friction: 0.98,
+            rotation: 0,
+            turnSpeed: 0.05,
+            jumping: false,
+            grounded: true,
+            jumpVelocity: 0,
+            gravity: -0.02,
+            grinding: false,
+            currentRail: null,
+            spinning: false,
+            spinRotation: 0,
+            currentFloor: 0,
+            nearElevator: false,
+            nearNPC: null,
+            inventory: {
+                hasRat: false
+            },
+            quests: {
+                foundRat: false,
+                gaveDeskRat: false,
+                backDoorOpen: false,
+                metSheriff: false,
+                impossibles: 0,
+                copDeploymentUnlocked: false
+            },
+            blood: [],
+            gibs: []
+        };
+        
+        // ============================================
+        // PLAYER
+        // ============================================
+        const player = new THREE.Group();
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(0.6, 1.2, 0.6),
+            new THREE.MeshLambertMaterial({ color: 0x333333 })
+        );
+        body.position.y = 0.6;
+        body.castShadow = true;
+        player.add(body);
+        
+        const deck = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.1, 1),
+            new THREE.MeshLambertMaterial({ color: 0xFF6B00 })
+        );
+        deck.position.y = 0.05;
+        deck.castShadow = true;
+        player.add(deck);
+        
+        player.position.set(0, 0.5, -40); // Start further back in the larger scene
+        scene.add(player);
+        
+        // ============================================
+        // NPCS
+        // ============================================
+        class NPC {
+            constructor(name, x, z, color, floor = 0) {
+                this.name = name;
+                this.mesh = new THREE.Group();
+                
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.8, 1.6, 0.8),
+                    new THREE.MeshLambertMaterial({ color: color })
+                );
+                body.position.y = 0.8;
+                body.castShadow = true;
+                this.mesh.add(body);
+                
+                const head = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3),
+                    new THREE.MeshLambertMaterial({ color: 0xFFDBAC })
+                );
+                head.position.y = 1.9;
+                head.castShadow = true;
+                this.mesh.add(head);
+                
+                this.mesh.position.set(x, floor * 5, z);
+                scene.add(this.mesh);
+                
+                this.dialogues = [];
+                this.currentDialogueIndex = 0;
+                this.onInteract = null;
+                this.floor = floor;
+            }
+            
+            canInteract(playerX, playerZ) {
+                if (state.currentFloor !== this.floor) return false;
+                const dx = playerX - this.mesh.position.x;
+                const dz = playerZ - this.mesh.position.z;
+                return Math.sqrt(dx * dx + dz * dz) < 3;
+            }
+            
+            interact() {
+                if (this.onInteract) {
+                    this.onInteract();
+                } else if (this.dialogues.length > 0) {
+                    const dialogue = this.dialogues[this.currentDialogueIndex];
+                    DialogueSystem.show(this.name, dialogue, () => {
+                        this.currentDialogueIndex = (this.currentDialogueIndex + 1) % this.dialogues.length;
+                    });
+                }
+            }
+        }
+        
+        const npcs = [];
+        
+        // FRONT DESK NPC (Floor 0 - Lobby)
+        const deskClerk = new NPC('Officer Martinez', 0, 5, 0x0066FF, 0);
+        deskClerk.dialogues = [
+            "Hey skater! This is official business only. No tricks in here... unless you got something for me?",
+            "You want access to the back? I need... incentive. Something that shows you understand how things work around here.",
+            "Bring me a rat. There's gotta be one by the dumpsters out back. Prove you're resourceful."
+        ];
+        deskClerk.onInteract = function() {
+            if (state.quests.gaveDeskRat) {
+                DialogueSystem.show(this.name, "The back door's open. Sheriff's on the third floor. Good luck, kid.");
+            } else if (state.inventory.hasRat) {
+                DialogueSystem.show(this.name, "A rat! Perfect. You understand the system. Back door's open now. Sheriff's on floor 3.", () => {
+                    state.inventory.hasRat = false;
+                    state.quests.gaveDeskRat = true;
+                    state.quests.backDoorOpen = true;
+                    updateObjectives();
+                    // Open back door visually
+                    if (backDoor) {
+                        backDoor.position.x = -15;
+                    }
+                });
+            } else {
+                const dialogue = this.dialogues[Math.min(this.currentDialogueIndex, this.dialogues.length - 1)];
+                DialogueSystem.show(this.name, dialogue, () => {
+                    this.currentDialogueIndex++;
+                });
+            }
+        };
+        npcs.push(deskClerk);
+        
+        // JADED VETERAN COP (Floor 1)
+        const veteranCop = new NPC('Sgt. Kowalski', -8, 0, 0x333333, 1);
+        veteranCop.dialogues = [
+            "Twenty years on the force... used to think we were making a difference.",
+            "Now it's all paperwork, quotas, and this damn AI thing everyone's talking about.",
+            "Maybe what we need isn't more enforcement... maybe it's understanding. But what do I know? I'm just tired."
+        ];
+        npcs.push(veteranCop);
+        
+        // ROOKIE COP (Floor 2)
+        const rookieCop = new NPC('Officer Chen', 8, 8, 0x0066FF, 2);
+        rookieCop.dialogues = [
+            "I joined to help people, you know? Community service, de-escalation training... that's what they taught us at the academy.",
+            "But out here it's different. Everyone's so angry. At us, at each other... at those skaters.",
+            "Maybe if we had more programs - arts, music, youth outreach - we could actually prevent problems instead of just responding to them."
+        ];
+        npcs.push(rookieCop);
+        
+        // SHERIFF (Floor 3)
+        const sheriff = new NPC('Sheriff Ramirez', 0, 0, 0xFF6B00, 3);
+        sheriff.onInteract = function() {
+            if (state.quests.copDeploymentUnlocked) {
+                DialogueSystem.show(this.name, "Great work! Cop units are now deployed in the field. But remember... this story isn't about force. It's about finding the cure for what's making everyone crazy.");
+            } else if (state.quests.impossibles >= 5) {
+                DialogueSystem.show(this.name, "INCREDIBLE! You cleared our backlog! Cop deployment system UNLOCKED. Now we can focus on the real problems - like that Grok AI menace!", () => {
+                    state.quests.copDeploymentUnlocked = true;
+                    updateObjectives();
+                });
+            } else if (state.quests.metSheriff) {
+                DialogueSystem.show(this.name, `Need ${5 - state.quests.impossibles} more impossibles over desks. Show me those skills!`);
+            } else {
+                DialogueSystem.show(this.name, "So you're here about Grok? That AI predator? Yeah, we want to help... but look at this place! Paperwork EVERYWHERE. Reports on reports. Do 5 IMPOSSIBLES over desks to help us finish this bureaucracy, then we can deploy units!", () => {
+                    state.quests.metSheriff = true;
+                    updateObjectives();
+                });
+            }
+        };
+        npcs.push(sheriff);
+        
+        // REFORMIST COP (Floor 2)
+        const reformistCop = new NPC('Lt. Washington', -8, -8, 0x228B22, 2);
+        reformistCop.dialogues = [
+            "We need systemic change. More training in trauma-informed response. Music therapy for officers dealing with PTSD.",
+            "These skaters? They're not the enemy. The brain trauma, the AI manipulation - that's the real problem.",
+            "What we all need is healing. Connection. Remember why we started - to serve and protect. Not to dominate and control."
+        ];
+        npcs.push(reformistCop);
+        
+        // CIVILIAN CAUGHT IN THE MIDDLE (Floor 1)
+        const civilian = new NPC('Jamie', 8, 8, 0x9932CC, 1);
+        civilian.dialogues = [
+            "I'm just trying to file a noise complaint and got caught in this whole mess.",
+            "Cops are stressed, skaters are violent... everyone's scared. We need to talk to each other, not at each other.",
+            "My kid used to skate. Wore a helmet, made art, had a crew. That's what saved him. Community. Protection. Expression."
+        ];
+        npcs.push(civilian);
+        
+        // ============================================
+        // COLLECTIBLE RAT
+        // ============================================
+        let rat = null;
+        function createRat() {
+            const ratGroup = new THREE.Group();
+            
+            const ratBody = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.15, 0.5),
+                new THREE.MeshLambertMaterial({ color: COLORS.RAT_GREY })
+            );
+            ratBody.position.y = 0.1;
+            ratBody.castShadow = true;
+            ratGroup.add(ratBody);
+            
+            const ratHead = new THREE.Mesh(
+                new THREE.SphereGeometry(0.12),
+                new THREE.MeshLambertMaterial({ color: COLORS.RAT_GREY })
+            );
+            ratHead.position.set(0, 0.15, 0.3);
+            ratHead.castShadow = true;
+            ratGroup.add(ratHead);
+            
+            const ratTail = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.02, 0.01, 0.3),
+                new THREE.MeshLambertMaterial({ color: COLORS.RAT_GREY })
+            );
+            ratTail.rotation.x = Math.PI / 3;
+            ratTail.position.set(0, 0.1, -0.35);
+            ratGroup.add(ratTail);
+            
+            // Position is set when createRat() is called in loadFloor()
+            scene.add(ratGroup);
+            return ratGroup;
+        }
+        
+        // ============================================
+        // FLOOR BUILDING FUNCTIONS
+        // ============================================
+        /* 
+        HOW TO BUILD OFFICE LAYOUTS - COMPLETE GUIDE
+        ============================================
+        
+        BASIC CONCEPTS:
+        1. Each floor is built in the loadFloor(floorNum) function
+        2. Y-position is calculated as: floorY = floorNum * 5
+        3. All objects on that floor should use floorY for their base height
+        
+        CREATING ROOMS:
+        A room is made of 4 walls with a gap for a door.
+        
+        Example room (10x10 units):
+        
+        const backWall = new THREE.Mesh(
+            new THREE.BoxGeometry(10, 4, 0.3),  // width, height, depth
+            MATERIALS.wall
+        );
+        backWall.position.set(x, floorY + 2, z);  // floorY + 2 = middle of wall height
+        scene.add(backWall);
+        obstacles.push({ mesh: backWall, type: 'wall' });
+        
+        Repeat for left wall, right wall, and front walls (with door gap).
+        
+        CREATING DOORWAYS:
+        Instead of one long wall, create TWO shorter walls with a gap between them.
+        
+        Example (8-unit wide wall with 2-unit door):
+        const wallPart1 = new THREE.Mesh(
+            new THREE.BoxGeometry(3, 4, 0.3),  // 3 units wide
+            MATERIALS.wall
+        );
+        wallPart1.position.set(-2.5, floorY + 2, z);  // Left part
+        scene.add(wallPart1);
+        
+        const wallPart2 = new THREE.Mesh(
+            new THREE.BoxGeometry(3, 4, 0.3),  // 3 units wide
+            MATERIALS.wall
+        );
+        wallPart2.position.set(2.5, floorY + 2, z);  // Right part
+        scene.add(wallPart2);
+        // The 2-unit gap in the middle = doorway!
+        
+        CREATING HALLWAYS:
+        Hallways are just two parallel walls with space between them.
+        
+        Example (6-unit wide hallway running north-south):
+        const leftHallwayWall = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 4, 40),  // Thin wall, full length
+            MATERIALS.wall
+        );
+        leftHallwayWall.position.set(-3, floorY + 2, 0);  // Left side
+        scene.add(leftHallwayWall);
+        
+        const rightHallwayWall = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 4, 40),
+            MATERIALS.wall
+        );
+        rightHallwayWall.position.set(3, floorY + 2, 0);  // Right side
+        scene.add(rightHallwayWall);
+        
+        ADDING FURNITURE:
+        Use createDesk(x, z, rotation, floor) to add desks.
+        Rotation: 0 = facing north, Math.PI/2 = facing east, Math.PI = south, etc.
+        
+        OFFICE LAYOUT PATTERNS:
+        
+        1. CUBICLE FARM: Grid of desks with no walls
+           for (let x = -15; x < 15; x += 6) {
+               for (let z = -15; z < 15; z += 6) {
+                   createDesk(x, z, 0, floorNum);
+               }
+           }
+        
+        2. PRIVATE OFFICES: Small rooms (8x8) around perimeter
+           Build 4 walls, leave door gap, add 1 desk inside
+        
+        3. CONFERENCE ROOM: Large room (15x12)
+           Build 4 walls, arrange multiple desks as conference table
+        
+        4. BREAK ROOM: Room with benches instead of desks
+           const bench = new THREE.Mesh(
+               new THREE.BoxGeometry(4, 0.5, 1),
+               MATERIALS.deskWood
+           );
+        
+        COORDINATES REMINDER:
+        - X axis: -20 to +20 (left to right)
+        - Z axis: -20 to +20 (back to front)  
+        - Y axis: floorNum * 5 (floor height)
+        - Elevator is always at (0, floorY, 18)
+        
+        TIPS:
+        - Draw your layout on paper first
+        - Work in sections (north wing, south wing, etc.)
+        - Test by commenting out sections to see specific rooms
+        - Use consistent room sizes for easier planning
+        */
+        
+        const obstacles = [];
+        let backDoor = null;
+        
+        function clearFloor() {
+            for (let obstacle of obstacles) {
+                scene.remove(obstacle.mesh);
+            }
+            obstacles.length = 0;
+        }
+        
+        function createDesk(x, z, rotation = 0, floor = 0) {
+            const deskGroup = new THREE.Group();
+            
+            const top = new THREE.Mesh(
+                new THREE.BoxGeometry(4, 0.1, 2),
+                MATERIALS.deskWood
+            );
+            top.position.y = 1;
+            top.castShadow = true;
+            top.receiveShadow = true;
+            deskGroup.add(top);
+            
+            const leg1 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 1, 0.2),
+                MATERIALS.deskMetal
+            );
+            leg1.position.set(-1.8, 0.5, -0.8);
+            deskGroup.add(leg1);
+            
+            const leg2 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 1, 0.2),
+                MATERIALS.deskMetal
+            );
+            leg2.position.set(1.8, 0.5, -0.8);
+            deskGroup.add(leg2);
+            
+            const leg3 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 1, 0.2),
+                MATERIALS.deskMetal
+            );
+            leg3.position.set(-1.8, 0.5, 0.8);
+            deskGroup.add(leg3);
+            
+            const leg4 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 1, 0.2),
+                MATERIALS.deskMetal
+            );
+            leg4.position.set(1.8, 0.5, 0.8);
+            deskGroup.add(leg4);
+            
+            deskGroup.position.set(x, floor * 5, z);
+            deskGroup.rotation.y = rotation;
+            scene.add(deskGroup);
+            
+            obstacles.push({ mesh: deskGroup, type: 'desk' });
+            return deskGroup;
+        }
+        
+        function loadFloor(floorNum) {
+            clearFloor();
+            state.currentFloor = floorNum;
+            player.position.y = (floorNum * 5) + 0.5;
+            
+            const floorY = floorNum * 5;
+            
+            // Floor (larger for all floors)
+            const floor = new THREE.Mesh(
+                new THREE.BoxGeometry(60, 0.2, 60),
+                MATERIALS.floor
+            );
+            floor.position.set(0, floorY - 0.1, 0);
+            floor.receiveShadow = true;
+            scene.add(floor);
+            obstacles.push({ mesh: floor, type: 'floor' });
+            
+            // Walls (larger perimeter)
+            const wallHeight = 4;
+            const walls = [
+                { x: 0, z: 30, w: 60, h: wallHeight, d: 0.5 },  // North
+                { x: 0, z: -30, w: 60, h: wallHeight, d: 0.5 }, // South
+                { x: 30, z: 0, w: 0.5, h: wallHeight, d: 60 },  // East
+                { x: -30, z: 0, w: 0.5, h: wallHeight, d: 60 }  // West
+            ];
+            
+            walls.forEach(w => {
+                const wall = new THREE.Mesh(
+                    new THREE.BoxGeometry(w.w, w.h, w.d),
+                    MATERIALS.wall
+                );
+                wall.position.set(w.x, floorY + w.h / 2, w.z);
+                wall.receiveShadow = true;
+                wall.castShadow = true;
+                scene.add(wall);
+                obstacles.push({ mesh: wall, type: 'wall' });
+            });
+            
+            // Elevator (always at same position, but adjusted for larger scale)
+            const elevator = new THREE.Mesh(
+                new THREE.BoxGeometry(4, 4, 4),
+                MATERIALS.metal
+            );
+            elevator.position.set(0, floorY + 2, 28); // Moved back to accommodate larger lobby
+            elevator.castShadow = true;
+            scene.add(elevator);
+            obstacles.push({ mesh: elevator, type: 'elevator' });
+            
+            if (floorNum === 0) {
+                // ============================================
+                // GROUND FLOOR - EXTERIOR POLICE STATION (LARGE SCALE)
+                // ============================================
+                
+                // === MAIN PARKING LOT (ASPHALT - Much larger) ===
+                const parkingLot = new THREE.Mesh(
+                    new THREE.BoxGeometry(120, 0.2, 100),
+                    new THREE.MeshLambertMaterial({ color: 0x333333 })
+                );
+                parkingLot.position.set(0, 0.05, -10); // Consistent with grass at 0.05
+                parkingLot.receiveShadow = true;
+                scene.add(parkingLot);
+                obstacles.push({ mesh: parkingLot, type: 'ground' });
+                
+                // === FRONT GRASS AREA (in front of parking lot) ===
+                const frontGrass = new THREE.Mesh(
+                    new THREE.BoxGeometry(120, 0.2, 30),
+                    new THREE.MeshLambertMaterial({ color: 0x2E8B57 }) // Grass green
+                );
+                frontGrass.position.set(0, 0.05, -55); // Set to same level as parking lot
+                frontGrass.receiveShadow = true;
+                scene.add(frontGrass);
+                obstacles.push({ mesh: frontGrass, type: 'grass' });
+                
+                // === SIDE GRASS STRIPS (LEFT) ===
+                const leftGrass = new THREE.Mesh(
+                    new THREE.BoxGeometry(20, 0.2, 100),
+                    new THREE.MeshLambertMaterial({ color: 0x2E8B57 })
+                );
+                leftGrass.position.set(-50, 0.05, -10); // Set to same level as parking lot
+                leftGrass.receiveShadow = true;
+                scene.add(leftGrass);
+                
+                // === SIDE GRASS STRIPS (RIGHT) ===
+                const rightGrass = new THREE.Mesh(
+                    new THREE.BoxGeometry(20, 0.2, 100),
+                    new THREE.MeshLambertMaterial({ color: 0x2E8B57 })
+                );
+                rightGrass.position.set(50, 0.05, -10); // Set to same level as parking lot
+                rightGrass.receiveShadow = true;
+                scene.add(rightGrass);
+                
+                // === BUILDING GROUNDS (GRASS BEHIND BUILDING) ===
+                const backGrass = new THREE.Mesh(
+                    new THREE.BoxGeometry(80, 0.2, 30),
+                    new THREE.MeshLambertMaterial({ color: 0x2E8B57 })
+                );
+                backGrass.position.set(0, 0.05, 50); // Set to same level as parking lot
+                backGrass.receiveShadow = true;
+                scene.add(backGrass);
+                
+                // === BUILDING STRUCTURE (LARGER SCALE) ===
+                // Main building facade
+                const buildingFront = new THREE.Mesh(
+                    new THREE.BoxGeometry(50, 8, 3),
+                    new THREE.MeshLambertMaterial({ color: 0x8B7355 }) // Brick color
+                );
+                buildingFront.position.set(0, 4, 38);
+                buildingFront.receiveShadow = true;
+                buildingFront.castShadow = true;
+                scene.add(buildingFront);
+                obstacles.push({ mesh: buildingFront, type: 'building' });
+                
+                // Building left wing
+                const buildingLeft = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 8, 30),
+                    new THREE.MeshLambertMaterial({ color: 0x8B7355 })
+                );
+                buildingLeft.position.set(-26.5, 4, 25);
+                buildingLeft.castShadow = true;
+                scene.add(buildingLeft);
+                obstacles.push({ mesh: buildingLeft, type: 'building' });
+                
+                // Building right wing
+                const buildingRight = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 8, 30),
+                    new THREE.MeshLambertMaterial({ color: 0x8B7355 })
+                );
+                buildingRight.position.set(26.5, 4, 25);
+                buildingRight.castShadow = true;
+                scene.add(buildingRight);
+                obstacles.push({ mesh: buildingRight, type: 'building' });
+                
+                // === ENTRANCE DOORWAY (LARGER) ===
+                const entrance = new THREE.Mesh(
+                    new THREE.BoxGeometry(6, 5, 0.5),
+                    new THREE.MeshLambertMaterial({ color: 0x2F4F4F })
+                );
+                entrance.position.set(0, 2.5, 36.3);
+                entrance.castShadow = true;
+                scene.add(entrance);
+                obstacles.push({ mesh: entrance, type: 'door' });
+                
+                // === ENTRANCE STEPS ===
+                const steps = new THREE.Mesh(
+                    new THREE.BoxGeometry(8, 0.5, 3),
+                    new THREE.MeshLambertMaterial({ color: 0x808080 })
+                );
+                steps.position.set(0, 0.3, 34); // Raised from 0.25 to 0.3
+                scene.add(steps);
+                
+                // === ROUNDABOUT DRIVEWAY (MUCH LARGER) ===
+                // Outer circle (driveway) - increased from 12 to 20
+                const roundaboutOuter = new THREE.Mesh(
+                    new THREE.CylinderGeometry(20, 20, 0.3, 32),
+                    new THREE.MeshLambertMaterial({ color: 0x444444 })
+                );
+                roundaboutOuter.position.set(0, 0.05, 0);
+                roundaboutOuter.receiveShadow = true;
+                scene.add(roundaboutOuter);
+                obstacles.push({ mesh: roundaboutOuter, type: 'ground' });
+                
+                // Center island (grass) - increased from 6 to 10, raised to prevent z-fighting
+                const roundaboutCenter = new THREE.Mesh(
+                    new THREE.CylinderGeometry(10, 10, 0.4, 32),
+                    new THREE.MeshLambertMaterial({ color: 0x228B22 }) // Darker grass green
+                );
+                roundaboutCenter.position.set(0, 0.25, 0); // Raised from 0.1 to 0.25
+                roundaboutCenter.receiveShadow = true;
+                scene.add(roundaboutCenter);
+                obstacles.push({ mesh: roundaboutCenter, type: 'ground' });
+                
+                // === PRECINCT SIGN IN CENTER (LARGER) ===
+                const signPost = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.3, 0.3, 5, 8),
+                    new THREE.MeshLambertMaterial({ color: 0x333333 })
+                );
+                signPost.position.set(0, 2.5, 0);
+                signPost.castShadow = true;
+                scene.add(signPost);
+                
+                const signBoard = new THREE.Mesh(
+                    new THREE.BoxGeometry(6, 2.5, 0.3),
+                    new THREE.MeshLambertMaterial({ color: 0x0066FF })
+                );
+                signBoard.position.set(0, 5.5, 0);
+                signBoard.castShadow = true;
+                scene.add(signBoard);
+                
+                const signText = new THREE.Mesh(
+                    new THREE.BoxGeometry(5.5, 1.5, 0.35),
+                    new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+                );
+                signText.position.set(0, 5.5, 0.15);
+                scene.add(signText);
+                obstacles.push({ mesh: signPost, type: 'sign' });
+                
+                // === POLICE VEHICLES (LARGER AND MORE SPREAD OUT) ===
+                const createPoliceCar = (x, z, rotation) => {
+                    const carGroup = new THREE.Group();
+                    
+                    // Car body (scaled up)
+                    const body = new THREE.Mesh(
+                        new THREE.BoxGeometry(3, 1.5, 6),
+                        new THREE.MeshLambertMaterial({ color: 0x000000 })
+                    );
+                    body.position.y = 1;
+                    body.castShadow = true;
+                    carGroup.add(body);
+                    
+                    // Hood (white stripe) - offset upward to prevent z-fighting
+                    const hood = new THREE.Mesh(
+                        new THREE.BoxGeometry(3, 1.5, 3),
+                        new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+                    );
+                    hood.position.set(0, 1.02, 1.5); // Raised from 1 to 1.02 to sit above body
+                    carGroup.add(hood);
+                    
+                    // Roof (lights bar)
+                    const roof = new THREE.Mesh(
+                        new THREE.BoxGeometry(2, 0.4, 3),
+                        new THREE.MeshLambertMaterial({ color: 0xFF0000 })
+                    );
+                    roof.position.y = 2;
+                    roof.castShadow = true;
+                    carGroup.add(roof);
+                    
+                    // Wheels (larger)
+                    const wheelPositions = [
+                        [-1.5, 0.5, 2], [1.5, 0.5, 2],
+                        [-1.5, 0.5, -2], [1.5, 0.5, -2]
+                    ];
+                    wheelPositions.forEach(pos => {
+                        const wheel = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16),
+                            new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+                        );
+                        wheel.rotation.z = Math.PI / 2;
+                        wheel.position.set(pos[0], pos[1], pos[2]);
+                        wheel.castShadow = true;
+                        carGroup.add(wheel);
+                    });
+                    
+                    carGroup.position.set(x, 0, z);
+                    carGroup.rotation.y = rotation;
+                    scene.add(carGroup);
+                    obstacles.push({ mesh: carGroup, type: 'vehicle' });
+                };
+                
+                // More spread out parking
+                createPoliceCar(-30, -5, Math.PI / 6);      // Left front parking
+                createPoliceCar(30, -5, -Math.PI / 6);      // Right front parking
+                createPoliceCar(-35, 15, Math.PI / 2);      // Left side parking
+                createPoliceCar(35, 15, -Math.PI / 2);      // Right side parking
+                createPoliceCar(-25, 25, Math.PI / 3);      // Left rear parking
+                createPoliceCar(25, 25, -Math.PI / 3);      // Right rear parking
+                
+                // === DUMPSTERS (ON FAR SIDE WALL WITH GRASS) ===
+                const dumpster1 = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.5, 2, 4),
+                    new THREE.MeshLambertMaterial({ color: COLORS.DUMPSTER_GREEN })
+                );
+                dumpster1.position.set(-22, 1, 34);
+                dumpster1.castShadow = true;
+                scene.add(dumpster1);
+                obstacles.push({ mesh: dumpster1, type: 'dumpster' });
+                
+                const dumpster2 = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.5, 2, 4),
+                    new THREE.MeshLambertMaterial({ color: COLORS.DUMPSTER_GREEN })
+                );
+                dumpster2.position.set(-17, 1, 34);
+                dumpster2.castShadow = true;
+                scene.add(dumpster2);
+                obstacles.push({ mesh: dumpster2, type: 'dumpster' });
+                
+                // Grass patch near dumpsters
+                const dumpsterGrass = new THREE.Mesh(
+                    new THREE.BoxGeometry(12, 0.2, 8),
+                    new THREE.MeshLambertMaterial({ color: 0x2E8B57 })
+                );
+                dumpsterGrass.position.set(-19.5, 0.05, 33); // Consistent with other grass
+                dumpsterGrass.receiveShadow = true;
+                scene.add(dumpsterGrass);
+                
+                // === RAT SPAWN (NEAR DUMPSTERS) ===
+                if (!state.quests.foundRat && !state.inventory.hasRat) {
+                    rat = createRat();
+                    rat.position.set(-19.5, 0.2, 31);
+                }
+                
+                // === LOBBY INTERIOR (LARGER AND VISIBLE) ===
+                // Lobby floor
+                const lobbyFloor = new THREE.Mesh(
+                    new THREE.BoxGeometry(48, 0.2, 30),
+                    MATERIALS.floor
+                );
+                lobbyFloor.position.set(0, floorY - 0.1, 22);
+                lobbyFloor.receiveShadow = true;
+                scene.add(lobbyFloor);
+                obstacles.push({ mesh: lobbyFloor, type: 'floor' });
+                
+                // Lobby walls
+                const lobbyWalls = [
+                    { x: -24, z: 22, w: 0.5, h: 4, d: 30 },  // Left wall
+                    { x: 24, z: 22, w: 0.5, h: 4, d: 30 },   // Right wall
+                    { x: 0, z: 7, w: 48, h: 4, d: 0.5 }      // Back wall
+                ];
+                
+                lobbyWalls.forEach(w => {
+                    const wall = new THREE.Mesh(
+                        new THREE.BoxGeometry(w.w, w.h, w.d),
+                        MATERIALS.wall
+                    );
+                    wall.position.set(w.x, floorY + w.h / 2, w.z);
+                    wall.castShadow = true;
+                    scene.add(wall);
+                    obstacles.push({ mesh: wall, type: 'wall' });
+                });
+                
+                // Front desk (larger and more prominent)
+                createDesk(0, 18, 0, 0);
+                
+                // Waiting area benches (more spread out)
+                const bench1 = new THREE.Mesh(
+                    new THREE.BoxGeometry(5, 0.4, 1.5),
+                    MATERIALS.deskWood
+                );
+                bench1.position.set(-12, 0.4, 12);
+                bench1.castShadow = true;
+                scene.add(bench1);
+                
+                const bench2 = new THREE.Mesh(
+                    new THREE.BoxGeometry(5, 0.4, 1.5),
+                    MATERIALS.deskWood
+                );
+                bench2.position.set(12, 0.4, 12);
+                bench2.castShadow = true;
+                scene.add(bench2);
+                
+                // Back door to elevators (locked initially)
+                backDoor = new THREE.Mesh(
+                    new THREE.BoxGeometry(4, 4, 0.4),
+                    new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+                );
+                backDoor.position.set(state.quests.backDoorOpen ? -30 : -20, floorY + 2, 7.3);
+                backDoor.castShadow = true;
+                scene.add(backDoor);
+                obstacles.push({ mesh: backDoor, type: 'door' });
+                
+                // === PARKING LOT LINES (Visual detail) ===
+                for (let i = -40; i <= 40; i += 10) {
+                    const line = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.2, 0.05, 3),
+                        new THREE.MeshLambertMaterial({ color: 0xFFFFFF })
+                    );
+                    line.position.set(i, 0.15, -20); // Raised from 0.05 to 0.15 to prevent z-fighting
+                    scene.add(line);
+                }
+                
+            } else if (floorNum === 1) {
+                // ============================================
+                // FLOOR 1 - PATROL OFFICE
+                // ============================================
+                // HOW TO BUILD OFFICE LAYOUTS:
+                // 1. Create hallways using long, thin boxes for walls
+                // 2. Create rooms by placing walls around perimeters
+                // 3. Leave gaps in walls for doorways
+                // 4. Add desks, chairs, filing cabinets inside rooms
+                
+                // === CENTRAL HALLWAY ===
+                // Hallway floor (entire floor is walkable)
+                // Left hallway wall
+                const hallwayWallLeft = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 4, 30),
+                    MATERIALS.wall
+                );
+                hallwayWallLeft.position.set(-3, floorY + 2, 0);
+                scene.add(hallwayWallLeft);
+                obstacles.push({ mesh: hallwayWallLeft, type: 'wall' });
+                
+                // Right hallway wall
+                const hallwayWallRight = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 4, 30),
+                    MATERIALS.wall
+                );
+                hallwayWallRight.position.set(3, floorY + 2, 0);
+                scene.add(hallwayWallRight);
+                obstacles.push({ mesh: hallwayWallRight, type: 'wall' });
+                
+                // === ROOM 1 (LEFT SIDE - FRONT) ===
+                // To create a room: Build 4 walls, leave a gap for a door
+                
+                // Left room - back wall
+                const room1Back = new THREE.Mesh(
+                    new THREE.BoxGeometry(10, 4, 0.3),
+                    MATERIALS.wall
+                );
+                room1Back.position.set(-9, floorY + 2, -14);
+                scene.add(room1Back);
+                
+                // Left room - left wall
+                const room1Left = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 4, 8),
+                    MATERIALS.wall
+                );
+                room1Left.position.set(-14, floorY + 2, -10);
+                scene.add(room1Left);
+                
+                // Left room - front wall (with door gap)
+                const room1Front1 = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 4, 0.3),
+                    MATERIALS.wall
+                );
+                room1Front1.position.set(-11.5, floorY + 2, -6);
+                scene.add(room1Front1);
+                
+                const room1Front2 = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 4, 0.3),
+                    MATERIALS.wall
+                );
+                room1Front2.position.set(-6.5, floorY + 2, -6);
+                scene.add(room1Front2);
+                // (Gap between room1Front1 and room1Front2 = doorway)
+                
+                // Add furniture to room
+                createDesk(-10, -10, 0, 1);
+                
+                // === ROOM 2 (RIGHT SIDE - FRONT) ===
+                // Right room - back wall
+                const room2Back = new THREE.Mesh(
+                    new THREE.BoxGeometry(10, 4, 0.3),
+                    MATERIALS.wall
+                );
+                room2Back.position.set(9, floorY + 2, -14);
+                scene.add(room2Back);
+                
+                // Right room - right wall
+                const room2Right = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 4, 8),
+                    MATERIALS.wall
+                );
+                room2Right.position.set(14, floorY + 2, -10);
+                scene.add(room2Right);
+                
+                // Right room - front wall (with door gap)
+                const room2Front1 = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 4, 0.3),
+                    MATERIALS.wall
+                );
+                room2Front1.position.set(11.5, floorY + 2, -6);
+                scene.add(room2Front1);
+                
+                const room2Front2 = new THREE.Mesh(
+                    new THREE.BoxGeometry(3, 4, 0.3),
+                    MATERIALS.wall
+                );
+                room2Front2.position.set(6.5, floorY + 2, -6);
+                scene.add(room2Front2);
+                
+                createDesk(10, -10, Math.PI, 1);
+                
+                // === OPEN OFFICE AREA (BACK) ===
+                createDesk(-8, 8, Math.PI / 2, 1);
+                createDesk(8, 8, -Math.PI / 2, 1);
+                
+                // You can add more rooms following the same pattern:
+                // 1. Define 4 walls (with door gaps)
+                // 2. Add furniture inside
+                // 3. Repeat for each office, break room, interrogation room, etc.
+                
+            } else if (floorNum === 2) {
+                // ============================================
+                // FLOOR 2 - DETECTIVE BUREAU
+                // ============================================
+                // EXAMPLE: More complex office layout with multiple rooms
+                
+                // === MAIN DETECTIVE BULLPEN (CENTER) ===
+                // Large open area with multiple desks
+                createDesk(-8, 0, 0, 2);
+                createDesk(8, 0, Math.PI, 2);
+                createDesk(0, -6, Math.PI / 2, 2);
+                createDesk(0, 6, -Math.PI / 2, 2);
+                
+                // === PRIVATE OFFICES (BUILD AROUND PERIMETER) ===
+                // Detective Office 1 (Top Left Corner)
+                // Use same technique as Floor 1: 4 walls, door gap, furniture
+                
+                // Wall examples for a corner office:
+                const detOffice1_Back = new THREE.Mesh(
+                    new THREE.BoxGeometry(8, 4, 0.3),
+                    MATERIALS.wall
+                );
+                detOffice1_Back.position.set(-11, floorY + 2, 14);
+                scene.add(detOffice1_Back);
+                
+                const detOffice1_Left = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 4, 8),
+                    MATERIALS.wall
+                );
+                detOffice1_Left.position.set(-15, floorY + 2, 10);
+                scene.add(detOffice1_Left);
+                
+                // Add partial walls for door
+                const detOffice1_Front = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 4, 0.3),
+                    MATERIALS.wall
+                );
+                detOffice1_Front.position.set(-13, floorY + 2, 6);
+                scene.add(detOffice1_Front);
+                
+                createDesk(-11, 10, Math.PI / 4, 2);
+                
+                // === CONFERENCE ROOM (you can make larger rooms the same way) ===
+                // Just use longer walls and more space between them
+                // Conference table = multiple desks arranged together
+                
+                // Add as many rooms as you want using this pattern!
+                
+            } else if (floorNum === 3) {
+                // Floor 3 - Sheriff's office with LOTS of desks for impossibles
+                createDesk(-8, -8, 0, 3);
+                createDesk(-8, 0, 0, 3);
+                createDesk(-8, 8, 0, 3);
+                createDesk(8, -8, Math.PI, 3);
+                createDesk(8, 0, Math.PI, 3);
+                createDesk(8, 8, Math.PI, 3);
+                createDesk(0, -12, Math.PI / 2, 3);
+                createDesk(0, 12, Math.PI / 2, 3);
+            }
+        }
+        
+        // ============================================
+        // GORE SYSTEM (from Level 1.3)
+        // ============================================
+        function createBloodSplatter(x, y, z, count = 20) {
+            for (let i = 0; i < count; i++) {
+                const size = Math.random() * 0.15 + 0.05;
+                const particle = new THREE.Mesh(
+                    new THREE.SphereGeometry(size),
+                    MATERIALS.blood.clone()
+                );
+                
+                particle.position.set(x, y, z);
+                particle.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2,
+                    Math.random() * 0.3 + 0.1,
+                    (Math.random() - 0.5) * 0.2
+                );
+                particle.lifetime = 1000;
+                particle.castShadow = false;
+                
+                scene.add(particle);
+                state.blood.push(particle);
+            }
+        }
+        
+        function createGib(x, y, z, type = 'generic') {
+            const gibGeometry = type === 'head' 
+                ? new THREE.SphereGeometry(0.3)
+                : new THREE.BoxGeometry(0.3, 0.3, 0.4);
+            
+            const gib = new THREE.Mesh(gibGeometry, MATERIALS.flesh.clone());
+            gib.position.set(x, y, z);
+            gib.velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.4,
+                Math.random() * 0.5 + 0.2,
+                (Math.random() - 0.5) * 0.4
+            );
+            gib.rotationVelocity = new THREE.Vector3(
+                Math.random() * 0.2,
+                Math.random() * 0.2,
+                Math.random() * 0.2
+            );
+            gib.lifetime = 800;
+            gib.castShadow = true;
+            
+            scene.add(gib);
+            state.gibs.push(gib);
+        }
+        
+        // ============================================
+        // INPUT
+        // ============================================
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            // Close elevator UI with ESC
+            if (e.key === 'Escape') {
+                const elevatorUI = document.getElementById('elevatorUI');
+                if (elevatorUI.classList.contains('active')) {
+                    elevatorUI.classList.remove('active');
+                }
+            }
+            
+            if (e.key === ' ' && state.grounded && !DialogueSystem.isActive) {
+                state.jumping = true;
+                state.grounded = false;
+                state.jumpVelocity = 0.3;
+                state.currentTrick = 'OLLIE!';
+                state.trickTimer = 30;
+            }
+            
+            if ((e.key === 'q' || e.key === 'Q') && !state.grounded && !state.spinning && !DialogueSystem.isActive) {
+                state.spinning = true;
+                state.currentTrick = 'KICKFLIP!';
+                state.trickTimer = 60;
+                state.combo++;
+            }
+            
+            if ((e.key === 'e' || e.key === 'E') && !state.grounded && !state.spinning && !DialogueSystem.isActive) {
+                state.spinning = true;
+                state.currentTrick = 'HEELFLIP!';
+                state.trickTimer = 60;
+                state.combo++;
+            }
+            
+            if ((e.key === 'r' || e.key === 'R') && state.nearElevator && !DialogueSystem.isActive) {
+                const elevatorUI = document.getElementById('elevatorUI');
+                // Don't open if already open
+                if (!elevatorUI.classList.contains('active')) {
+                    showFloorMenu();
+                }
+            }
+            
+            if ((e.key === 'f' || e.key === 'F')) {
+                if (DialogueSystem.isActive) {
+                    DialogueSystem.skip();
+                } else if (state.nearNPC) {
+                    state.nearNPC.interact();
+                } else if (rat && !state.inventory.hasRat && !state.quests.foundRat) {
+                    const dx = player.position.x - rat.position.x;
+                    const dz = player.position.z - rat.position.z;
+                    if (Math.sqrt(dx * dx + dz * dz) < 2) {
+                        state.inventory.hasRat = true;
+                        state.quests.foundRat = true;
+                        scene.remove(rat);
+                        rat = null;
+                        updateObjectives();
+                        state.currentTrick = 'GOT RAT!';
+                        state.trickTimer = 90;
+                    }
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+        
+        function showFloorMenu() {
+            const elevatorUI = document.getElementById('elevatorUI');
+            elevatorUI.classList.add('active');
+            
+            // Update button states
+            const buttons = document.querySelectorAll('.floor-button');
+            buttons.forEach(btn => {
+                const floor = parseInt(btn.getAttribute('data-floor'));
+                
+                // Mark current floor
+                if (floor === state.currentFloor) {
+                    btn.classList.add('current');
+                } else {
+                    btn.classList.remove('current');
+                }
+                
+                // Lock floors above ground if door not open
+                if (floor > 0 && !state.quests.backDoorOpen) {
+                    btn.classList.add('locked');
+                    btn.disabled = true;
+                } else {
+                    btn.classList.remove('locked');
+                    btn.disabled = false;
+                }
+            });
+        }
+        
+        // Elevator button click handlers (set up after DOM loads)
+        setTimeout(() => {
+            const floorButtons = document.querySelectorAll('.floor-button');
+            floorButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (btn.classList.contains('locked')) {
+                        state.currentTrick = 'DOOR LOCKED!';
+                        state.trickTimer = 90;
+                        return;
+                    }
+                    
+                    const targetFloor = parseInt(btn.getAttribute('data-floor'));
+                    loadFloor(targetFloor);
+                    player.position.set(0, (targetFloor * 5) + 0.5, 24); // Adjusted for larger elevator position
+                    
+                    document.getElementById('elevatorUI').classList.remove('active');
+                });
+            });
+            
+            document.getElementById('closeElevator').addEventListener('click', () => {
+                document.getElementById('elevatorUI').classList.remove('active');
+            });
+        }, 100);
+        
+        let mouseMovementX = 0;
+        
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === renderer.domElement) {
+                mouseMovementX = e.movementX;
+            }
+        });
+        
+        renderer.domElement.addEventListener('click', () => {
+            renderer.domElement.requestPointerLock();
+        });
+        
+        // ============================================
+        // GRIND DETECTION
+        // ============================================
+        function checkGrinding() {
+            if (state.grounded) {
+                if (state.grinding) {
+                    state.grinding = false;
+                    state.currentRail = null;
+                }
+                return;
+            }
+            
+            if (state.jumpVelocity > 0.05) return;
+            
+            for (let obstacle of obstacles) {
+                if (obstacle.type !== 'desk') continue;
+                
+                const worldPos = new THREE.Vector3();
+                obstacle.mesh.getWorldPosition(worldPos);
+                
+                const dx = player.position.x - worldPos.x;
+                const dz = player.position.z - worldPos.z;
+                const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                const dy = player.position.y - worldPos.y;
+                
+                if (horizontalDist < 3 && Math.abs(dy - 1) < 0.5) {
+                    state.grinding = true;
+                    state.currentRail = obstacle.mesh;
+                    state.jumpVelocity = 0;
+                    player.position.y = worldPos.y + 1.1;
+                    
+                    if (state.combo === 0) {
+                        state.combo = 1;
+                    }
+                    
+                    // Check for IMPOSSIBLE
+                    if (state.speed > 0.15 && state.currentTrick.includes('FLIP')) {
+                        state.currentTrick = 'IMPOSSIBLE!!!';
+                        state.trickTimer = 120;
+                        if (state.quests.metSheriff && state.quests.impossibles < 5) {
+                            state.quests.impossibles++;
+                            updateObjectives();
+                            createBloodSplatter(player.position.x, player.position.y, player.position.z, 10);
+                        }
+                    } else {
+                        state.currentTrick = 'DESK GRIND!';
+                        state.trickTimer = 60;
+                    }
+                    return;
+                }
+            }
+        }
+        
+        function checkNearElevator() {
+            const elevatorZ = state.currentFloor === 0 ? 28 : 28; // Adjusted for larger lobby
+            const elevatorY = state.currentFloor * 5;
+            
+            const dx = player.position.x;
+            const dz = player.position.z - elevatorZ;
+            const dy = player.position.y - elevatorY;
+            
+            const dist = Math.sqrt(dx * dx + dz * dz + dy * dy);
+            state.nearElevator = dist < 6; // Increased detection range for larger elevator
+        }
+        
+        // ============================================
+        // UPDATE OBJECTIVES
+        // ============================================
+        function updateObjectives() {
+            const obj1 = document.getElementById('obj1');
+            const obj2 = document.getElementById('obj2');
+            const obj3 = document.getElementById('obj3');
+            const obj4 = document.getElementById('obj4');
+            const obj5 = document.getElementById('obj5');
+            
+            obj1.innerHTML = state.quests.foundRat ? '☑ Find a rat outside' : '☐ Find a rat outside';
+            obj1.style.color = state.quests.foundRat ? '#00FF00' : '#FFF';
+            
+            obj2.innerHTML = state.quests.gaveDeskRat ? '☑ Give rat to front desk' : '☐ Give rat to front desk';
+            obj2.style.color = state.quests.gaveDeskRat ? '#00FF00' : '#FFF';
+            
+            obj3.innerHTML = state.quests.metSheriff ? '☑ Reach the Sheriff (3rd Floor)' : '☐ Reach the Sheriff (3rd Floor)';
+            obj3.style.color = state.quests.metSheriff ? '#00FF00' : '#FFF';
+            
+            obj4.innerHTML = `${state.quests.impossibles >= 5 ? '☑' : '☐'} Complete 5 Impossibles (${state.quests.impossibles}/5)`;
+            obj4.style.color = state.quests.impossibles >= 5 ? '#00FF00' : state.quests.metSheriff ? '#FFD700' : '#FFF';
+            
+            obj5.innerHTML = state.quests.copDeploymentUnlocked ? '☑ Unlock Cop Deployment System' : '☐ Unlock Cop Deployment System';
+            obj5.style.color = state.quests.copDeploymentUnlocked ? '#00FF00' : '#FFF';
+            
+            // Update inventory display
+            const invText = state.inventory.hasRat ? 'RAT 🐀' : 'Empty';
+            document.getElementById('inventory').textContent = `INVENTORY: ${invText}`;
+        }
+        
+        // ============================================
+        // UPDATE LOOP
+        // ============================================
+        function update() {
+            // Movement
+            if (keys['w'] || keys['arrowup']) {
+                state.speed = Math.min(state.speed + state.acceleration, state.maxSpeed);
+            }
+            if (keys['s'] || keys['arrowdown']) {
+                state.speed = Math.max(state.speed - state.acceleration, -state.maxSpeed * 0.5);
+            }
+            
+            if (keys['a'] || keys['arrowleft']) {
+                state.rotation += state.turnSpeed;
+            }
+            if (keys['d'] || keys['arrowright']) {
+                state.rotation -= state.turnSpeed;
+            }
+            
+            state.speed *= state.friction;
+            
+            const forward = new THREE.Vector3(
+                Math.sin(state.rotation),
+                0,
+                Math.cos(state.rotation)
+            );
+            
+            player.position.x += forward.x * state.speed;
+            player.position.z += forward.z * state.speed;
+            player.rotation.y = state.rotation;
+            
+            // Keep player in bounds (much larger area now)
+            const boundary = 60; // Increased from 19 to 60
+            player.position.x = Math.max(-boundary, Math.min(boundary, player.position.x));
+            player.position.z = Math.max(-boundary, Math.min(boundary, player.position.z));
+            
+            // Jumping
+            if (state.jumping || state.grinding) {
+                if (!state.grinding) {
+                    player.position.y += state.jumpVelocity;
+                    state.jumpVelocity += state.gravity;
+                }
+                
+                const groundLevel = (state.currentFloor * 5) + 0.5;
+                
+                if (player.position.y <= groundLevel && !state.grinding) {
+                    player.position.y = groundLevel;
+                    state.jumping = false;
+                    state.jumpVelocity = 0;
+                    state.grounded = true;
+                    
+                    if (state.combo > 0) {
+                        const comboScore = state.combo * 100;
+                        state.score += comboScore;
+                        state.comboTimer = 120;
+                    }
+                    
+                    if (state.spinning && Math.abs(state.spinRotation % (Math.PI * 2)) > 0.5) {
+                        state.combo = 0;
+                        state.currentTrick = 'BAILED!';
+                        state.trickTimer = 60;
+                    }
+                    
+                    state.spinning = false;
+                    state.spinRotation = 0;
+                    deck.rotation.x = 0;
+                }
+            } else {
+                const groundLevel = (state.currentFloor * 5) + 0.5;
+                player.position.y = groundLevel;
+            }
+            
+            if (state.spinning) {
+                state.spinRotation += 0.3;
+                deck.rotation.x = state.spinRotation;
+            }
+            
+            checkGrinding();
+            checkNearElevator();
+            
+            if (state.grinding) {
+                state.score += 5;
+                state.combo = Math.max(state.combo, 1);
+                state.comboTimer = 10;
+                state.grounded = false;
+                state.jumping = true;
+                
+                if (state.currentRail) {
+                    const worldPos = new THREE.Vector3();
+                    state.currentRail.getWorldPosition(worldPos);
+                    const dx = player.position.x - worldPos.x;
+                    const dz = player.position.z - worldPos.z;
+                    const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                    
+                    if (horizontalDist > 4) {
+                        state.grinding = false;
+                        state.currentRail = null;
+                        state.jumpVelocity = -0.1;
+                    }
+                }
+            }
+            
+            if (state.comboTimer > 0) {
+                state.comboTimer--;
+                if (state.comboTimer === 0 && state.grounded && !state.grinding) {
+                    state.combo = 0;
+                }
+            }
+            
+            if (state.trickTimer > 0) {
+                state.trickTimer--;
+                if (state.trickTimer === 0) {
+                    state.currentTrick = '';
+                }
+            }
+            
+            // Update blood particles
+            for (let i = state.blood.length - 1; i >= 0; i--) {
+                const particle = state.blood[i];
+                
+                if (particle.lifetime !== undefined) {
+                    particle.lifetime--;
+                    if (particle.lifetime <= 0) {
+                        scene.remove(particle);
+                        state.blood.splice(i, 1);
+                        continue;
+                    }
+                    
+                    if (particle.material && particle.material.transparent) {
+                        const fadeStart = particle.lifetime < 200 ? particle.lifetime / 200 : 1;
+                        particle.material.opacity = Math.min(0.8, fadeStart * 0.8);
+                    }
+                }
+                
+                if (particle.velocity) {
+                    particle.position.add(particle.velocity);
+                    particle.velocity.y -= 0.015;
+                    
+                    const groundLevel = (state.currentFloor * 5);
+                    if (particle.position.y < groundLevel + 0.1) {
+                        particle.position.y = groundLevel + 0.1;
+                        particle.velocity.multiplyScalar(0.3);
+                    }
+                    
+                    if (particle.position.y < groundLevel + 0.15 && particle.velocity.length() < 0.02) {
+                        particle.velocity = null;
+                        if (!particle.lifetime) {
+                            particle.lifetime = 1500;
+                        }
+                    }
+                }
+            }
+            
+            // Update gibs
+            for (let i = state.gibs.length - 1; i >= 0; i--) {
+                const gib = state.gibs[i];
+                
+                gib.lifetime--;
+                if (gib.lifetime <= 0) {
+                    scene.remove(gib);
+                    state.gibs.splice(i, 1);
+                    continue;
+                }
+                
+                if (gib.velocity.length() > 0.01) {
+                    gib.position.add(gib.velocity);
+                    gib.velocity.y -= 0.015;
+                    
+                    gib.rotation.x += gib.rotationVelocity.x;
+                    gib.rotation.y += gib.rotationVelocity.y;
+                    gib.rotation.z += gib.rotationVelocity.z;
+                    
+                    const groundLevel = (state.currentFloor * 5);
+                    if (gib.position.y < groundLevel + 0.2) {
+                        gib.position.y = groundLevel + 0.2;
+                        gib.velocity.y *= -0.3;
+                        gib.velocity.x *= 0.5;
+                        gib.velocity.z *= 0.5;
+                        gib.rotationVelocity.multiplyScalar(0.5);
+                        
+                        if (Math.abs(gib.velocity.y) < 0.08) {
+                            gib.velocity.set(0, 0, 0);
+                            gib.rotationVelocity.set(0, 0, 0);
+                        }
+                    }
+                }
+            }
+            
+            // Check NPC proximity
+            state.nearNPC = null;
+            for (let npc of npcs) {
+                if (npc.canInteract(player.position.x, player.position.z)) {
+                    state.nearNPC = npc;
+                    break;
+                }
+            }
+            
+            // Show/hide interact prompt
+            const interactPrompt = document.getElementById('interactPrompt');
+            if (state.nearNPC && !DialogueSystem.isActive) {
+                interactPrompt.style.display = 'block';
+                interactPrompt.textContent = `Press F to talk to ${state.nearNPC.name}`;
+            } else if (rat && !state.inventory.hasRat && !state.quests.foundRat) {
+                const dx = player.position.x - rat.position.x;
+                const dz = player.position.z - rat.position.z;
+                if (Math.sqrt(dx * dx + dz * dz) < 2) {
+                    interactPrompt.style.display = 'block';
+                    interactPrompt.textContent = 'Press F to pick up RAT';
+                } else {
+                    interactPrompt.style.display = 'none';
+                }
+            } else {
+                interactPrompt.style.display = 'none';
+            }
+            
+            // Camera follow
+            const cameraOffset = new THREE.Vector3(
+                -Math.sin(state.rotation) * 10,
+                7,
+                -Math.cos(state.rotation) * 10
+            );
+            
+            camera.position.lerp(
+                player.position.clone().add(cameraOffset),
+                0.1
+            );
+            camera.lookAt(player.position.clone().add(new THREE.Vector3(0, 1, 0)));
+            
+            // Update HUD
+            document.getElementById('score').textContent = `SCORE: ${Math.floor(state.score)}`;
+            document.getElementById('combo').textContent = `COMBO: ${state.combo}x`;
+            document.getElementById('trick').textContent = state.currentTrick;
+            
+            const speedDisplay = Math.floor(Math.abs(state.speed) * 100);
+            document.getElementById('speed').textContent = `SPEED: ${speedDisplay}`;
+            
+            let floorText = ['LOBBY', 'PATROL', 'DETECTIVE', 'SHERIFF'][state.currentFloor] || state.currentFloor;
+            document.getElementById('floor').textContent = `FLOOR: ${floorText}${state.nearElevator ? ' [R=ELEVATOR]' : ''}`;
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start in lobby (floor 0)
+        loadFloor(0);
+        updateObjectives();
+        
+        animate();
+    </script>
+</body>
+</html>

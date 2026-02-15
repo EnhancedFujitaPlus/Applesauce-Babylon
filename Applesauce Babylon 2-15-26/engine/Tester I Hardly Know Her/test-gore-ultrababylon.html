@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UltraBabylon Gore Facility V2 - Test Build</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #0f0;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border: 2px solid #0f0;
+            font-size: 12px;
+            line-height: 1.6;
+            max-width: 400px;
+            z-index: 1000;
+        }
+        #stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #f00;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border: 2px solid #f00;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 1000;
+        }
+        .stat-label {
+            color: #fff;
+            font-weight: normal;
+        }
+        h3 {
+            margin: 0 0 10px 0;
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+        }
+        .key {
+            color: #ff0;
+        }
+        .value {
+            color: #0ff;
+        }
+        #console {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            height: 150px;
+            background: rgba(0,0,0,0.9);
+            border: 2px solid #0f0;
+            padding: 10px;
+            overflow-y: auto;
+            color: #0f0;
+            font-size: 11px;
+            z-index: 1000;
+        }
+        .log-impact { color: #ff0; }
+        .log-sever { color: #f00; font-weight: bold; }
+        .log-death { color: #f0f; font-weight: bold; }
+        .log-blood { color: #f44; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>🩸 GORE ENGINE V2.0</h3>
+        <div><span class="key">Scale:</span> <span class="value" id="scale">1.0x</span> (1.75m)</div>
+        <div><span class="key">Ragdolls:</span> <span class="value" id="ragdollCount">0</span></div>
+        <div style="margin-top:10px; border-top: 1px solid #0f0; padding-top: 10px;">
+            <div><span class="key">Damage Start:</span> <span class="value">8 m/s</span></div>
+            <div><span class="key">Dismember:</span> <span class="value">15 m/s</span></div>
+            <div><span class="key">Explode:</span> <span class="value">30 m/s</span></div>
+        </div>
+        <div style="margin-top:10px; border-top: 1px solid #0f0; padding-top: 10px; font-size: 10px;">
+            <div>💥 = Impact</div>
+            <div>🔪 = Dismemberment</div>
+            <div>☠️ = Death</div>
+            <div>🩸 = Blood Spray</div>
+        </div>
+    </div>
+
+    <div id="stats">
+        <div><span class="stat-label">Impacts:</span> <span id="impactCount">0</span></div>
+        <div><span class="stat-label">Dismemberments:</span> <span id="dismemberCount">0</span></div>
+        <div><span class="stat-label">Deaths:</span> <span id="deathCount">0</span></div>
+    </div>
+
+    <div id="console"></div>
+
+    <!-- Include your physics library here -->
+    <!-- <script src="path/to/your/physics/lib.js"></script> -->
+
+    <script>
+// ============================================
+// MOCK PHYSICS ENGINE (Replace with your actual physics lib)
+// ============================================
+const phy = {
+    bodies: [],
+    joints: [],
+    
+    view(opts) {
+        console.log('Physics view initialized:', opts);
+    },
+    
+    set(opts) {
+        console.log('Physics settings:', opts);
+    },
+    
+    add(opts) {
+        const body = {
+            ...opts,
+            id: Math.random().toString(36),
+            position: opts.pos || [0,0,0],
+            velocity: [0,0,0],
+            
+            getPosition() {
+                return {
+                    x: this.position[0],
+                    y: this.position[1],
+                    z: this.position[2]
+                };
+            }
+        };
+        
+        if (opts.type === 'joint') {
+            this.joints.push(body);
+        } else {
+            this.bodies.push(body);
+        }
+        
+        return body;
+    },
+    
+    remove(body) {
+        this.joints = this.joints.filter(j => j !== body);
+        this.bodies = this.bodies.filter(b => b !== body);
+    },
+    
+    update(dt) {
+        // Simulate physics
+        for (let body of this.bodies) {
+            if (body.type === 'joint') continue;
+            
+            // Apply gravity
+            body.velocity[1] -= 9.81 * dt;
+            
+            // Update position
+            body.position[0] += body.velocity[0] * dt;
+            body.position[1] += body.velocity[1] * dt;
+            body.position[2] += body.velocity[2] * dt;
+            
+            // Ground collision
+            if (body.position[1] < 0) {
+                body.position[1] = 0;
+                body.velocity[1] = -body.velocity[1] * 0.5; // Bounce
+                
+                // Trigger collision callback
+                if (body.onContact) {
+                    const speed = Math.sqrt(
+                        body.velocity[0]**2 + 
+                        body.velocity[1]**2 + 
+                        body.velocity[2]**2
+                    );
+                    
+                    body.onContact(null, {
+                        position: body.getPosition(),
+                        speed: speed
+                    });
+                }
+            }
+        }
+    }
+};
+
+const math = {
+    rand(min, max) {
+        return min + Math.random() * (max - min);
+    },
+    
+    addArray(a, b) {
+        return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+    }
+};
+
+// ============================================
+// GORE ENGINE V2 CONFIGURATION
+// ============================================
+const GORE = {
+    scale: 1.0,
+    numRagdolls: 10,  // Reduced for demo
+    debug: false,
+    
+    speeds: {
+        damage: 8,
+        sever: 15,
+        explode: 30
+    },
+    
+    bloodEnabled: true,
+    particlesPerHit: 20,
+    
+    headDamage: 3.0,
+    torsoDamage: 1.0,
+    limbDamage: 0.7
+};
+
+const BODY_PROPS = (() => {
+    const s = GORE.scale;
+    return {
+        headHeight: 0.23 * s,
+        headRadius: 0.09 * s,
+        upperBody: 0.35 * s,
+        lowerBody: 0.30 * s,
+        bodyRadius: 0.15 * s,
+        legRadius: 0.06 * s,
+        legInterval: 0.08 * s,
+        upperLeg: 0.45 * s,
+        lowerLeg: 0.43 * s,
+        armRadius: 0.04 * s,
+        upperArm: 0.30 * s,
+        lowerArm: 0.28 * s,
+        
+        mass: {
+            head: 5 * s,
+            upperBody: 20 * s,
+            lowerBody: 15 * s,
+            upperLeg: 7 * s,
+            lowerLeg: 4 * s,
+            upperArm: 2.5 * s,
+            lowerArm: 1.5 * s
+        }
+    };
+})();
+
+// ============================================
+// UI LOGGING
+// ============================================
+const stats = {
+    impacts: 0,
+    dismembers: 0,
+    deaths: 0
+};
+
+function logToConsole(message, type = 'info') {
+    const consoleEl = document.getElementById('console');
+    const line = document.createElement('div');
+    line.className = `log-${type}`;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+    consoleEl.appendChild(line);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+    
+    // Keep only last 50 lines
+    while (consoleEl.children.length > 50) {
+        consoleEl.removeChild(consoleEl.firstChild);
+    }
+}
+
+function updateStats() {
+    document.getElementById('impactCount').textContent = stats.impacts;
+    document.getElementById('dismemberCount').textContent = stats.dismembers;
+    document.getElementById('deathCount').textContent = stats.deaths;
+}
+
+// Override console.log to catch gore messages
+const originalLog = console.log;
+console.log = function(...args) {
+    const msg = args.join(' ');
+    
+    if (msg.includes('💥')) {
+        stats.impacts++;
+        logToConsole(msg, 'impact');
+    } else if (msg.includes('🔪') || msg.includes('💀 SEVERED')) {
+        stats.dismembers++;
+        logToConsole(msg, 'sever');
+    } else if (msg.includes('☠️')) {
+        stats.deaths++;
+        logToConsole(msg, 'death');
+    } else if (msg.includes('🩸')) {
+        logToConsole(msg, 'blood');
+    } else {
+        logToConsole(msg, 'info');
+    }
+    
+    updateStats();
+    originalLog.apply(console, args);
+};
+
+// ============================================
+// GORE TRACKER
+// ============================================
+class GoreTracker {
+    constructor() {
+        this.bodies = new Map();
+        this.lastPos = new Map();
+        this.severed = new Set();
+        this.bloodSplatters = [];
+    }
+    
+    track(id, bodyRef) {
+        this.bodies.set(id, {
+            ref: bodyRef,
+            speed: 0,
+            health: 100,
+            lastHit: 0
+        });
+    }
+    
+    update(dt = 0.016) {
+        for (let [id, data] of this.bodies) {
+            const body = data.ref;
+            if (!body || !body.getPosition) continue;
+            
+            const pos = body.getPosition();
+            const last = this.lastPos.get(id) || pos;
+            
+            const vx = (pos.x - last.x) / dt;
+            const vy = (pos.y - last.y) / dt;
+            const vz = (pos.z - last.z) / dt;
+            
+            data.speed = Math.sqrt(vx*vx + vy*vy + vz*vz);
+            this.lastPos.set(id, {...pos});
+        }
+    }
+    
+    checkImpact(id, threshold = GORE.speeds.damage) {
+        const data = this.bodies.get(id);
+        return data && data.speed > threshold ? data.speed : 0;
+    }
+    
+    damage(id, amount, zone = 'torso') {
+        const data = this.bodies.get(id);
+        if (!data) return false;
+        
+        const mult = zone === 'head' ? GORE.headDamage :
+                    zone === 'limb' ? GORE.limbDamage : 
+                    GORE.torsoDamage;
+        
+        data.health -= amount * mult;
+        data.lastHit = Date.now();
+        
+        return data.health <= 0;
+    }
+    
+    sever(jointId) {
+        if (this.severed.has(jointId)) return false;
+        this.severed.add(jointId);
+        console.log(`💀 SEVERED: ${jointId}`);
+        return true;
+    }
+    
+    isSevered(jointId) {
+        return this.severed.has(jointId);
+    }
+    
+    spawnBlood(pos, velocity, count = GORE.particlesPerHit) {
+        if (!GORE.bloodEnabled) return;
+        
+        this.bloodSplatters.push({
+            pos: {...pos},
+            vel: velocity,
+            count,
+            time: Date.now()
+        });
+        
+        console.log(`🩸 Blood spray at [${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}] - ${velocity.toFixed(1)}m/s`);
+    }
+}
+
+const tracker = new GoreTracker();
+
+// ============================================
+// RAGDOLL CREATION
+// ============================================
+ragdoll = (o) => {
+    const p = BODY_PROPS;
+    const id = `r_${Date.now()}_${Math.random()}`;
+    
+    const parts = {
+        head: {
+            type: 'sphere',
+            size: [p.headRadius],
+            pos: [0, p.lowerBody + p.upperBody + p.bodyRadius + p.headHeight/2, 0],
+            mass: p.mass.head,
+            zone: 'head'
+        },
+        body1: {
+            type: 'capsule',
+            size: [p.bodyRadius, p.upperBody],
+            pos: [0, p.lowerBody + p.upperBody/2, 0],
+            mass: p.mass.upperBody,
+            zone: 'torso'
+        },
+        body2: {
+            type: 'capsule',
+            size: [p.bodyRadius, p.lowerBody],
+            pos: [0, p.lowerBody/2, 0],
+            mass: p.mass.lowerBody,
+            zone: 'torso'
+        }
+    };
+    
+    const bodies = {};
+    
+    for (let name in parts) {
+        const part = parts[name];
+        const bodyId = `${id}_${name}`;
+        
+        bodies[name] = phy.add({
+            instance: name,
+            type: part.type,
+            mass: part.mass,
+            size: part.size,
+            pos: math.addArray(o.pos, part.pos),
+            
+            onContact: (other, contact) => {
+                const speed = tracker.checkImpact(bodyId);
+                
+                if (speed > GORE.speeds.damage) {
+                    const damage = speed * 5;
+                    const isDead = tracker.damage(bodyId, damage, part.zone);
+                    
+                    console.log(`💥 ${name} impact: ${speed.toFixed(1)}m/s | dmg: ${damage.toFixed(1)}`);
+                    
+                    if (speed > GORE.speeds.sever) {
+                        checkDismember(name, bodyId, speed, contact.position);
+                    }
+                    
+                    if (isDead) {
+                        console.log(`☠️ Ragdoll ${id} died from ${name} impact`);
+                    }
+                }
+            }
+        });
+        
+        tracker.track(bodyId, bodies[name]);
+    }
+    
+    function checkDismember(partName, bodyId, speed, contactPos) {
+        const jointId = `${id}_neck`;
+        
+        if (speed > GORE.speeds.sever && !tracker.isSevered(jointId)) {
+            if (tracker.sever(jointId)) {
+                tracker.spawnBlood(contactPos, speed);
+                
+                const severity = speed > GORE.speeds.explode ? 'CATASTROPHIC' :
+                               speed > GORE.speeds.sever ? 'SEVERE' : 'MODERATE';
+                console.log(`🔪 neck dismembered! [${severity}] ${speed.toFixed(1)}m/s`);
+            }
+        }
+    }
+    
+    // Create simple neck joint
+    phy.add({
+        type: 'joint',
+        mode: 'ragdoll',
+        b1: bodies.body1,
+        b2: bodies.head,
+        worldAnchor: math.addArray(o.pos, [0, p.lowerBody + p.upperBody + p.bodyRadius, 0]),
+        breakForce: 5000
+    });
+    
+    return { bodies, id };
+};
+
+// ============================================
+// DEMO
+// ============================================
+demo = () => {
+    phy.view({ 
+        envmap: 'bed', 
+        ground: true, 
+        distance: 12 
+    });
+    
+    phy.set({ 
+        substep: 2,
+        gravity: [0, -9.81, 0]
+    });
+    
+    phy.add({ 
+        type: 'box', 
+        size: [30, 1, 30], 
+        pos: [0, -0.5, 0], 
+        visible: false 
+    });
+    
+    // Spawn ragdolls
+    let i = GORE.numRagdolls;
+    while(i--) {
+        ragdoll({ 
+            pos: [math.rand(-3, 3), 10 + i*2, math.rand(-3, 3)] 
+        });
+    }
+    
+    document.getElementById('ragdollCount').textContent = GORE.numRagdolls;
+    document.getElementById('scale').textContent = `${GORE.scale}x`;
+    
+    logToConsole('🩸 GORE ENGINE V2.0 INITIALIZED', 'info');
+    logToConsole(`Spawned ${GORE.numRagdolls} ragdolls`, 'info');
+    logToConsole('Waiting for impacts...', 'info');
+};
+
+// ============================================
+// MAIN LOOP
+// ============================================
+let lastTime = Date.now();
+
+function updateGore() {
+    const now = Date.now();
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    
+    tracker.update(dt);
+    phy.update(dt);
+    
+    requestAnimationFrame(updateGore);
+}
+
+// Start
+setTimeout(() => {
+    demo();
+    updateGore();
+}, 100);
+
+    </script>
+</body>
+</html>

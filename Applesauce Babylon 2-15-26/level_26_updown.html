@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE - Level 26 FIXED</title>
+    
+    <!-- Babylon.js + Havok -->
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            overflow: hidden;
+            background: #000;
+        }
+        
+        #renderCanvas {
+            width: 100%;
+            height: 100vh;
+            display: block;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            z-index: 100;
+            text-shadow: 3px 3px 0 #000, -1px -1px 0 #000;
+        }
+        
+        #score { font-size: 48px; color: #FFD700; margin-bottom: 10px; }
+        #combo { font-size: 32px; color: #FF1493; margin-bottom: 10px; }
+        #trick { font-size: 28px; color: #00FF00; margin-bottom: 10px; min-height: 35px; }
+        #speed { font-size: 24px; color: #00FFFF; }
+        #kills { font-size: 20px; color: #FF0000; margin-top: 5px; }
+        #debris { font-size: 16px; color: #FFA500; margin-top: 5px; }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        #title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        #title h1 {
+            font-size: 72px;
+            color: #FF0000;
+            text-shadow: 4px 4px 0 #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+        }
+        
+        #title p {
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+        
+        .fade-out { animation: fadeOut 2s forwards; }
+        @keyframes fadeOut { to { opacity: 0; } }
+        
+        #bloodFlash {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: radial-gradient(circle, rgba(255,0,0,0.7) 0%, rgba(139,0,0,0) 70%);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 50;
+            transition: opacity 0.15s;
+        }
+        
+        .blood-splatter {
+            position: fixed;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(139,0,0,0.9) 20%, rgba(255,0,0,0.5) 50%, transparent 70%);
+            pointer-events: none;
+            z-index: 60;
+            animation: bloodFade 2.5s ease-out forwards;
+        }
+        
+        @keyframes bloodFade {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(1.5); }
+        }
+    </style>
+</head>
+<body>
+    <div id="title">
+        <h1>APPLESAUCE</h1>
+        <p>Level 1: DOWNHILL BOMB</p>
+        <p style="font-size: 16px; margin-top: 10px; color: #FF0000;">⚠️ SKATER MODULE EDITION ⚠️</p>
+    </div>
+    
+    <div id="bloodFlash"></div>
+    
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="combo">COMBO: 0x</div>
+        <div id="trick"></div>
+        <div id="speed">SPEED: 0</div>
+        <div id="kills">KILLS: 0</div>
+        <div id="debris">DEBRIS: 0</div>
+    </div>
+    
+    <div id="controls">
+        <strong>CONTROLS:</strong><br>
+        WASD - Move & Steer<br>
+        SPACE - Ollie<br>
+        Q - Kickflip<br>
+        FAST + Building = DESTRUCTION<br>
+        FAST + Enemy = ROADKILL
+    </div>
+    
+    <canvas id="renderCanvas"></canvas>
+    
+    <script type="module">
+        // ==========================================
+        // BABYLON SKATER MODULE (Inline for demo)
+        // ==========================================
+        
+        class BabylonSkater {
+            constructor(scene) {
+                this.scene = scene;
+                this.skaterRoot = null;
+                this.deck = null;
+                this.physicsCollider = null;
+                this.physicsAggregate = null;
+            }
+            
+            spawn(config = {}) {
+                const x = config.x || 0;
+                const y = config.y || 5;
+                const z = config.z || 0;
+                
+                const skaterRoot = new BABYLON.TransformNode("skaterRoot", this.scene);
+                
+                // DECK
+                const deck = BABYLON.MeshBuilder.CreateBox(
+                    "deck",
+                    { width: 0.8, height: 0.1, depth: 2.5 },
+                    this.scene
+                );
+                deck.position.y = 0.3;
+                deck.parent = skaterRoot;
+                
+                const deckMat = new BABYLON.StandardMaterial("deckMat", this.scene);
+                deckMat.diffuseColor = new BABYLON.Color3(1, 0.08, 0.58);
+                deck.material = deckMat;
+                deck.castShadow = true;
+                this.deck = deck;
+                
+                // WHEELS
+                const wheelMat = new BABYLON.StandardMaterial("wheelMat", this.scene);
+                wheelMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+                
+                [
+                    { x: -0.3, y: 0.15, z: -0.8 },
+                    { x: 0.3, y: 0.15, z: -0.8 },
+                    { x: -0.3, y: 0.15, z: 0.8 },
+                    { x: 0.3, y: 0.15, z: 0.8 }
+                ].forEach((pos, i) => {
+                    const wheel = BABYLON.MeshBuilder.CreateCylinder(
+                        `wheel${i}`,
+                        { height: 0.1, diameter: 0.3, tessellation: 12 },
+                        this.scene
+                    );
+                    wheel.position = new BABYLON.Vector3(pos.x, pos.y, pos.z);
+                    wheel.rotation.z = Math.PI / 2;
+                    wheel.parent = skaterRoot;
+                    wheel.material = wheelMat;
+                    wheel.castShadow = true;
+                });
+                
+                // BODY
+                const body = BABYLON.MeshBuilder.CreateBox(
+                    "body",
+                    { width: 0.6, height: 1.2, depth: 0.4 },
+                    this.scene
+                );
+                body.position = new BABYLON.Vector3(0, 1.2, -0.2);
+                body.parent = skaterRoot;
+                
+                const bodyMat = new BABYLON.StandardMaterial("bodyMat", this.scene);
+                bodyMat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+                body.material = bodyMat;
+                body.castShadow = true;
+                
+                // HEAD
+                const head = BABYLON.MeshBuilder.CreateSphere(
+                    "head",
+                    { diameter: 0.6, segments: 8 },
+                    this.scene
+                );
+                head.position = new BABYLON.Vector3(0, 2.1, -0.2);
+                head.parent = skaterRoot;
+                
+                const headMat = new BABYLON.StandardMaterial("headMat", this.scene);
+                headMat.diffuseColor = new BABYLON.Color3(1, 0.86, 0.67);
+                head.material = headMat;
+                head.castShadow = true;
+                
+                // ARMS & LEGS
+                [-1, 1].forEach(side => {
+                    const arm = BABYLON.MeshBuilder.CreateBox(
+                        `arm${side}`,
+                        { width: 0.2, height: 0.8, depth: 0.2 },
+                        this.scene
+                    );
+                    arm.position = new BABYLON.Vector3(side * 0.4, 1.2, -0.2);
+                    arm.parent = skaterRoot;
+                    arm.material = bodyMat;
+                    arm.castShadow = true;
+                    
+                    const leg = BABYLON.MeshBuilder.CreateBox(
+                        `leg${side}`,
+                        { width: 0.2, height: 0.6, depth: 0.2 },
+                        this.scene
+                    );
+                    leg.position = new BABYLON.Vector3(side * 0.2, 0.6, -0.2);
+                    leg.parent = skaterRoot;
+                    leg.material = bodyMat;
+                    leg.castShadow = true;
+                });
+                
+                // PHYSICS COLLIDER
+                const physicsCollider = BABYLON.MeshBuilder.CreateCapsule(
+                    "skaterCollider",
+                    { height: 2, radius: 0.5 },
+                    this.scene
+                );
+                physicsCollider.position = new BABYLON.Vector3(x, y, z);
+                physicsCollider.isVisible = false;
+                
+                const aggregate = new BABYLON.PhysicsAggregate(
+                    physicsCollider,
+                    BABYLON.PhysicsShapeType.CAPSULE,
+                    { mass: 70, restitution: 0.1, friction: 0.2 }, // Lower friction for skating
+                    this.scene
+                );
+                
+                aggregate.body.setAngularDamping(0.99);
+                aggregate.body.setLinearDamping(0.05); // Very low damping for skating
+                
+                this.physicsAggregate = aggregate;
+                this.physicsCollider = physicsCollider;
+                this.skaterRoot = skaterRoot;
+                
+                console.log(`🛹 Skater spawned at (${x}, ${y}, ${z})`);
+                
+                return { root: skaterRoot, collider: physicsCollider, aggregate };
+            }
+            
+            update() {
+                if (!this.skaterRoot || !this.physicsCollider) return;
+                this.skaterRoot.position = this.physicsCollider.position.clone();
+                this.skaterRoot.position.y -= 0.8;
+                this.skaterRoot.rotation.y = this.physicsCollider.rotation.y;
+            }
+            
+            moveForward(speed = 0.5) {
+                if (!this.physicsAggregate) return;
+                
+                // Get current velocity
+                const currentVel = this.physicsAggregate.body.getLinearVelocity();
+                
+                // Calculate forward direction from rotation
+                const rotY = this.physicsCollider.rotation.y;
+                const forward = new BABYLON.Vector3(
+                    Math.sin(rotY),
+                    0,
+                    Math.cos(rotY)
+                );
+                
+                // Add to velocity
+                const newVel = currentVel.add(forward.scale(speed));
+                
+                // Clamp max speed
+                const horizontalSpeed = Math.sqrt(newVel.x * newVel.x + newVel.z * newVel.z);
+                if (horizontalSpeed < 30) { // Max speed
+                    this.physicsAggregate.body.setLinearVelocity(newVel);
+                }
+            }
+            
+            moveBackward(speed = 0.3) {
+                if (!this.physicsAggregate) return;
+                
+                const currentVel = this.physicsAggregate.body.getLinearVelocity();
+                const rotY = this.physicsCollider.rotation.y;
+                const backward = new BABYLON.Vector3(
+                    -Math.sin(rotY),
+                    0,
+                    -Math.cos(rotY)
+                );
+                
+                const newVel = currentVel.add(backward.scale(speed));
+                this.physicsAggregate.body.setLinearVelocity(newVel);
+            }
+            
+            turnLeft(turnSpeed = 0.05) {
+                if (!this.physicsCollider) return;
+                this.physicsCollider.rotation.y += turnSpeed;
+            }
+            
+            turnRight(turnSpeed = 0.05) {
+                if (!this.physicsCollider) return;
+                this.physicsCollider.rotation.y -= turnSpeed;
+            }
+            
+            jump(force = 300) {
+                if (!this.physicsAggregate) return;
+                this.physicsAggregate.body.applyImpulse(
+                    new BABYLON.Vector3(0, force, 0),
+                    this.physicsCollider.getAbsolutePosition()
+                );
+            }
+            
+            getVelocity() {
+                return this.physicsAggregate?.body.getLinearVelocity() || new BABYLON.Vector3(0, 0, 0);
+            }
+            
+            getSpeed() {
+                const vel = this.getVelocity();
+                return Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+            }
+            
+            getPosition() {
+                return this.physicsCollider?.position || new BABYLON.Vector3(0, 0, 0);
+            }
+            
+            doKickflip() {
+                if (this.deck) this.deck.rotation.x += 0.3;
+            }
+            
+            resetDeckRotation() {
+                if (this.deck) {
+                    this.deck.rotation.x *= 0.9;
+                    this.deck.rotation.z *= 0.9;
+                }
+            }
+            
+            leanLeft() {
+                if (this.deck) this.deck.rotation.z = Math.min(this.deck.rotation.z + 0.05, 0.2);
+            }
+            
+            leanRight() {
+                if (this.deck) this.deck.rotation.z = Math.max(this.deck.rotation.z - 0.05, -0.2);
+            }
+            
+            resetLean() {
+                if (this.deck) this.deck.rotation.z *= 0.9;
+            }
+        }
+        
+        // ==========================================
+        // GORE & DESTRUCTION SYSTEMS
+        // ==========================================
+        
+        class HavokGoreSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.bloodParticles = [];
+                this.gibs = [];
+                this.maxBlood = 300;
+                this.maxGibs = 50;
+                
+                const bloodMat = new BABYLON.StandardMaterial("bloodMat", scene);
+                bloodMat.diffuseColor = new BABYLON.Color3(0.54, 0, 0);
+                bloodMat.emissiveColor = new BABYLON.Color3(0.3, 0, 0);
+                
+                const gibMat = new BABYLON.StandardMaterial("gibMat", scene);
+                gibMat.diffuseColor = new BABYLON.Color3(0.6, 0.2, 0.15);
+                
+                this.materials = { bloodMat, gibMat };
+            }
+            
+            triggerBloodFlash() {
+                const flash = document.getElementById('bloodFlash');
+                flash.style.opacity = '1';
+                setTimeout(() => flash.style.opacity = '0', 150);
+            }
+            
+            createLensSplatter(count = 5) {
+                for (let i = 0; i < count; i++) {
+                    const splatter = document.createElement('div');
+                    splatter.className = 'blood-splatter';
+                    const size = 80 + Math.random() * 120;
+                    splatter.style.width = size + 'px';
+                    splatter.style.height = size + 'px';
+                    const edge = Math.floor(Math.random() * 4);
+                    const offset = Math.random() * 80 + 10;
+                    switch(edge) {
+                        case 0: splatter.style.left = offset + '%'; splatter.style.top = '-50px'; break;
+                        case 1: splatter.style.right = '-50px'; splatter.style.top = offset + '%'; break;
+                        case 2: splatter.style.left = offset + '%'; splatter.style.bottom = '-50px'; break;
+                        case 3: splatter.style.left = '-50px'; splatter.style.top = offset + '%'; break;
+                    }
+                    document.body.appendChild(splatter);
+                    setTimeout(() => splatter.remove(), 2500);
+                }
+            }
+            
+            createKillEffect(position, velocity) {
+                this.triggerBloodFlash();
+                this.createLensSplatter();
+                
+                // Blood particles
+                for (let i = 0; i < 50; i++) {
+                    if (this.bloodParticles.length > this.maxBlood) {
+                        const old = this.bloodParticles.shift();
+                        old.mesh.dispose();
+                        old.aggregate.dispose();
+                    }
+                    
+                    const blood = BABYLON.MeshBuilder.CreateSphere(
+                        "blood",
+                        { diameter: 0.05 + Math.random() * 0.1, segments: 4 },
+                        this.scene
+                    );
+                    blood.position = position.clone();
+                    blood.material = this.materials.bloodMat;
+                    
+                    const aggregate = new BABYLON.PhysicsAggregate(
+                        blood,
+                        BABYLON.PhysicsShapeType.SPHERE,
+                        { mass: 0.01, restitution: 0.3, friction: 0.8 },
+                        this.scene
+                    );
+                    
+                    const vel = velocity.clone().scale(0.5 + Math.random());
+                    vel.x += (Math.random() - 0.5) * 10;
+                    vel.y += Math.random() * 5 + 3;
+                    vel.z += (Math.random() - 0.5) * 10;
+                    
+                    aggregate.body.applyImpulse(vel, blood.getAbsolutePosition());
+                    
+                    this.bloodParticles.push({ mesh: blood, aggregate, lifetime: 300 });
+                }
+                
+                // Gibs
+                for (let i = 0; i < 5; i++) {
+                    if (this.gibs.length > this.maxGibs) {
+                        const old = this.gibs.shift();
+                        old.mesh.dispose();
+                        old.aggregate.dispose();
+                    }
+                    
+                    const gib = BABYLON.MeshBuilder.CreateBox(
+                        "gib",
+                        { width: 0.3, height: 0.5, depth: 0.3 },
+                        this.scene
+                    );
+                    gib.position = position.clone();
+                    gib.material = this.materials.gibMat;
+                    
+                    const aggregate = new BABYLON.PhysicsAggregate(
+                        gib,
+                        BABYLON.PhysicsShapeType.BOX,
+                        { mass: 0.5, restitution: 0.4, friction: 0.6 },
+                        this.scene
+                    );
+                    
+                    const vel = velocity.clone().scale(0.8 + Math.random());
+                    vel.x += (Math.random() - 0.5) * 15;
+                    vel.y += Math.random() * 8 + 5;
+                    vel.z += (Math.random() - 0.5) * 15;
+                    
+                    aggregate.body.applyImpulse(vel, gib.getAbsolutePosition());
+                    aggregate.body.applyAngularImpulse(new BABYLON.Vector3(
+                        (Math.random() - 0.5) * 20,
+                        (Math.random() - 0.5) * 20,
+                        (Math.random() - 0.5) * 20
+                    ));
+                    
+                    this.gibs.push({ mesh: gib, aggregate, lifetime: 500 });
+                }
+            }
+            
+            update() {
+                for (let i = this.bloodParticles.length - 1; i >= 0; i--) {
+                    this.bloodParticles[i].lifetime--;
+                    if (this.bloodParticles[i].lifetime <= 0) {
+                        this.bloodParticles[i].mesh.dispose();
+                        this.bloodParticles[i].aggregate.dispose();
+                        this.bloodParticles.splice(i, 1);
+                    }
+                }
+                for (let i = this.gibs.length - 1; i >= 0; i--) {
+                    this.gibs[i].lifetime--;
+                    if (this.gibs[i].lifetime <= 0) {
+                        this.gibs[i].mesh.dispose();
+                        this.gibs[i].aggregate.dispose();
+                        this.gibs.splice(i, 1);
+                    }
+                }
+            }
+        }
+        
+        class DestructionSystem {
+            constructor(scene) {
+                this.scene = scene;
+                this.buildings = [];
+                this.debris = [];
+                this.maxDebris = 150;
+            }
+            
+            createDestructibleBuilding(position, size) {
+                const building = BABYLON.MeshBuilder.CreateBox(
+                    "building",
+                    { width: size.width, height: size.height, depth: size.depth },
+                    this.scene
+                );
+                building.position = position.clone();
+                
+                const mat = new BABYLON.StandardMaterial("buildingMat", this.scene);
+                mat.diffuseColor = new BABYLON.Color3(0.6, 0.6, 0.65);
+                building.material = mat;
+                building.castShadow = true;
+                
+                const aggregate = new BABYLON.PhysicsAggregate(
+                    building,
+                    BABYLON.PhysicsShapeType.BOX,
+                    { mass: 0 },
+                    this.scene
+                );
+                
+                this.buildings.push({ mesh: building, aggregate, size, destroyed: false });
+                return building;
+            }
+            
+            destroyBuilding(building, impactPoint, velocity) {
+                if (building.destroyed) return;
+                
+                building.destroyed = true;
+                building.mesh.dispose();
+                building.aggregate.dispose();
+                
+                const fragmentCount = 12;
+                const fragmentSize = Math.min(building.size.width, building.size.height, building.size.depth) / 3;
+                
+                for (let i = 0; i < fragmentCount; i++) {
+                    if (this.debris.length > this.maxDebris) {
+                        const old = this.debris.shift();
+                        old.mesh.dispose();
+                        old.aggregate.dispose();
+                    }
+                    
+                    const fragment = BABYLON.MeshBuilder.CreateBox(
+                        "debris",
+                        {
+                            width: fragmentSize * (0.5 + Math.random() * 0.5),
+                            height: fragmentSize * (0.5 + Math.random() * 0.5),
+                            depth: fragmentSize * (0.5 + Math.random() * 0.5)
+                        },
+                        this.scene
+                    );
+                    
+                    fragment.position = building.mesh.position.clone().add(new BABYLON.Vector3(
+                        (Math.random() - 0.5) * building.size.width,
+                        (Math.random() - 0.5) * building.size.height,
+                        (Math.random() - 0.5) * building.size.depth
+                    ));
+                    
+                    const mat = new BABYLON.StandardMaterial("debrisMat", this.scene);
+                    mat.diffuseColor = new BABYLON.Color3(
+                        0.5 + Math.random() * 0.2,
+                        0.5 + Math.random() * 0.2,
+                        0.5 + Math.random() * 0.2
+                    );
+                    fragment.material = mat;
+                    fragment.castShadow = true;
+                    
+                    const aggregate = new BABYLON.PhysicsAggregate(
+                        fragment,
+                        BABYLON.PhysicsShapeType.BOX,
+                        { mass: 5 + Math.random() * 10, restitution: 0.3, friction: 0.6 },
+                        this.scene
+                    );
+                    
+                    const explosionDir = fragment.position.subtract(impactPoint).normalize();
+                    const force = explosionDir.scale(100 + Math.random() * 200);
+                    force.y += 50 + Math.random() * 100;
+                    
+                    aggregate.body.applyImpulse(force, fragment.getAbsolutePosition());
+                    aggregate.body.applyAngularImpulse(new BABYLON.Vector3(
+                        (Math.random() - 0.5) * 50,
+                        (Math.random() - 0.5) * 50,
+                        (Math.random() - 0.5) * 50
+                    ));
+                    
+                    this.debris.push({ mesh: fragment, aggregate, lifetime: 600 });
+                }
+                
+                console.log(`🏢 Building destroyed! ${fragmentCount} debris created`);
+            }
+            
+            update() {
+                for (let i = this.debris.length - 1; i >= 0; i--) {
+                    this.debris[i].lifetime--;
+                    if (this.debris[i].lifetime <= 0) {
+                        this.debris[i].mesh.dispose();
+                        this.debris[i].aggregate.dispose();
+                        this.debris.splice(i, 1);
+                    }
+                }
+            }
+        }
+        
+        // ==========================================
+        // MAIN SCENE
+        // ==========================================
+        
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+        
+        let scene, camera, skater, goreSystem, destructionSystem;
+        let gameState = {
+            score: 0,
+            combo: 0,
+            comboTimer: 0,
+            kills: 0,
+            debris: 0,
+            currentTrick: '',
+            trickTimer: 0,
+            doingKickflip: false
+        };
+        
+        const keys = {};
+        const enemies = [];
+        
+        const createScene = async function() {
+            scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color3(0.5, 0.7, 0.9);
+            
+            // Camera
+            camera = new BABYLON.UniversalCamera(
+                "camera",
+                new BABYLON.Vector3(0, 15, -25),
+                scene
+            );
+            camera.setTarget(new BABYLON.Vector3(0, 5, 0));
+            camera.attachControl(canvas, true);
+            
+            // Lights
+            const hemi = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
+            hemi.intensity = 0.7;
+            
+            const dir = new BABYLON.DirectionalLight("dir", new BABYLON.Vector3(-1, -2, 1), scene);
+            dir.intensity = 0.5;
+            
+            // Havok
+            const havokInstance = await HavokPhysics();
+            const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+            scene.enablePhysics(new BABYLON.Vector3(0, -30, 0), havokPlugin);
+            
+            // Ground (sloped)
+            const ground = BABYLON.MeshBuilder.CreateGround(
+                "ground",
+                { width: 200, height: 500, subdivisions: 50 },
+                scene
+            );
+            
+            const positions = ground.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+            for (let i = 0; i < positions.length; i += 3) {
+                const z = positions[i + 2];
+                positions[i + 1] = z * 0.15;
+            }
+            ground.setVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+            ground.createNormals(true);
+            
+            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
+            ground.material = groundMat;
+            ground.receiveShadow = true;
+            
+            new BABYLON.PhysicsAggregate(
+                ground,
+                BABYLON.PhysicsShapeType.MESH,
+                { mass: 0, friction: 0.3 }, // Reduced friction for skating
+                scene
+            );
+            
+            // Spawn skater
+            skater = new BabylonSkater(scene);
+            skater.spawn({ x: 0, y: 5, z: -150 });
+            
+            // Initialize systems
+            goreSystem = new HavokGoreSystem(scene);
+            destructionSystem = new DestructionSystem(scene);
+            
+            // Create buildings
+            for (let i = 0; i < 8; i++) {
+                const x = (Math.random() - 0.5) * 60;
+                const z = i * 50 - 50;
+                const height = 10 + Math.random() * 15;
+                
+                destructionSystem.createDestructibleBuilding(
+                    new BABYLON.Vector3(x, height / 2, z),
+                    { width: 8, height: height, depth: 8 }
+                );
+            }
+            
+            // Create enemies
+            for (let i = 0; i < 15; i++) {
+                createEnemy(new BABYLON.Vector3(
+                    (Math.random() - 0.5) * 80,
+                    2,
+                    i * 25 - 50
+                ));
+            }
+            
+            setTimeout(() => {
+                document.getElementById('title').classList.add('fade-out');
+            }, 3000);
+            
+            console.log('✅ Scene created, skater spawned, buildings and enemies ready');
+            
+            return scene;
+        };
+        
+        function createEnemy(position) {
+            const enemy = BABYLON.MeshBuilder.CreateCylinder(
+                "enemy",
+                { height: 2, diameter: 0.8 },
+                scene
+            );
+            enemy.position = position.clone();
+            
+            const mat = new BABYLON.StandardMaterial("enemyMat", scene);
+            mat.diffuseColor = new BABYLON.Color3(0.8, 0.3, 0.2);
+            enemy.material = mat;
+            enemy.castShadow = true;
+            
+            const aggregate = new BABYLON.PhysicsAggregate(
+                enemy,
+                BABYLON.PhysicsShapeType.CYLINDER,
+                { mass: 60, restitution: 0.2 },
+                scene
+            );
+            
+            enemies.push({ mesh: enemy, aggregate, alive: true });
+        }
+        
+        function update() {
+            if (!skater || !skater.physicsCollider) return;
+            
+            // Skater movement
+            if (keys['w'] || keys['ArrowUp']) {
+                skater.moveForward(0.5); // Acceleration
+            }
+            if (keys['s'] || keys['ArrowDown']) {
+                skater.moveBackward(0.3);
+            }
+            if (keys['a'] || keys['ArrowLeft']) {
+                skater.turnLeft(0.05); // Turn rate
+                skater.leanLeft();
+            } else if (keys['d'] || keys['ArrowRight']) {
+                skater.turnRight(0.05);
+                skater.leanRight();
+            } else {
+                skater.resetLean();
+            }
+            
+            if (keys[' '] && skater.getPosition().y < 4) {
+                skater.jump(350);
+                gameState.score += 10;
+            }
+            
+            if (keys['q'] && !gameState.doingKickflip) {
+                gameState.doingKickflip = true;
+                gameState.currentTrick = 'KICKFLIP!';
+                gameState.trickTimer = 60;
+                gameState.score += 50;
+                setTimeout(() => gameState.doingKickflip = false, 500);
+            }
+            
+            if (gameState.doingKickflip) {
+                skater.doKickflip();
+            } else {
+                skater.resetDeckRotation();
+            }
+            
+            if (gameState.trickTimer > 0) {
+                gameState.trickTimer--;
+                if (gameState.trickTimer === 0) gameState.currentTrick = '';
+            }
+            
+            // Update skater visual
+            skater.update();
+            
+            const speed = skater.getSpeed();
+            const velocity = skater.getVelocity();
+            const pos = skater.getPosition();
+            
+            // Check building collisions
+            destructionSystem.buildings.forEach(building => {
+                if (building.destroyed) return;
+                const dist = BABYLON.Vector3.Distance(pos, building.mesh.position);
+                if (dist < (building.size.width / 2 + 1) && speed > 8) {
+                    destructionSystem.destroyBuilding(building, pos, velocity);
+                    gameState.score += 500;
+                    gameState.debris += 12;
+                }
+            });
+            
+            // Check enemy collisions
+            enemies.forEach(enemy => {
+                if (!enemy.alive) return;
+                const dist = BABYLON.Vector3.Distance(pos, enemy.mesh.position);
+                if (dist < 1.5 && speed > 4) {
+                    enemy.alive = false;
+                    gameState.kills++;
+                    gameState.score += 100;
+                    gameState.combo++;
+                    goreSystem.createKillEffect(enemy.mesh.position, velocity);
+                    enemy.mesh.dispose();
+                    enemy.aggregate.dispose();
+                }
+            });
+            
+            goreSystem.update();
+            destructionSystem.update();
+            
+            // Camera follow (FIXED)
+            const rotY = skater.physicsCollider.rotation.y;
+            const cameraDistance = 20;
+            const cameraHeight = 10;
+            
+            const cameraOffset = new BABYLON.Vector3(
+                -Math.sin(rotY) * cameraDistance,
+                cameraHeight,
+                -Math.cos(rotY) * cameraDistance
+            );
+            
+            camera.position = BABYLON.Vector3.Lerp(
+                camera.position,
+                pos.add(cameraOffset),
+                0.15
+            );
+            
+            const targetPos = pos.add(new BABYLON.Vector3(0, 2, 0));
+            const currentTarget = camera.getTarget();
+            const smoothTarget = BABYLON.Vector3.Lerp(currentTarget, targetPos, 0.2);
+            camera.setTarget(smoothTarget);
+            
+            // HUD
+            document.getElementById('score').textContent = `SCORE: ${Math.floor(gameState.score)}`;
+            document.getElementById('combo').textContent = `COMBO: ${gameState.combo}x`;
+            document.getElementById('trick').textContent = gameState.currentTrick;
+            document.getElementById('kills').textContent = `KILLS: ${gameState.kills}`;
+            document.getElementById('debris').textContent = `DEBRIS: ${gameState.debris}`;
+            
+            const speedDisplay = Math.floor(speed * 10);
+            const speedElement = document.getElementById('speed');
+            if (speedDisplay >= 40) {
+                speedElement.style.color = '#FF0000';
+                speedElement.textContent = `SPEED: ${speedDisplay} [LETHAL]`;
+            } else {
+                speedElement.style.color = '#00FFFF';
+                speedElement.textContent = `SPEED: ${speedDisplay}`;
+            }
+        }
+        
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        createScene().then(scene => {
+            engine.runRenderLoop(() => {
+                update();
+                scene.render();
+            });
+        });
+        
+        window.addEventListener('resize', () => engine.resize());
+        
+        console.log('🛹 APPLESAUCE - Skater Module Edition loaded');
+    </script>
+</body>
+</html>

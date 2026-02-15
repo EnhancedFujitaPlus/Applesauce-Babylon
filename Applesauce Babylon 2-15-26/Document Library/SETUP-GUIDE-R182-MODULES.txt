@@ -1,0 +1,148 @@
+APPLESAUCE r182 ES MODULE SETUP GUIDE
+======================================
+
+## THE FIX:
+Your problem was in applesauce-core-r182.js line 5:
+  WRONG: import * as THREE from '/three.module.js';
+  RIGHT: import * as THREE from './three.module.js';
+
+The leading "/" means "root of server" while "./" means "same folder as this file"
+
+## FILE STRUCTURE:
+Your folder should look like this:
+
+your-game-folder/
+├── applesauce-main-menu-modular-r182.html  ← Open this in browser
+├── applesauce-core-r182.js                 ← Fixed core (use new version)
+├── three.module.js                         ← From three.js-master/build/
+├── level-01-config.js                      ← Your levels
+└── (more level configs...)
+
+## WHAT YOU NEED:
+
+1. **three.module.js** - Copy from your three.js-master/build/ folder
+   This is the 617 KB file you saw in your screenshot
+
+2. **applesauce-core-r182.js** - Use the FIXED version I just created
+   (Has "./three.module.js" instead of "/three.module.js")
+
+3. **applesauce-main-menu-modular-r182.html** - Use this new HTML
+   (Properly configured for ES modules)
+
+4. **level-01-config.js** - Same as before, no changes needed
+
+## HOW TO RUN:
+
+### IMPORTANT: You MUST use a local server!
+ES modules don't work with file:// protocol (security reasons)
+
+### Option 1: Python (Easiest)
+Open terminal in your game folder:
+```bash
+python -m http.server 8000
+```
+Then open: http://localhost:8000/applesauce-main-menu-modular-r182.html
+
+### Option 2: VS Code Live Server
+- Install "Live Server" extension
+- Right-click the HTML file
+- Click "Open with Live Server"
+
+### Option 3: Node.js
+```bash
+npx serve
+```
+
+## WHAT'S DIFFERENT IN ES MODULES:
+
+### Old Way (UMD - doesn't exist in r182):
+```html
+<script src="three.min.js"></script>
+<script src="core.js"></script>
+```
+
+### New Way (ES Modules - r182):
+```html
+<script type="module">
+  import { ApplesauceCore } from './applesauce-core-r182.js';
+  // Core automatically imports THREE
+</script>
+```
+
+The browser handles the imports automatically!
+
+## CONSOLE OUTPUT YOU SHOULD SEE:
+
+When everything works:
+```
+✅ Core engine imported successfully
+🛹 APPLESAUCE r182 Modular Edition Ready!
+```
+
+When loading a level:
+```
+🎮 Loading TUTORIAL HILL...
+📦 Loading config from: ./level-01-config.js
+✅ Script loaded: ./level-01-config.js
+✅ Level 01 Config Loaded
+🔍 Looking for: window.Level01Config
+✅ Found config: Level01Config
+🎮 Creating new game instance...
+📦 Loading level data...
+▶️ Starting game...
+✅ TUTORIAL HILL loaded!
+```
+
+## TROUBLESHOOTING:
+
+### Still getting 404 on three.module.js?
+1. Check that three.module.js is in the EXACT same folder as your HTML
+2. Make sure you're using a local server (not double-clicking HTML)
+3. Open Network tab in browser console (F12) to see what path it's trying
+
+### "Uncaught SyntaxError: Cannot use import statement"?
+- You're opening the HTML with file:// protocol
+- Use a local server (see "HOW TO RUN" section above)
+
+### "ApplesauceCore is not defined"?
+- Make sure you're using the new HTML file
+- Check that the import statement is inside <script type="module">
+
+### Game loads but black screen?
+- Open console (F12) for errors
+- Make sure your level config has terrain and player settings
+
+## FULLY OFFLINE:
+This setup is 100% offline! Once you have:
+- three.module.js (617 KB)
+- applesauce-core-r182.js
+- applesauce-main-menu-modular-r182.html
+- level-01-config.js
+
+...in the same folder, it works without internet!
+
+The only requirement is running a local server (Python, VS Code, etc.)
+which doesn't need internet either.
+
+## WHY ES MODULES?
+
+Pros:
+- Modern standard (all browsers support it)
+- Better dependency management
+- Smaller file sizes (only loads what you need)
+- This is how Three.js r182 is meant to be used
+
+Cons:
+- Requires a local server (can't double-click HTML)
+- Slightly more complex setup
+
+But it's worth it for the latest Three.js features! 🚀
+
+## ADDING MORE LEVELS:
+
+Same process as before:
+1. Create level-XX-config.js with window.LevelXXConfig = {...}
+2. Add to LEVEL_REGISTRY in the HTML
+3. The module system handles the rest!
+
+Good luck! 🛹

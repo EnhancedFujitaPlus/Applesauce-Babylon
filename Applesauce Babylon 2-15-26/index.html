@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APPLESAUCE: It's Babalonian Time? v.0.0.13</title>
+    <!-- ⭐ EXTERNAL DATA FILES -->
+        <script src="engine/level-registry.js"></script>
+        <script src="engine/changelog.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Chapter 1 - Sky Blue and Yellow */
+            --ch1-primary: #87CEEB;
+            --ch1-secondary: #FFD700;
+            --ch1-dark: #1a4d6d;
+            
+            /* Chapter 2 - Hellish Blood Red and Greys */
+            --ch2-primary: #8B0000;
+            --ch2-secondary: #4a4a4a;
+            --ch2-dark: #2a0000;
+            
+            /* Chapter 3 - Purple and Green */
+            --ch3-primary: #9370DB;
+            --ch3-secondary: #00FF00;
+            --ch3-dark: #2d1b4e;
+
+            /* Chapter 4 - Purple and Green */
+            --ch4-primary: #9370DB;
+            --ch4-secondary: #00FF00;
+            --ch4-dark: #2d1b4e;
+
+            /* Chapter 5 - Purple and Green */
+            --ch5-primary: #9370DB;
+            --ch5-secondary: #00FF00;
+            --ch5-dark: #2d1b4e;
+
+            /* Chapter 6 - Purple and Green */
+            --ch6-primary: #9370DB;
+            --ch6-secondary: #00FF00;
+            --ch6-dark: #2d1b4e;
+
+            /* Chapter 7 - Purple and Green */
+            --ch7-primary: #9370DB;
+            --ch7-secondary: #00FF00;
+            --ch7-dark: #2d1b4e;
+
+            /* Chapter 8 - Purple and Green */
+            --ch8-primary: #9370DB;
+            --ch8-secondary: #00FF00;
+            --ch8-dark: #2d1b4e;
+
+            /* Chapter 9 - Purple and Green */
+            --ch9-primary: #9370DB;
+            --ch9-secondary: #00FF00;
+            --ch9-dark: #2d1b4e;
+
+            /* Chapter 10 - Purple and Green */
+            --ch10-primary: #9370DB;
+            --ch10-secondary: #00FF00;
+            --ch10-dark: #2d1b4e;
+            
+            /* Default theme */
+            --theme-primary: var(--ch1-primary);
+            --theme-secondary: var(--ch1-secondary);
+            --theme-dark: var(--ch1-dark);
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+        }
+
+        /* Video Background */
+        #bg-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -2;
+            opacity: 0.3;
+        }
+
+        /* Scanline overlay for that retro effect */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+        }
+
+        /* Main container */
+        .menu-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Title */
+        .game-title {
+            font-size: 4em;
+            font-weight: bold;
+            text-align: left;
+            margin-bottom: -5px;
+            text-shadow: 0 0 20px var(--theme-primary),
+                         0 0 40px var(--theme-secondary);
+            letter-spacing: 18px;
+            animation: titleGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes titleGlow {
+            from { text-shadow: 0 0 20px var(--theme-primary), 0 0 40px var(--theme-secondary); }
+            to { text-shadow: 0 0 30px var(--theme-primary), 0 0 60px var(--theme-secondary); }
+        }
+
+        .version {
+            font-size: 1.2em;
+            color: var(--theme-secondary);
+            margin-bottom: 100px;
+            margin-left: 400px;
+        }
+
+        /* Main Menu Buttons */
+        .main-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .menu-btn {
+            background: rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--theme-primary);
+            color: var(--theme-primary);
+            padding: 15px 80px;
+            font-size: 2em;
+            font-family: 'Impact', monospace;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            position: grid;
+            overflow: hidden;
+        }
+
+        .menu-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--theme-primary), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .menu-btn:hover::before {
+            left: 100%;
+        }
+
+        .menu-btn:hover {
+            background: var(--theme-primary);
+            color: #000;
+            box-shadow: 0 0 30px var(--theme-primary);
+            transform: scale(1.05);
+        }
+
+        /* career Screen */
+        .career-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 100;
+        }
+
+        .career-screen.active {
+            display: flex;
+        }
+
+        /* career Layout */
+        .career-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* Level Select Panel (Left) */
+        .level-select-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .career-header {
+            text-align: center;
+            font-size: 2.5em;
+            color: var(--theme-primary);
+            text-shadow: 0 0 20px var(--theme-primary);
+            border-bottom: 2px solid var(--theme-primary);
+            padding-bottom: 10px;
+        }
+
+        /* Chapter Tabs */
+        .chapter-tabs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .chapter-tab {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid var(--theme-secondary);
+            color: var(--theme-secondary);
+            padding: -1px 30px;
+            font-size: 1.3em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+
+        .chapter-tab:hover {
+            background: var(--theme-secondary);
+            color: #000;
+            box-shadow: 0 0 20px var(--theme-secondary);
+        }
+
+        .chapter-tab.active {
+            background: var(--theme-primary);
+            color: #000;
+            border-color: var(--theme-primary);
+            box-shadow: 0 0 30px var(--theme-primary);
+        }
+
+        /* Level Grid */
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+            overflow-y: auto;
+            padding: 30px;
+            max-height: calc(100vh - 300px);
+        }
+
+        /* Level Button */
+        .level-btn {
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid var(--theme-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2em;
+            color: var(--theme-primary);
+        }
+
+        .level-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: var(--theme-primary);
+            border-radius: 50%;
+            transition: all 0.5s ease;
+            transform: translate(-50%, -50%);
+            z-index: -1;
+        }
+
+        .level-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .level-btn:hover {
+            color: #000;
+            border-color: var(--theme-secondary);
+            box-shadow: 0 0 30px var(--theme-primary);
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .level-btn.selected {
+            background: var(--theme-primary);
+            color: #000;
+            box-shadow: 0 0 40px var(--theme-primary);
+        }
+
+        .level-number {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .level-name {
+            font-size: 0.8em;
+            margin-top: 5px;
+            text-align: center;
+        }
+
+        .level-status {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 0.7em;
+        }
+
+        /* Briefing Panel (Right) */
+        .briefing-panel {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid var(--theme-primary);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: inset 0 0 50px var(--theme-dark);
+        }
+
+        .briefing-title {
+            font-size: 2em;
+            color: var(--theme-secondary);
+            text-align: center;
+            text-shadow: 0 0 10px var(--theme-secondary);
+            border-bottom: 2px solid var(--theme-secondary);
+            padding-bottom: 10px;
+        }
+
+        .briefing-image {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+            border: 2px solid var(--theme-primary);
+            box-shadow: 0 0 20px var(--theme-primary);
+        }
+
+        .briefing-content {
+            flex: 1;
+            overflow-y: auto;
+            color: #ccc;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        .mission-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-left: 3px solid var(--theme-secondary);
+        }
+
+        .stat-label {
+            color: var(--theme-secondary);
+            font-size: 0.9em;
+        }
+
+        .stat-value {
+            color: var(--theme-primary);
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .mission-description {
+            margin-top: 20px;
+        }
+
+        /* Update Log Styling */
+        .update-log {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-left: 3px solid var(--theme-primary);
+        }
+
+        .update-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--theme-dark);
+        }
+
+        .update-item:last-child {
+            border-bottom: none;
+        }
+
+        .update-version {
+            color: var(--theme-secondary);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .update-text {
+            color: #aaa;
+            font-size: 0.95em;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .action-btn {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--theme-secondary);
+            color: var(--theme-secondary);
+            padding: 15px 40px;
+            font-size: 1.3em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+
+        .action-btn:hover {
+            background: var(--theme-secondary);
+            color: #000;
+            box-shadow: 0 0 20px var(--theme-secondary);
+        }
+
+        .action-btn.primary {
+            border-color: var(--theme-primary);
+            color: var(--theme-primary);
+        }
+
+        .action-btn.primary:hover {
+            background: var(--theme-primary);
+        }
+
+        /* Back Button */
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--theme-primary);
+            color: var(--theme-primary);
+            padding: 15px 30px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+
+        .back-btn:hover {
+            background: var(--theme-primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--theme-primary);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--theme-primary);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--theme-secondary);
+        }
+
+        /* Fade animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        /* Hidden state */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Keyboard Controls Overlay */
+        .controls-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 3px solid var(--theme-primary);
+            padding: 40px;
+            z-index: 1000;
+            max-width: 600px;
+            box-shadow: 0 0 50px var(--theme-primary);
+            display: none;
+        }
+
+        .controls-overlay.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .controls-title {
+            font-size: 2em;
+            color: var(--theme-primary);
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 0 0 20px var(--theme-primary);
+        }
+
+        .controls-section {
+            margin-bottom: 25px;
+        }
+
+        .controls-section-title {
+            color: var(--theme-secondary);
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--theme-secondary);
+            padding-bottom: 5px;
+        }
+
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            color: #ccc;
+        }
+
+        .control-key {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 5px 15px;
+            border: 1px solid var(--theme-primary);
+            border-radius: 3px;
+            font-weight: bold;
+            color: var(--theme-primary);
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .control-action {
+            flex: 1;
+            margin-left: 20px;
+        }
+
+        .controls-hint {
+            text-align: center;
+            margin-top: 20px;
+            color: var(--theme-secondary);
+            font-size: 0.9em;
+        }
+
+        /* Help button */
+        .help-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--theme-primary);
+            color: var(--theme-primary);
+            padding: 15px 25px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            z-index: 50;
+        }
+
+        .help-btn:hover {
+            background: var(--theme-primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--theme-primary);
+        }
+
+        /* Audio Toggle Button */
+        .audio-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--theme-primary);
+            color: var(--theme-primary);
+            padding: 15px 25px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .audio-toggle:hover {
+            background: var(--theme-primary);
+            color: #000;
+            box-shadow: 0 0 20px var(--theme-primary);
+        }
+
+        .audio-toggle.muted {
+            border-color: #666;
+            color: #666;
+        }
+
+        .audio-toggle.muted:hover {
+            background: #666;
+            color: #000;
+        }
+
+        .audio-icon {
+            font-size: 1.3em;
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Video -->
+    <video id="bg-video" autoplay muted loop>
+        <source src="videos/mainmenudemo.mp4" type="video/mp4">
+        <!-- Fallback if no video -->
+    </video>
+
+    <!-- Scanlines overlay -->
+    <div class="scanlines"></div>
+
+    <!-- Keyboard Controls Overlay -->
+    <div class="controls-overlay" id="controlsOverlay">
+        <div class="controls-title">KEYBOARD CONTROLS</div>
+        
+        <div class="controls-section">
+            <div class="controls-section-title">MAIN MENU</div>
+            <div class="control-item">
+                <span class="control-key">↑ / W</span>
+                <span class="control-action">Navigate Up</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">↓ / S</span>
+                <span class="control-action">Navigate Down</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">ENTER</span>
+                <span class="control-action">Select</span>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <div class="controls-section-title">career MENU</div>
+            <div class="control-item">
+                <span class="control-key">← / A</span>
+                <span class="control-action">Navigate Left</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">→ / D</span>
+                <span class="control-action">Navigate Right</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">↑ / W</span>
+                <span class="control-action">Navigate Up</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">↓ / S</span>
+                <span class="control-action">Navigate Down</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">1 / 2 / 3 / 4 / 5 / 6 / 7 / 8 / 9 / </span>
+                <span class="control-action">Switch Chapters</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">ENTER</span>
+                <span class="control-action">Launch Mission</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">H</span>
+                <span class="control-action">View High Scores</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">ESC</span>
+                <span class="control-action">Back to Main Menu</span>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <div class="controls-section-title">GLOBAL</div>
+            <div class="control-item">
+                <span class="control-key">F1</span>
+                <span class="control-action">Toggle This Help</span>
+            </div>
+            <div class="control-item">
+                <span class="control-key">M</span>
+                <span class="control-action">Mute/Unmute Menu Audio</span>
+            </div>
+        </div>
+
+        <div class="controls-hint">
+            Press F1 or ESC to close this menu
+        </div>
+    </div>
+
+    <!-- Audio Toggle Button -->
+    <button class="audio-toggle muted" id="audioToggle" onclick="toggleAudio()">
+        <span class="audio-icon" id="audioIcon">🔇</span>
+        <span id="audioText">UNMUTE</span>
+    </button>
+
+    <!-- Help Button -->
+    <button class="help-btn" onclick="toggleControls()">? CONTROLS</button>
+
+    <!-- Main Menu Container -->
+    <div class="menu-container">
+        <!-- Main Menu -->
+        <div class="main-menu" id="mainMenu">
+            <div class="game-title">APPLESAUCE</div>
+            <div class="version">It's Babalonian Time! v.0.0.13</div>
+
+            <button class="menu-btn" onclick="openCareer()">Career</button>
+            <button class="menu-btn" onclick="openSkaterEditor()">Editors</button>
+            <button class="menu-btn" onclick="toggleControls()">Settings</button>
+            <button class="menu-btn" onclick="quitGame()">Quit</button>
+        </div>
+
+        <!-- Career Screen -->
+        <div class="career-screen" id="careerScreen">
+            <button class="back-btn" onclick="closeCareer()">← BACK</button>
+            
+            <div class="career-layout">
+                <!-- Level Select Panel -->
+                <div class="level-select-panel">
+                    <div class="career-header">SELECT MISSION</div>
+                    
+                    <!-- Chapter Tabs -->
+                    <div class="chapter-tabs">
+                        <button class="chapter-tab active" onclick="switchChapter(1)">CHAPTER 1</button>
+                        <button class="chapter-tab" onclick="switchChapter(2)">CHAPTER 2</button>
+                        <button class="chapter-tab" onclick="switchChapter(3)">CHAPTER 3</button>
+                        <button class="chapter-tab" onclick="switchChapter(4)">CHAPTER 4</button>
+                        <button class="chapter-tab" onclick="switchChapter(5)">CHAPTER 5</button>
+                        <button class="chapter-tab" onclick="switchChapter(6)">CHAPTER 6</button>
+                        <button class="chapter-tab" onclick="switchChapter(7)">CHAPTER 7</button>
+                        <button class="chapter-tab" onclick="switchChapter(8)">CHAPTER 8</button>
+                        <button class="chapter-tab" onclick="switchChapter(9)">CHAPTER 9</button>
+                        <button class="chapter-tab" onclick="switchChapter(10)">CHAPTER 10</button>
+                    </div>
+
+                    <!-- Level Grid -->
+                    <div class="level-grid" id="levelGrid">
+                        <!-- Levels will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- CLEAN BRIEFING PANEL - COPY/PASTE READY    -->
+                <!-- Replace lines 788-900 with this section    -->
+                <!-- ============================================ -->
+
+                <!-- Briefing Panel -->
+                <div class="briefing-panel">
+                    <!-- Title (changes based on selection) -->
+                    <div class="briefing-title" id="briefingTitle">SELECT A MISSION</div>
+                    
+                    <!-- Preview Image (changes based on selection) -->
+                    <img class="briefing-image" id="briefingImage" 
+                        src="images/placeholder_gameplay.png" 
+                        alt="Mission Preview">
+                    
+                    <!-- Content Container -->
+                    <div class="briefing-content" id="briefingContent">
+                        
+                        <!-- ========================================
+                            UPDATE LOG (Chapter 1 Only)
+                            Populated by populateUpdateLog()
+                            ======================================== -->
+                        <div id="updateLog" class="update-log hidden">
+                            <!-- Will be filled by JavaScript -->
+                            <!-- Either from changelog.js or fallback content -->
+                        </div>
+
+                        <!-- ========================================
+                            CHAPTER BRIEFING (Chapters 2-10)
+                            Shows chapter description
+                            ======================================== -->
+                        <div id="chapterBriefing" class="chapter-briefing hidden">
+                            <div id="chapterBriefingContent">
+                                <!-- Will be filled when chapter is selected -->
+                            </div>
+                        </div>
+
+                        <!-- ========================================
+                            MISSION BRIEFING (When level selected)
+                            Shows level stats and description
+                            ======================================== -->
+                        <div id="missionBriefing" class="mission-briefing hidden">
+                            <!-- Mission Stats -->
+                            <div class="mission-stats" id="missionStats">
+                                <!-- Will be filled when level is selected -->
+                                <!-- Format:
+                                <div class="stat-item">
+                                    <div class="stat-label">DIFFICULTY</div>
+                                    <div class="stat-value">Medium</div>
+                                </div>
+                                -->
+                            </div>
+                            
+                            <!-- Mission Description -->
+                            <div class="mission-description" id="missionDescription">
+                                <!-- Will be filled when level is selected -->
+                                <!-- Format:
+                                <h3>MISSION BRIEFING:</h3>
+                                <p>Level description here...</p>
+                                <h3>OBJECTIVES:</h3>
+                                <p>• Objective 1<br>• Objective 2</p>
+                                -->
+                            </div>
+                        </div>
+                        
+                    </div>
+
+                    <!-- ========================================
+                        ACTION BUTTONS
+                        Hidden until level is selected
+                        ======================================== -->
+                    <div id="actionButtons" class="action-buttons hidden">
+                        <button class="action-btn primary" onclick="launchMission()">
+                            LAUNCH MISSION
+                        </button>
+                        <button class="action-btn" onclick="viewHighScores()">
+                            HIGH SCORES
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global State ---
+let currentChapter = 1;
+let selectedLevel = null;
+let currentMenuIndex = 0;
+let currentLevelIndex = 0;
+
+// Level data initialization
+const levelData = typeof ApplesauceLevelRegistry !== 'undefined' ? ApplesauceLevelRegistry.levelData : {};
+
+// Chapter definitions
+const chapterData = {
+    1: { name: "A Series of Twists and Turns", image: "images/placeholder_gameplay.png", description: "update_log", theme: "Learn the ropes" },
+    2: { name: "Chow Down on What You Don't Get", image: "images/chapter2_preview.png", description: "Descend into madness. Industrial hellscape.", theme: "Industrial Horror" },
+    3: { name: "Bile in Places You Cant Comprehend", image: "images/chapter3_preview.png", description: "A cyberpunk nightmare where reality breaks down.", theme: "Cyber-Organic Fusion" },
+    4: { name: "Genocide is Bad", image: "images/chapter4_preview.png", description: "Chalk it up to the Neighbor Acting Away.", theme: "Cyber-Organic Fusion" },
+    5: { name: "Smelling From Far Away", image: "images/chapter5_preview.png", description: "Sectored Sidways, Cancel my Appointment Robot.", theme: "Cyber-Organic Fusion" },
+    6: { name: "Eucludianiminanetarianism", image: "images/chapter6_preview.png", description: "Aforementioned Goo.", theme: "Cyber-Organic Fusion" },
+    7: { name: "War is Hell Let's Party", image: "images/chapter7_preview.png", description: "Did you hear me! I referenced something you know!.", theme: "Cyber-Organic Fusion" },
+
+    // ... (Keep your other chapters 4-10 here)
+};
+
+// --- Initialization ---
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎮 APPLESAUCE Initializing...');
+    populateUpdateLog();
+    updateTheme(1);
+    loadAudioPreference();
+    
+    // Highlight first menu button
+    const firstButton = document.querySelector('.main-menu .menu-btn');
+    if (firstButton) highlightMainMenuButton(firstButton);
+});
+
+// --- Core Navigation Functions ---
+function openCareer() {
+    document.getElementById('mainMenu').classList.add('hidden');
+    document.getElementById('careerScreen').classList.add('active');
+    switchChapter(1); // Fixed: changed from selectChapter to switchChapter
+    console.log('📖 Career mode opened');
+}
+
+function closeCareer() {
+    document.getElementById('careerScreen').classList.remove('active');
+    document.getElementById('mainMenu').classList.remove('hidden');
+    clearBriefing();
+}
+
+function switchChapter(chapterNum) {
+    currentChapter = chapterNum;
+    updateTheme(chapterNum);
+    
+    // Update UI Tabs
+    document.querySelectorAll('.chapter-tab').forEach((tab, index) => {
+        tab.classList.toggle('active', index + 1 === chapterNum);
+    });
+
+    clearBriefing();
+    showChapterBriefing(chapterNum);
+    generateLevels(chapterNum);
+}
+
+// --- UI Rendering Functions ---
+function generateLevels(chapterNum) {
+    const grid = document.getElementById('levelGrid');
+    grid.innerHTML = '';
+    
+    const levels = (typeof ApplesauceLevelRegistry !== 'undefined') 
+        ? ApplesauceLevelRegistry.getChapterLevels(chapterNum) 
+        : [];
+    
+    if (levels.length === 0) {
+        grid.innerHTML = '<div style="color: #888; text-align: center; padding: 40px;">No missions found...</div>';
+        return;
+    }
+
+    levels.forEach((level, index) => {
+        const levelBtn = document.createElement('div');
+        levelBtn.className = 'level-btn';
+        levelBtn.onclick = function() { 
+            currentLevelIndex = index;
+            selectLevel(level, this); 
+        };
+        
+        levelBtn.innerHTML = `
+            <span class="level-status">${level.status || ''}</span>
+            <div class="level-number">${level.id}</div>
+            <div class="level-name">${level.name}</div>
+        `;
+        grid.appendChild(levelBtn);
+    });
+}
+
+function selectLevel(level, buttonElement) {
+    if (!level) return;
+    selectedLevel = level;
+    
+    // Visual update
+    document.querySelectorAll('.level-btn').forEach(btn => btn.classList.remove('selected'));
+    if (buttonElement) buttonElement.classList.add('selected');
+
+    // Panel updates
+    document.getElementById('briefingTitle').textContent = `MISSION ${level.id}: ${level.name.toUpperCase()}`;
+    document.getElementById('briefingImage').src = level.image || 'images/placeholder_gameplay.png';
+    
+    document.getElementById('updateLog').classList.add('hidden');
+    document.getElementById('chapterBriefing').classList.add('hidden');
+    document.getElementById('missionBriefing').classList.remove('hidden');
+    document.getElementById('actionButtons').classList.remove('hidden');
+
+    document.getElementById('missionStats').innerHTML = `
+        <div class="stat-item"><div class="stat-label">DIFFICULTY</div><div class="stat-value">${level.difficulty}</div></div>
+        <div class="stat-item"><div class="stat-label">OBJECTIVES</div><div class="stat-value">${level.objectives}</div></div>
+    `;
+    
+    document.getElementById('missionDescription').innerHTML = `
+        <h3 style="color: var(--theme-secondary);">MISSION BRIEFING:</h3>
+        <p>${level.description}</p>
+    `;
+}
+
+function showChapterBriefing(chapterNum) {
+    const chapter = chapterData[chapterNum];
+    const briefingTitle = document.getElementById('briefingTitle');
+    const briefingImage = document.getElementById('briefingImage');
+    
+    briefingTitle.textContent = chapter.name.toUpperCase();
+    briefingImage.src = chapter.image;
+
+    if (chapter.description === "update_log") {
+        document.getElementById('updateLog').classList.remove('hidden');
+        document.getElementById('chapterBriefing').classList.add('hidden');
+    } else {
+        document.getElementById('updateLog').classList.add('hidden');
+        document.getElementById('chapterBriefing').classList.remove('hidden');
+        document.getElementById('chapterBriefingContent').innerHTML = `
+            <div style="padding: 20px;">
+                <div style="color: var(--theme-secondary); font-size: 1.3em;">${chapter.theme}</div>
+                <p>${chapter.description}</p>
+            </div>
+        `;
+    }
+}
+
+function clearBriefing() {
+    document.getElementById('missionBriefing').classList.add('hidden');
+    document.getElementById('actionButtons').classList.add('hidden');
+    selectedLevel = null;
+}
+
+function populateUpdateLog() {
+    const log = document.getElementById('updateLog');
+    if (typeof ApplesauceChangelog !== 'undefined') {
+        log.innerHTML = ApplesauceChangelog.getFormattedHTML();
+    }
+}
+
+function updateTheme(chapterNum) {
+    const root = document.documentElement;
+    root.style.setProperty('--theme-primary', `var(--ch${chapterNum}-primary)`);
+    root.style.setProperty('--theme-secondary', `var(--ch${chapterNum}-secondary)`);
+    root.style.setProperty('--theme-dark', `var(--ch${chapterNum}-dark)`);
+}
+
+// --- Utility & Handlers ---
+function toggleControls() {
+    document.getElementById('controlsOverlay').classList.toggle('active');
+}
+
+function launchMission() {
+    if (!selectedLevel) return;
+    if (typeof ApplesauceLevelRegistry !== 'undefined') {
+        ApplesauceLevelRegistry.launchLevel(selectedLevel);
+    } else {
+        window.location.href = `Level_${selectedLevel.id}.html`;
+    }
+}
+
+// (Keep your handleMainMenuKeys, handleCareerKeys, and Audio functions here)
+
+        // ============================================
+        // KEYBOARD NAVIGATION SYSTEM
+        // ============================================
+        
+        const menuButtons = ['career', 'editor', 'settings', 'quit'];
+        
+        // Main keyboard event handler
+        document.addEventListener('keydown', (e) => {
+            const careerActive = document.getElementById('careerScreen').classList.contains('active');
+            const controlsActive = document.getElementById('controlsOverlay').classList.contains('active');
+            
+            // F1 toggles controls overlay from anywhere
+            if (e.key === 'F1') {
+                e.preventDefault();
+                toggleControls();
+                return;
+            }
+            
+            // M toggles audio from anywhere
+            if (e.key === 'm' || e.key === 'M') {
+                e.preventDefault();
+                toggleAudio();
+                return;
+            }
+            
+            // If controls overlay is open, ESC closes it
+            if (controlsActive && e.key === 'Escape') {
+                e.preventDefault();
+                toggleControls();
+                return;
+            }
+            
+            // Don't handle other keys if controls overlay is open
+            if (controlsActive) return;
+            
+            if (!careerActive) {
+                // MAIN MENU NAVIGATION
+                handleMainMenuKeys(e);
+            } else {
+                // Career MENU NAVIGATION
+                handleCareerKeys(e);
+            }
+        });
+
+                function openHelmetEditor() {
+            window.location.href = 'jacket_editor.html';
+        }
+
+        function toggleControls() {
+            const overlay = document.getElementById('controlsOverlay');
+            overlay.classList.toggle('active');
+            playSound('menu');
+        }
+
+        // Toggle background video audio
+        function toggleAudio() {
+            const video = document.getElementById('bg-video');
+            const button = document.getElementById('audioToggle');
+            const icon = document.getElementById('audioIcon');
+            const text = document.getElementById('audioText');
+            
+            if (video.muted) {
+                // Unmute
+                video.muted = false;
+                video.volume = 0.3; // Set volume to 30% (adjust as needed)
+                button.classList.remove('muted');
+                icon.textContent = '🔊';
+                text.textContent = 'MUTE';
+                
+                // Save preference
+                localStorage.setItem('menuAudioEnabled', 'true');
+            } else {
+                // Mute
+                video.muted = true;
+                button.classList.add('muted');
+                icon.textContent = '🔇';
+                text.textContent = 'UNMUTE';
+                
+                // Save preference
+                localStorage.setItem('menuAudioEnabled', 'false');
+            }
+        }
+        
+        // Load saved audio preference on page load
+        function loadAudioPreference() {
+            const audioEnabled = localStorage.getItem('menuAudioEnabled');
+            
+            // If user previously unmuted, unmute on load
+            if (audioEnabled === 'true') {
+                // Small delay to ensure video is loaded
+                setTimeout(() => {
+                    const video = document.getElementById('bg-video');
+                    const button = document.getElementById('audioToggle');
+                    const icon = document.getElementById('audioIcon');
+                    const text = document.getElementById('audioText');
+                    
+                    if (video) {
+                        video.muted = false;
+                        video.volume = 0.3;
+                        button.classList.remove('muted');
+                        icon.textContent = '🔊';
+                        text.textContent = 'MUTE';
+                    }
+                }, 500);
+            }
+        }
+
+        function handleMainMenuKeys(e) {
+            const buttons = document.querySelectorAll('.main-menu .menu-btn');
+            
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    e.preventDefault();
+                    currentMenuIndex = (currentMenuIndex - 1 + buttons.length) % buttons.length;
+                    highlightMainMenuButton(buttons[currentMenuIndex]);
+                    playSound('navigate');
+                    break;
+                    
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    e.preventDefault();
+                    currentMenuIndex = (currentMenuIndex + 1) % buttons.length;
+                    highlightMainMenuButton(buttons[currentMenuIndex]);
+                    playSound('navigate');
+                    break;
+                    
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    buttons[currentMenuIndex].click();
+                    break;
+            }
+        }
+
+        function handleCareerKeys(e) {
+            const chapterKey = `chapter${currentChapter}`;
+            const levels = levelData[chapterKey];
+            const levelButtons = document.querySelectorAll('.level-btn');
+            
+            switch(e.key) {
+                case 'Escape':
+                    e.preventDefault();
+                    closeCareer();
+                    playSound('back');
+                    break;
+                    
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    e.preventDefault();
+                    currentLevelIndex = Math.max(0, currentLevelIndex - 1);
+                    selectLevelByIndex(currentLevelIndex, levels);
+                    playSound('navigate');
+                    break;
+                    
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    e.preventDefault();
+                    currentLevelIndex = Math.min(levels.length - 1, currentLevelIndex + 1);
+                    selectLevelByIndex(currentLevelIndex, levels);
+                    playSound('navigate');
+                    break;
+                    
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    e.preventDefault();
+                    // Move up in grid (assuming 4 columns)
+                    const cols = Math.floor(document.querySelector('.level-grid').offsetWidth / 170);
+                    currentLevelIndex = Math.max(0, currentLevelIndex - cols);
+                    selectLevelByIndex(currentLevelIndex, levels);
+                    playSound('navigate');
+                    break;
+                    
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    e.preventDefault();
+                    // Move down in grid
+                    const columns = Math.floor(document.querySelector('.level-grid').offsetWidth / 170);
+                    currentLevelIndex = Math.min(levels.length - 1, currentLevelIndex + columns);
+                    selectLevelByIndex(currentLevelIndex, levels);
+                    playSound('navigate');
+                    break;
+                    
+                case 'Enter':
+                case ' ':
+                    e.preventDefault();
+                    if (selectedLevel) {
+                        launchMission();
+                    }
+                    break;
+                    
+                case '1':
+                    e.preventDefault();
+                    switchChapter(1);
+                    currentLevelIndex = 0;
+                    playSound('chapter');
+                    break;
+                    
+                case '2':
+                    e.preventDefault();
+                    switchChapter(2);
+                    currentLevelIndex = 0;
+                    playSound('chapter');
+                    break;
+                    
+                case '3':
+                    e.preventDefault();
+                    switchChapter(3);
+                    currentLevelIndex = 0;
+                    playSound('chapter');
+                    break;
+                    
+                case 'h':
+                case 'H':
+                    e.preventDefault();
+                    if (selectedLevel) {
+                        viewHighScores();
+                    }
+                    break;
+            }
+        }
+
+        function highlightMainMenuButton(button) {
+            // Remove existing highlights
+            document.querySelectorAll('.main-menu .menu-btn').forEach(btn => {
+                btn.style.transform = 'scale(1)';
+                btn.style.boxShadow = '';
+            });
+            
+            // Highlight selected button
+            button.style.transform = 'scale(1.05)';
+            button.style.boxShadow = '0 0 30px var(--theme-primary)';
+            button.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function selectLevelByIndex(index, levels) {
+            if (index >= 0 && index < levels.length) {
+                const level = levels[index];
+                selectLevel(level);
+                
+                // Visually highlight the level button
+                const levelButtons = document.querySelectorAll('.level-btn');
+                if (levelButtons[index]) {
+                    levelButtons[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        // Add sound effect stubs (you can add actual audio later)
+        function playSound(soundName) {
+            // SOUND IMPLEMENTATION:
+            // Uncomment and add your sound files to a 'sounds' folder
+             const audio = new Audio(`music/${soundName}.ogg`);
+             audio.volume = 0.3; // Adjust volume
+             audio.play().catch(e => console.log('Sound play failed:', e));
+            
+            // Sound types you might want:
+            // - hover.mp3 (subtle beep on button hover)
+            // - click.mp3 (confirmation sound)
+            // - navigate.mp3 (arrow key movement)
+            // - back.mp3 (going back/escape)
+            // - chapter.mp3 (chapter switch sound)
+            // - locked.mp3 (trying to access locked level)
+            // - select.mp3 (selecting a level)
+        }
+
+        // Add sound to all buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mouseenter', () => playSound('hover'));
+            btn.addEventListener('click', () => playSound('click'));
+        });
+
+        // Initialize main menu with first button highlighted
+        window.addEventListener('load', () => {
+            const firstButton = document.querySelector('.main-menu .menu-btn');
+            if (firstButton) {
+                highlightMainMenuButton(firstButton);
+            }
+            
+            // Load saved audio preference
+            loadAudioPreference();
+        });
+    </script>
+</body>
+</html>
